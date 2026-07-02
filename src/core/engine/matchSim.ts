@@ -1,0 +1,132 @@
+import { MATCH_SIM } from '../domain/constants';
+import type { MatchEvent, Tactic } from '../domain/types';
+import { pickWeighted } from './random';
+
+/**
+ * Minuten-für-Minute-Simulation (Kapitel 3.4 / 8.2).
+ *
+ * Pro Spielminute wird geprüft, ob ein Ereignis stattfindet (Basis 8 % für
+ * eine Chance). Bei einer Chance entscheidet das Stärkeverhältnis beider
+ * Teams über ein Tor: P(Tor) = Stärke A ÷ (Stärke A + Stärke B), mit einem
+ * kleinen Zufalls-Faktor. Offensive Taktik erhöht die Chancenhäufigkeit,
+ * senkt aber die eigene Abwehrstärke leicht (und umgekehrt).
+ */
+
+export interface SimTeam {
+  name: string;
+  /** Gesamtstärke: Summe der positionsgewichteten Overalls der Aufstellung */
+  strength: number;
+  tactic: Tactic;
+}
+
+export interface SimResult {
+  homeGoals: number;
+  awayGoals: number;
+  events: MatchEvent[];
+}
+
+function tacticAttack(strength: number, tactic: Tactic): number {
+  if (tactic === 'offensiv') return strength * (1 + MATCH_SIM.tacticModifier);
+  if (tactic === 'defensiv') return strength * (1 - MATCH_SIM.tacticModifier);
+  return strength;
+}
+
+function tacticDefense(strength: number, tactic: Tactic): number {
+  if (tactic === 'offensiv') return strength * (1 - MATCH_SIM.tacticModifier);
+  if (tactic === 'defensiv') return strength * (1 + MATCH_SIM.tacticModifier);
+  return strength;
+}
+
+function tacticChanceRate(tactic: Tactic): number {
+  const base = MATCH_SIM.chancePerMinute / 2; // pro Team die halbe Basisrate
+  if (tactic === 'offensiv') return base * (1 + MATCH_SIM.tacticChanceModifier);
+  if (tactic === 'defensiv') return base * (1 - MATCH_SIM.tacticChanceModifier);
+  return base;
+}
+
+const CHANCE_TEXTS = [
+  'Großchance! Der Abschluss geht knapp am Pfosten vorbei.',
+  'Gefährlicher Distanzschuss – der Torwart lenkt den Ball über die Latte.',
+  'Konter! Aber der letzte Pass ist zu ungenau.',
+  'Kopfball nach Flanke – knapp über das Tor.',
+  'Der Stürmer taucht frei vor dem Tor auf, scheitert aber am Torwart.',
+];
+
+const GOAL_TEXTS = [
+  'TOOOR! Trockener Abschluss ins lange Eck!',
+  'TOOOR! Kopfball nach einer Ecke – unhaltbar!',
+  'TOOOR! Traumkombination durch die Mitte, eiskalt vollendet!',
+  'TOOOR! Abgefälschter Schuss – der Torwart ist machtlos!',
+  'TOOOR! Konter wie aus dem Lehrbuch!',
+];
+
+const CORNER_TEXTS = ['Eckball – die Hereingabe wird geklärt.', 'Ecke von links, der Torwart fängt sicher.'];
+const FOUL_TEXTS = ['Hartes Einsteigen im Mittelfeld – Freistoß.', 'Taktisches Foul, der Schiedsrichter ermahnt.'];
+
+function pickText(texts: readonly string[]): string {
+  return texts[Math.floor(Math.random() * texts.length)];
+}
+
+export function simulateMatch(home: SimTeam, away: SimTeam): SimResult {
+  const events: MatchEvent[] = [];
+  let homeGoals = 0;
+  let awayGoals = 0;
+
+  events.push({ minute: 1, type: 'anpfiff', text: 'Anpfiff! Das Spiel läuft.' });
+
+  const homeChanceRate = tacticChanceRate(home.tactic);
+  const awayChanceRate = tacticChanceRate(away.tactic);
+
+  for (let minute = 1; minute <= 90; minute++) {
+    if (minute === 46) {
+      events.push({
+        minute: 45,
+        type: 'halbzeit',
+        text: `Halbzeit. Es steht ${homeGoals}:${awayGoals}.`,
+      });
+    }
+
+    const roll = Math.random();
+    if (roll < homeChanceRate + awayChanceRate) {
+      // Wer hat die Chance? Gewichtet nach (taktik-modifizierter) Chancenrate und Stärke
+      const attackerSide = pickWeighted<'home' | 'away'>([
+        { value: 'home', weight: homeChanceRate * home.strength },
+        { value: 'away', weight: awayChanceRate * away.strength },
+      ]);
+      const atk = attackerSide === 'home' ? home : away;
+      const def = attackerSide === 'home' ? away : home;
+
+      const atkStrength = tacticAttack(atk.strength, atk.tactic);
+      const defStrength = tacticDefense(def.strength, def.tactic);
+      const noise = (Math.random() * 2 - 1) * MATCH_SIM.goalNoise;
+      const goalProb = atkStrength / (atkStrength + defStrength) + noise;
+
+      if (Math.random() < goalProb) {
+        if (attackerSide === 'home') homeGoals++;
+        else awayGoals++;
+        events.push({
+          minute,
+          type: 'tor',
+          team: attackerSide,
+          text: `${pickText(GOAL_TEXTS)} (${atk.name}) – ${homeGoals}:${awayGoals}`,
+        });
+      } else {
+        events.push({ minute, type: 'chance', team: attackerSide, text: `${atk.name}: ${pickText(CHANCE_TEXTS)}` });
+      }
+    } else if (roll < homeChanceRate + awayChanceRate + MATCH_SIM.cornerPerMinute) {
+      const side = Math.random() < home.strength / (home.strength + away.strength) ? 'home' : 'away';
+      events.push({ minute, type: 'ecke', team: side, text: `${side === 'home' ? home.name : away.name}: ${pickText(CORNER_TEXTS)}` });
+    } else if (roll < homeChanceRate + awayChanceRate + MATCH_SIM.cornerPerMinute + MATCH_SIM.foulPerMinute) {
+      const side = Math.random() < 0.5 ? 'home' : 'away';
+      events.push({ minute, type: 'foul', team: side, text: pickText(FOUL_TEXTS) });
+    }
+  }
+
+  events.push({
+    minute: 90,
+    type: 'abpfiff',
+    text: `Abpfiff! Endstand ${homeGoals}:${awayGoals}.`,
+  });
+
+  return { homeGoals, awayGoals, events };
+}
