@@ -1,0 +1,392 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Alert,
+  Modal,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import MapView, { Circle, Marker, UrlTile, type LongPressEvent } from 'react-native-maps';
+import * as Location from 'expo-location';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { BALANCING } from '../../core/domain/constants';
+import type { Spot } from '../../core/domain/types';
+import { distanceMeters } from '../../core/services/geo';
+import { useSessionStore, type CheckInResult } from '../../state/sessionStore';
+import { useGameStore } from '../../state/gameStore';
+import { GKButton, Card, CoinBadge } from '../../ui/components';
+import { colors, font, radius, spacing } from '../../ui/theme';
+
+/**
+ * Kartenansicht (Kapitel 3.1): OSM-Tiles über react-native-maps, Plätze in
+ * der Nähe, Check-in/Check-out mit Geofencing und Cooldown. Nutzer können
+ * per Long-Press eigene Plätze vorschlagen/hinzufügen.
+ */
+
+const CHECKIN_ERROR_TEXT: Record<Exclude<CheckInResult, { ok: true }>['reason'], string> = {
+  permission: 'Standort-Berechtigung fehlt. Bitte in den Einstellungen erlauben.',
+  mocked: 'Simulierte GPS-Position erkannt – Check-in blockiert.',
+  too_far: 'Du bist zu weit vom Platz entfernt.',
+  cooldown: 'Dieser Platz ist noch im Cooldown.',
+  active_session: 'Du bist bereits an einem Platz eingecheckt.',
+  no_location: 'Standort konnte nicht ermittelt werden.',
+};
+
+function formatDuration(ms: number): string {
+  const totalSec = Math.floor(ms / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return `${min}:${String(sec).padStart(2, '0')}`;
+}
+
+export function MapScreen() {
+  const mapRef = useRef<MapView>(null);
+  const { spots, activeSession, osmLoading, osmError, hydrate, refreshOsmSpots, addUserSpot, checkIn, checkOut } =
+    useSessionStore();
+  const coins = useGameStore((s) => s.club?.coins ?? 0);
+
+  const [myPos, setMyPos] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [selectedSpotId, setSelectedSpotId] = useState<string | null>(null);
+  const [now, setNow] = useState(Date.now());
+  const [newSpotCoords, setNewSpotCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [newSpotName, setNewSpotName] = useState('');
+
+  const selectedSpot = useMemo(
+    () => spots.find((s) => s.id === selectedSpotId) ?? null,
+    [spots, selectedSpotId],
+  );
+  const activeSpot = useMemo(
+    () => spots.find((s) => s.id === activeSession?.spotId) ?? null,
+    [spots, activeSession],
+  );
+
+  // Sekunden-Ticker für Session-Timer und Cooldown-Anzeigen
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const locate = useCallback(async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') return;
+    try {
+      const pos = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+      setMyPos(coords);
+      mapRef.current?.animateToRegion({ ...coords, latitudeDelta: 0.03, longitudeDelta: 0.03 }, 600);
+      return coords;
+    } catch {
+      return undefined;
+    }
+  }, []);
+
+  useEffect(() => {
+    hydrate();
+    (async () => {
+      const coords = await locate();
+      // Beim ersten Öffnen automatisch Plätze aus OSM nachladen
+      if (coords) await refreshOsmSpots(coords.latitude, coords.longitude);
+    })();
+  }, [hydrate, locate, refreshOsmSpots]);
+
+  const onRefreshSpots = async () => {
+    const coords = myPos ?? (await locate());
+    if (!coords) {
+      Alert.alert('Kein Standort', 'Standort konnte nicht ermittelt werden.');
+      return;
+    }
+    const count = await refreshOsmSpots(coords.latitude, coords.longitude);
+    if (count > 0) {
+      Alert.alert('Plätze aktualisiert', `${count} Plätze aus OpenStreetMap geladen.`);
+    }
+  };
+
+  const onCheckIn = async (spot: Spot) => {
+    const result = await checkIn(spot);
+    if (!result.ok) {
+      const extra = result.detail ? ` (${result.detail})` : '';
+      Alert.alert('Check-in nicht möglich', CHECKIN_ERROR_TEXT[result.reason] + extra);
+    }
+  };
+
+  const onCheckOut = async () => {
+    const result = await checkOut();
+    if (result.ok) {
+      Alert.alert(
+        'Session beendet! 🎉',
+        `${result.durationMinutes} Minuten am Platz.\n+${result.coins} Coins und 1 Pack erhalten!`,
+      );
+    } else if (result.reason === 'too_short') {
+      Alert.alert(
+        'Zu kurz',
+        `Nur ${result.durationMinutes ?? 0} Minuten – ab ${BALANCING.minSessionMs / 60000} Minuten gibt es eine Belohnung. Diesmal leider nichts.`,
+      );
+    }
+  };
+
+  const onLongPress = (e: LongPressEvent) => {
+    if (activeSession) return;
+    setNewSpotCoords(e.nativeEvent.coordinate);
+    setNewSpotName('');
+  };
+
+  const confirmNewSpot = async () => {
+    if (!newSpotCoords) return;
+    await addUserSpot(newSpotName, newSpotCoords.latitude, newSpotCoords.longitude);
+    setNewSpotCoords(null);
+  };
+
+  const sessionMs = activeSession ? now - activeSession.startTime : 0;
+  const rewardReached = sessionMs >= BALANCING.minSessionMs;
+  const fullReached = sessionMs >= BALANCING.fullSessionMs;
+
+  const spotDistance =
+    selectedSpot && myPos
+      ? Math.round(
+          distanceMeters(myPos.latitude, myPos.longitude, selectedSpot.latitude, selectedSpot.longitude),
+        )
+      : null;
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Karte</Text>
+        <CoinBadge coins={coins} />
+      </View>
+
+      <View style={styles.mapWrap}>
+        <MapView
+          ref={mapRef}
+          style={StyleSheet.absoluteFill}
+          mapType="none"
+          initialRegion={{
+            latitude: 52.52,
+            longitude: 13.405,
+            latitudeDelta: 0.05,
+            longitudeDelta: 0.05,
+          }}
+          showsUserLocation
+          onLongPress={onLongPress}
+          onPress={() => setSelectedSpotId(null)}
+          toolbarEnabled={false}
+        >
+          <UrlTile
+            urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+            maximumZ={19}
+            shouldReplaceMapContent
+          />
+          {spots.map((spot) => {
+            const onCooldown = spot.cooldownUntil > now;
+            return (
+              <Marker
+                key={spot.id}
+                coordinate={{ latitude: spot.latitude, longitude: spot.longitude }}
+                pinColor={onCooldown ? 'gray' : spot.source === 'user' ? 'orange' : 'green'}
+                onPress={() => setSelectedSpotId(spot.id)}
+              />
+            );
+          })}
+          {selectedSpot && (
+            <Circle
+              center={{ latitude: selectedSpot.latitude, longitude: selectedSpot.longitude }}
+              radius={selectedSpot.radius}
+              strokeColor={colors.pitch}
+              fillColor="rgba(46,125,50,0.15)"
+            />
+          )}
+        </MapView>
+        {/* ODbL-Attribution (Kapitel 9.2) */}
+        <Text style={styles.attribution}>© OpenStreetMap-Mitwirkende</Text>
+        <View style={styles.mapButtons}>
+          <GKButton title="📍" variant="ghost" style={styles.roundBtn} onPress={locate} />
+          <GKButton
+            title={osmLoading ? '…' : '🔄'}
+            variant="ghost"
+            style={styles.roundBtn}
+            onPress={onRefreshSpots}
+          />
+        </View>
+      </View>
+
+      {osmError && !activeSession && !selectedSpot ? (
+        <Card style={styles.bottomCard}>
+          <Text style={styles.errorText}>{osmError}</Text>
+        </Card>
+      ) : null}
+
+      {activeSession && (
+        <Card style={styles.bottomCard}>
+          <Text style={styles.spotName}>⏱️ Session läuft: {activeSpot?.name ?? 'Platz'}</Text>
+          <Text style={styles.sessionTimer}>{formatDuration(sessionMs)}</Text>
+          <Text style={styles.sessionHint}>
+            {fullReached
+              ? 'Volle Belohnung erreicht! 🏆'
+              : rewardReached
+                ? `Belohnung gesichert – volle Belohnung bei ${BALANCING.fullSessionMs / 60000} Min.`
+                : `Mindestens ${BALANCING.minSessionMs / 60000} Min. bleiben für eine Belohnung.`}
+          </Text>
+          <GKButton title="Auschecken" variant="secondary" onPress={onCheckOut} />
+        </Card>
+      )}
+
+      {!activeSession && selectedSpot && (
+        <Card style={styles.bottomCard}>
+          <Text style={styles.spotName}>
+            {selectedSpot.source === 'user' ? '📌' : '⚽'} {selectedSpot.name}
+          </Text>
+          <Text style={styles.spotMeta}>
+            {spotDistance !== null ? `${spotDistance} m entfernt · ` : ''}
+            Check-in-Radius {Math.round(selectedSpot.radius)} m
+          </Text>
+          {selectedSpot.cooldownUntil > now ? (
+            <Text style={styles.cooldownText}>
+              Cooldown: wieder verfügbar in{' '}
+              {Math.ceil((selectedSpot.cooldownUntil - now) / 60000)} Min.
+            </Text>
+          ) : (
+            <GKButton title="Einchecken" onPress={() => onCheckIn(selectedSpot)} />
+          )}
+        </Card>
+      )}
+
+      {!activeSession && !selectedSpot && !osmError && (
+        <Card style={styles.bottomCard}>
+          <Text style={styles.spotMeta}>
+            Tippe einen Platz an, um einzuchecken. Halte die Karte gedrückt, um einen neuen
+            Platz vorzuschlagen.
+          </Text>
+        </Card>
+      )}
+
+      <Modal visible={newSpotCoords !== null} transparent animationType="fade">
+        <View style={styles.modalBackdrop}>
+          <Card style={styles.modalCard}>
+            <Text style={styles.spotName}>Neuen Platz hinzufügen</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Name des Platzes"
+              placeholderTextColor={colors.inkSoft}
+              value={newSpotName}
+              onChangeText={setNewSpotName}
+              maxLength={40}
+            />
+            <View style={styles.modalButtons}>
+              <GKButton
+                title="Abbrechen"
+                variant="ghost"
+                style={{ flex: 1 }}
+                onPress={() => setNewSpotCoords(null)}
+              />
+              <GKButton title="Hinzufügen" style={{ flex: 1 }} onPress={confirmNewSpot} />
+            </View>
+          </Card>
+        </View>
+      </Modal>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  headerTitle: {
+    fontSize: font.h1,
+    fontWeight: '900',
+    color: colors.pitchDark,
+  },
+  mapWrap: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  attribution: {
+    position: 'absolute',
+    bottom: 4,
+    left: 6,
+    fontSize: 10,
+    color: colors.ink,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    paddingHorizontal: 4,
+    borderRadius: 4,
+  },
+  mapButtons: {
+    position: 'absolute',
+    right: spacing.sm,
+    top: spacing.sm,
+    gap: spacing.sm,
+  },
+  roundBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: radius.round,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+  },
+  bottomCard: {
+    margin: spacing.sm,
+  },
+  spotName: {
+    fontSize: font.h2,
+    fontWeight: '800',
+    color: colors.ink,
+    marginBottom: 4,
+  },
+  spotMeta: {
+    fontSize: font.small,
+    color: colors.inkSoft,
+    marginBottom: spacing.sm,
+  },
+  cooldownText: {
+    fontSize: font.body,
+    fontWeight: '700',
+    color: colors.accentDark,
+  },
+  sessionTimer: {
+    fontSize: 40,
+    fontWeight: '900',
+    color: colors.pitchDark,
+    textAlign: 'center',
+  },
+  sessionHint: {
+    fontSize: font.small,
+    color: colors.inkSoft,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+  },
+  errorText: {
+    color: colors.danger,
+    fontSize: font.small,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  modalCard: {},
+  input: {
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.sm,
+    padding: spacing.sm,
+    marginVertical: spacing.sm,
+    color: colors.ink,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+});
