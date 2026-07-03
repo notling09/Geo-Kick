@@ -22,6 +22,23 @@ export async function getActiveSession(): Promise<Session | null> {
   return row ? toSession(row) : null;
 }
 
+/**
+ * Verwaiste offene Sessions schließen (entstehen z. B. durch App-Kill oder
+ * Dev-Reload während einer aktiven Session). Sie werden ohne Belohnung
+ * beendet (endTime = startTime), damit nie mehr als eine Session aktiv ist.
+ */
+export async function voidOrphanOpenSessions(keepId?: number): Promise<void> {
+  const db = await getDb();
+  if (keepId !== undefined) {
+    await db.runAsync(
+      'UPDATE sessions SET endTime = startTime WHERE endTime IS NULL AND id != ?',
+      keepId,
+    );
+  } else {
+    await db.runAsync('UPDATE sessions SET endTime = startTime WHERE endTime IS NULL');
+  }
+}
+
 export async function startSession(spotId: string, startTime: number): Promise<number> {
   const db = await getDb();
   const res = await db.runAsync(
@@ -61,7 +78,7 @@ export async function getVisitedSpots(): Promise<VisitedSpot[]> {
             MAX(s.endTime) AS lastVisit,
             CAST(ROUND(SUM(s.endTime - s.startTime) / 60000.0) AS INTEGER) AS totalMinutes
      FROM sessions s JOIN spots sp ON sp.id = s.spotId
-     WHERE s.endTime IS NOT NULL
+     WHERE s.endTime IS NOT NULL AND s.endTime > s.startTime
      GROUP BY s.spotId
      ORDER BY lastVisit DESC`,
   );
@@ -86,7 +103,7 @@ export async function getSessionStats(): Promise<SessionStats> {
             COALESCE(SUM(coins), 0) AS totalCoins,
             COUNT(DISTINCT spotId) AS distinctSpots,
             COALESCE(SUM(endTime - startTime), 0) AS totalMs
-     FROM sessions WHERE endTime IS NOT NULL`,
+     FROM sessions WHERE endTime IS NOT NULL AND endTime > startTime`,
   );
   return {
     totalSessions: row?.totalSessions ?? 0,

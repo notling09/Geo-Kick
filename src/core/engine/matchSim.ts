@@ -78,6 +78,8 @@ function pickText(texts: readonly string[]): string {
 
 /** Positions-Gewichte: wer erzielt Tore/hat Chancen (Stürmer am ehesten). */
 const SCORER_WEIGHTS: Record<Position, number> = { ST: 5, MF: 3, ABW: 1.2, TW: 0.1 };
+/** Positions-Gewichte für Vorlagen (Mittelfeld am ehesten). */
+const ASSIST_WEIGHTS: Record<Position, number> = { ST: 2.5, MF: 5, ABW: 1.5, TW: 0.2 };
 
 function pickPlayerName(team: SimTeam, weights?: Record<Position, number>): string {
   if (team.roster && team.roster.length > 0) {
@@ -131,11 +133,26 @@ export function simulateMatch(home: SimTeam, away: SimTeam): SimResult {
         if (attackerSide === 'home') homeGoals++;
         else awayGoals++;
         const scorer = pickPlayerName(atk, SCORER_WEIGHTS);
+        // ~70 % der Tore mit Vorlage – Vorlagengeber ≠ Torschütze
+        let assist: string | undefined;
+        if (Math.random() < 0.7) {
+          for (let attempt = 0; attempt < 5; attempt++) {
+            const candidate = pickPlayerName(atk, ASSIST_WEIGHTS);
+            if (candidate !== scorer) {
+              assist = candidate;
+              break;
+            }
+          }
+        }
         events.push({
           minute,
           type: 'tor',
           team: attackerSide,
-          text: `GOAL! ${scorer} (${atk.name}) ${pickText(GOAL_TEXTS)} ${homeGoals}:${awayGoals}`,
+          player: scorer,
+          assist,
+          text:
+            `GOAL! ${scorer} (${atk.name}) ${pickText(GOAL_TEXTS)} ${homeGoals}:${awayGoals}` +
+            (assist ? ` (assist: ${assist})` : ''),
         });
       } else {
         const player = pickPlayerName(atk, SCORER_WEIGHTS);

@@ -91,6 +91,10 @@ export interface MatchEvent {
   /** 'home' | 'away' – bei neutralen Events (Anpfiff etc.) undefined */
   team?: 'home' | 'away';
   text: string;
+  /** Torschütze (bei type 'tor'), für die Topscorer-Tabelle */
+  player?: string;
+  /** Vorlagengeber (bei type 'tor'), für die Assist-Tabelle */
+  assist?: string;
 }
 
 export interface Match {

@@ -69,6 +69,36 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
     [matches],
   );
 
+  // Topscorer/Assists der Saison aus den strukturierten Tor-Events aggregieren
+  const { topScorers, topAssists } = useMemo(() => {
+    const goals = new Map<string, { player: string; clubId: string; count: number }>();
+    const assists = new Map<string, { player: string; clubId: string; count: number }>();
+    const bump = (
+      map: Map<string, { player: string; clubId: string; count: number }>,
+      player: string,
+      clubId: string,
+    ) => {
+      const key = `${player}|${clubId}`;
+      const entry = map.get(key) ?? { player, clubId, count: 0 };
+      entry.count++;
+      map.set(key, entry);
+    };
+    matches
+      .filter((m) => m.played)
+      .forEach((m) => {
+        m.events
+          .filter((e) => e.type === 'tor' && e.team)
+          .forEach((e) => {
+            const clubId = e.team === 'home' ? m.homeId : m.awayId;
+            if (e.player) bump(goals, e.player, clubId);
+            if (e.assist) bump(assists, e.assist, clubId);
+          });
+      });
+    const top = (map: typeof goals) =>
+      [...map.values()].sort((a, b) => b.count - a.count || a.player.localeCompare(b.player)).slice(0, 5);
+    return { topScorers: top(goals), topAssists: top(assists) };
+  }, [matches]);
+
   // Spielplan: angezeigte Runde (Default = aktueller Spieltag)
   const displayedRound = fixtureRound ?? Math.min(round, LEAGUE.roundsPerSeason);
   const roundFixtures = useMemo(
@@ -194,6 +224,39 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
             Top {LEAGUE.promotionSpots}: promotion · bottom {LEAGUE.relegationSpots}: relegation
           </Text>
         </Card>
+
+        {(topScorers.length > 0 || topAssists.length > 0) && (
+          <>
+            <SectionTitle>Top scorers</SectionTitle>
+            <Card style={{ marginBottom: spacing.sm }}>
+              {topScorers.map((s, i) => (
+                <View key={`${s.player}|${s.clubId}`} style={styles.scorerRow}>
+                  <Text style={[styles.td, styles.colPos]}>{i + 1}</Text>
+                  <Text
+                    style={[styles.td, styles.colClub, s.clubId === USER_CLUB_ID && styles.userText]}
+                    numberOfLines={1}
+                  >
+                    {s.player} · {clubName(s.clubId)}
+                  </Text>
+                  <Text style={[styles.td, styles.colNum, styles.points]}>{s.count}</Text>
+                </View>
+              ))}
+              {topAssists.length > 0 && <Text style={styles.assistHeader}>Most assists</Text>}
+              {topAssists.map((s, i) => (
+                <View key={`${s.player}|${s.clubId}`} style={styles.scorerRow}>
+                  <Text style={[styles.td, styles.colPos]}>{i + 1}</Text>
+                  <Text
+                    style={[styles.td, styles.colClub, s.clubId === USER_CLUB_ID && styles.userText]}
+                    numberOfLines={1}
+                  >
+                    {s.player} · {clubName(s.clubId)}
+                  </Text>
+                  <Text style={[styles.td, styles.colNum, styles.points]}>{s.count}</Text>
+                </View>
+              ))}
+            </Card>
+          </>
+        )}
 
         <SectionTitle>Fixtures</SectionTitle>
         <Card>
@@ -421,6 +484,20 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: colors.inkSoft,
     marginTop: spacing.sm,
+  },
+  scorerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 5,
+  },
+  assistHeader: {
+    fontWeight: '900',
+    color: colors.inkSoft,
+    fontSize: font.small,
+    marginTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+    paddingTop: spacing.sm,
   },
   roundPicker: {
     marginBottom: spacing.sm,

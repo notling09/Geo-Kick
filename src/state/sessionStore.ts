@@ -70,9 +70,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   osmError: null,
 
   hydrate: async () => {
+    const activeSession = await sessionRepo.getActiveSession();
+    // Alle anderen offenen Sessions sind verwaist (App-Kill/Reload) → schließen
+    await sessionRepo.voidOrphanOpenSessions(activeSession?.id);
     set({
       spots: await spotRepo.getSpots(),
-      activeSession: await sessionRepo.getActiveSession(),
+      activeSession,
     });
   },
 
@@ -120,6 +123,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   checkIn: async (spot) => {
     if (get().activeSession) return { ok: false, reason: 'active_session' };
+    // Sicherheitsnetz: keine verwaisten offenen Sessions in der DB lassen
+    await sessionRepo.voidOrphanOpenSessions();
     if (spot.cooldownUntil > Date.now()) {
       const mins = Math.ceil((spot.cooldownUntil - Date.now()) / 60000);
       return { ok: false, reason: 'cooldown', detail: `${mins} Min.` };
@@ -154,6 +159,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const durationMinutes = Math.floor(duration / 60000);
 
     await sessionRepo.finishSession(session.id, now, reward.coins, reward.pack);
+    await sessionRepo.voidOrphanOpenSessions();
     set({ activeSession: null });
 
     if (reward.coins === 0) {

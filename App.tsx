@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { LogBox } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -7,6 +8,12 @@ import { LoadingScreen } from './src/features/start/LoadingScreen';
 import { useGameStore } from './src/state/gameStore';
 import { useLeagueStore } from './src/state/leagueStore';
 import { useSessionStore } from './src/state/sessionStore';
+
+// Bekannte, harmlose Warnungen nicht als gelbes LogBox-Banner anzeigen
+// (im Metro-Terminal bleiben sie sichtbar):
+// - MapLibre meldet Geometrie-Warnungen aus den OpenFreeMap-Kartendaten
+// - Overpass-Fehlschläge werden in der Karte selbst behandelt (Cache + Alert)
+LogBox.ignoreLogs([/MapLibre Native/, /\[overpass\]/]);
 
 /**
  * App-Start-Flow (Kapitel 2.3):
