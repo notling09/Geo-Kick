@@ -16,7 +16,6 @@ import {
   UserLocation,
   type CameraRef,
 } from '@maplibre/maplibre-react-native';
-import type { StyleSpecification } from '@maplibre/maplibre-react-native';
 import * as Location from 'expo-location';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BALANCING } from '../../core/domain/constants';
@@ -29,25 +28,17 @@ import { IconLocate, IconPin, IconRefresh } from '../../ui/icons';
 import { colors, font, radius, spacing } from '../../ui/theme';
 
 /**
- * Map view (chapter 3.1): OSM raster tiles rendered with MapLibre - no API
+ * Map view (chapter 3.1): OpenStreetMap data rendered with MapLibre - no API
  * key needed (the Google Maps SDK refuses to render anything without a valid
  * key, which is why react-native-maps was replaced). Long-press the map to
  * suggest/add a pitch that is missing from the map data.
+ *
+ * Tiles: OpenFreeMap (openfreemap.org) - free vector tiles without key or
+ * rate limits, explicitly meant for apps. tile.openstreetmap.org is not
+ * intended for app traffic per the OSM tile usage policy and resets
+ * connections ("stream was reset: CANCEL").
  */
-
-const OSM_STYLE: StyleSpecification = {
-  version: 8,
-  sources: {
-    osm: {
-      type: 'raster',
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      maxzoom: 19,
-      attribution: '© OpenStreetMap contributors',
-    },
-  },
-  layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
-};
+const MAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
 
 const CHECKIN_ERROR_TEXT: Record<Exclude<CheckInResult, { ok: true }>['reason'], string> = {
   permission: 'Location permission missing. Please allow it in the settings.',
@@ -189,7 +180,7 @@ export function MapScreen() {
       <View style={styles.mapWrap}>
         <LibreMap
           style={StyleSheet.absoluteFill}
-          mapStyle={OSM_STYLE}
+          mapStyle={MAP_STYLE_URL}
           attribution={false}
           logo={false}
           onLongPress={(e) => onLongPress(e.nativeEvent.lngLat)}
@@ -241,7 +232,7 @@ export function MapScreen() {
           })}
         </LibreMap>
         {/* ODbL attribution (chapter 9.2) */}
-        <Text style={styles.attribution}>© OpenStreetMap contributors</Text>
+        <Text style={styles.attribution}>© OpenStreetMap contributors · OpenFreeMap</Text>
         <View style={styles.mapButtons}>
           <IconCircleButton onPress={locate}>
             <IconLocate size={24} color={colors.ink} />

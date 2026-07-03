@@ -23,7 +23,12 @@ async function postWithTimeout(url: string, body: string): Promise<Response> {
   try {
     return await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        // Overpass-/OSM-Policy: Anfragen sollen die App identifizieren
+        'User-Agent': 'Geo-Kick/1.0 (offline football game; MVP dev build)',
+        Accept: 'application/json',
+      },
       body,
       signal: controller.signal,
     });
