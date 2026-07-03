@@ -9,6 +9,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { colors, font, radius, spacing } from './theme';
+import { IconCoin } from './icons';
 
 /** Kleine wiederverwendbare UI-Bausteine im Comic-Look. */
 
@@ -58,8 +59,27 @@ export function SectionTitle({ children }: { children: React.ReactNode }) {
 export function CoinBadge({ coins }: { coins: number }) {
   return (
     <View style={styles.coinBadge}>
-      <Text style={styles.coinText}>🪙 {coins}</Text>
+      <IconCoin size={16} />
+      <Text style={styles.coinText}>{coins}</Text>
     </View>
+  );
+}
+
+/** Round icon-only button (map controls etc.). */
+export function IconCircleButton({
+  onPress,
+  children,
+}: {
+  onPress: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.iconCircle, { opacity: pressed ? 0.7 : 1 }]}
+    >
+      {children}
+    </Pressable>
   );
 }
 
@@ -100,9 +120,22 @@ const styles = StyleSheet.create({
     borderRadius: radius.round,
     paddingHorizontal: spacing.md,
     paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   coinText: {
     fontWeight: '800',
     color: colors.ink,
+  },
+  iconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: radius.round,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderWidth: 1,
+    borderColor: colors.line,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

@@ -1,26 +1,12 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { POSITION_LABEL, RARITY_COLOR, RARITY_LABEL } from '../core/domain/constants';
-import type { OwnedPlayer, PoolPlayer } from '../core/domain/types';
+import { POSITION_SHORT, RARITY_COLOR, RARITY_LABEL } from '../core/domain/constants';
+import type { OwnedPlayer } from '../core/domain/types';
 import { effectiveOverall } from '../core/engine/playerGen';
+import { PlayerAvatar } from './PlayerAvatar';
 import { colors, font, radius, spacing } from './theme';
 
-/**
- * Spieler-Karte mit Comic-Avatar (Kapitel 3.6): überzeichneter Emoji-Avatar
- * passend zu Position und Seltenheit, Rahmenfarbe = Seltenheitsstufe.
- */
-
-const POSITION_AVATAR: Record<string, string> = {
-  TW: '🧤',
-  ABW: '🛡️',
-  MF: '🎯',
-  ST: '🚀',
-};
-
-export function avatarFor(pool: PoolPlayer): string {
-  if (pool.rarity === 'legendaer') return '🌟';
-  return POSITION_AVATAR[pool.position] ?? '⚽';
-}
+/** Player list card with the drawn cartoon avatar; frame color = rarity. */
 
 interface Props {
   player: OwnedPlayer;
@@ -44,15 +30,15 @@ export function PlayerCard({ player, onPress, compact, badge }: Props) {
         compact && styles.compact,
       ]}
     >
-      <View style={[styles.avatar, { backgroundColor: rarityColor }]}>
-        <Text style={styles.avatarEmoji}>{avatarFor(pool)}</Text>
+      <View style={styles.avatar}>
+        <PlayerAvatar player={pool} size={46} />
       </View>
       <View style={styles.info}>
         <Text style={styles.name} numberOfLines={1}>
           {pool.name}
         </Text>
         <Text style={styles.meta}>
-          {POSITION_LABEL[pool.position]} · {RARITY_LABEL[pool.rarity]} · Lv. {level}
+          {POSITION_SHORT[pool.position]} · {RARITY_LABEL[pool.rarity]} · Lv. {level}
         </Text>
       </View>
       <View style={styles.right}>
@@ -78,15 +64,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   avatar: {
-    width: 46,
-    height: 46,
-    borderRadius: radius.round,
-    alignItems: 'center',
-    justifyContent: 'center',
     marginRight: spacing.sm,
-  },
-  avatarEmoji: {
-    fontSize: 24,
   },
   info: {
     flex: 1,
