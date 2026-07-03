@@ -83,11 +83,13 @@ export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
         <FormationPitch
           formation={formation}
           lineup={lineupList}
-          onSlotPress={(slot) => setPickSlot(slot)}
+          onPlayerPress={(playerId) => navigation.navigate('PlayerDetail', { playerId })}
+          onSwapPress={(slot) => setPickSlot(slot)}
         />
         <Text style={styles.pitchHint}>
-          Tap a player on the pitch to change that slot. The badge shows the player's
-          overall rating; an orange mark means he is playing out of position.
+          Tap a player to see his attributes - just like on the bench. Use the blue
+          swap button on a player to change that slot; an orange mark means he is
+          playing out of position.
         </Text>
 
         <Text style={styles.benchTitle}>Bench ({bench.length})</Text>

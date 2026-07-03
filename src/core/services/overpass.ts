@@ -68,6 +68,7 @@ export async function fetchNearbyPitches(
     } catch (e) {
       lastError = e;
     }
+    if (lastError) console.warn(`[overpass] ${url} failed:`, String(lastError));
   }
   if (!json) {
     throw lastError ?? new Error('Overpass unreachable');

@@ -24,7 +24,7 @@ aufsteigst. Komplett offline, kein Backend, kein Echtgeld.
 ## Technischer Stack
 
 React Native (Expo SDK 57) · TypeScript · React Navigation · Zustand · expo-sqlite ·
-expo-location · react-native-maps mit OSM-Tiles
+expo-location · MapLibre (@maplibre/maplibre-react-native) mit OSM-Raster-Tiles
 
 Architektur: Feature-Ordner (`src/features/*`), Engine/Domain (`src/core/*`),
 Repository-Schicht über SQLite (`src/core/db/repositories/*`) – so kann später ein
@@ -62,7 +62,7 @@ npx expo start
 und die installierte Geo-Kick-App öffnen (verbindet sich mit dem Dev-Server; Handy und
 PC müssen dafür im selben WLAN sein, oder weiterhin per USB mit `npx expo run:android`).
 
-> **Hinweis Expo Go:** Die App läuft **nicht** in Expo Go, da react-native-maps einen
+> **Hinweis Expo Go:** Die App läuft **nicht** in Expo Go, da MapLibre einen
 > Development Build benötigt – deshalb `expo run:android` statt QR-Code.
 
 ### Troubleshooting Build
@@ -74,10 +74,10 @@ PC müssen dafür im selben WLAN sein, oder weiterhin per USB mit `npx expo run:
   `%LOCALAPPDATA%\Android\Sdk` setzen (macht Expo sonst über
   `android/local.properties` selbst).
 
-> **Hinweis Karte:** Die Basiskarte wird komplett über OpenStreetMap-Tiles gerendert
-> (`mapType="none"` + UrlTile), es ist kein Google-Maps-API-Key nötig. Sollte die Karte
-> auf einem Gerät leer bleiben, kann in `app.json` unter
-> `android.config.googleMaps.apiKey` ein (kostenloser) Google-Maps-Key eingetragen werden.
+> **Hinweis Karte:** Die Karte wird mit MapLibre und OpenStreetMap-Raster-Tiles
+> gerendert – komplett ohne API-Key. (Der frühere Ansatz react-native-maps + UrlTile
+> scheiterte auf Android daran, dass das Google-Maps-SDK ohne gültigen API-Key gar
+> nichts rendert – auch keine Tile-Overlays.)
 
 ## Entwicklung
 

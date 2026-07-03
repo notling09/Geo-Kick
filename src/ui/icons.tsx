@@ -222,3 +222,14 @@ export function IconPin({ color = '#E65100', size = 24 }: IconProps) {
     </Svg>
   );
 }
+
+export function IconSwap({ color = '#1A2E1A', size = 24 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Polyline points="16,4 20,8 16,12" stroke={color} {...S} />
+      <Line x1={20} y1={8} x2={5} y2={8} stroke={color} {...S} />
+      <Polyline points="8,12 4,16 8,20" stroke={color} {...S} />
+      <Line x1={4} y1={16} x2={19} y2={16} stroke={color} {...S} />
+    </Svg>
+  );
+}

@@ -7,23 +7,47 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import MapView, { Circle, Marker, UrlTile, type LongPressEvent } from 'react-native-maps';
+import {
+  Camera,
+  GeoJSONSource,
+  Layer,
+  Map as LibreMap,
+  Marker,
+  UserLocation,
+  type CameraRef,
+} from '@maplibre/maplibre-react-native';
+import type { StyleSpecification } from '@maplibre/maplibre-react-native';
 import * as Location from 'expo-location';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BALANCING } from '../../core/domain/constants';
 import type { Spot } from '../../core/domain/types';
-import { distanceMeters } from '../../core/services/geo';
+import { circlePolygon, distanceMeters } from '../../core/services/geo';
 import { useSessionStore, type CheckInResult } from '../../state/sessionStore';
 import { useGameStore } from '../../state/gameStore';
 import { GKButton, Card, CoinBadge, IconCircleButton } from '../../ui/components';
-import { IconLocate, IconRefresh } from '../../ui/icons';
+import { IconLocate, IconPin, IconRefresh } from '../../ui/icons';
 import { colors, font, radius, spacing } from '../../ui/theme';
 
 /**
- * Map view (chapter 3.1): OSM tiles via react-native-maps, nearby pitches,
- * check-in/check-out with geofencing and cooldown. Long-press the map to
+ * Map view (chapter 3.1): OSM raster tiles rendered with MapLibre - no API
+ * key needed (the Google Maps SDK refuses to render anything without a valid
+ * key, which is why react-native-maps was replaced). Long-press the map to
  * suggest/add a pitch that is missing from the map data.
  */
+
+const OSM_STYLE: StyleSpecification = {
+  version: 8,
+  sources: {
+    osm: {
+      type: 'raster',
+      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      maxzoom: 19,
+      attribution: '© OpenStreetMap contributors',
+    },
+  },
+  layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
+};
 
 const CHECKIN_ERROR_TEXT: Record<Exclude<CheckInResult, { ok: true }>['reason'], string> = {
   permission: 'Location permission missing. Please allow it in the settings.',
@@ -42,7 +66,7 @@ function formatDuration(ms: number): string {
 }
 
 export function MapScreen() {
-  const mapRef = useRef<MapView>(null);
+  const cameraRef = useRef<CameraRef>(null);
   const { spots, activeSession, osmLoading, osmError, hydrate, refreshOsmSpots, addUserSpot, checkIn, checkOut } =
     useSessionStore();
   const coins = useGameStore((s) => s.club?.coins ?? 0);
@@ -77,7 +101,11 @@ export function MapScreen() {
       });
       const coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
       setMyPos(coords);
-      mapRef.current?.animateToRegion({ ...coords, latitudeDelta: 0.03, longitudeDelta: 0.03 }, 600);
+      cameraRef.current?.easeTo({
+        center: [coords.longitude, coords.latitude],
+        zoom: 14,
+        duration: 600,
+      });
       return coords;
     } catch {
       return undefined;
@@ -128,9 +156,9 @@ export function MapScreen() {
     }
   };
 
-  const onLongPress = (e: LongPressEvent) => {
+  const onLongPress = (lngLat: [number, number]) => {
     if (activeSession) return;
-    setNewSpotCoords(e.nativeEvent.coordinate);
+    setNewSpotCoords({ latitude: lngLat[1], longitude: lngLat[0] });
     setNewSpotName('');
   };
 
@@ -159,46 +187,59 @@ export function MapScreen() {
       </View>
 
       <View style={styles.mapWrap}>
-        <MapView
-          ref={mapRef}
+        <LibreMap
           style={StyleSheet.absoluteFill}
-          mapType="none"
-          initialRegion={{
-            latitude: 52.52,
-            longitude: 13.405,
-            latitudeDelta: 0.05,
-            longitudeDelta: 0.05,
-          }}
-          showsUserLocation
-          onLongPress={onLongPress}
+          mapStyle={OSM_STYLE}
+          attribution={false}
+          logo={false}
+          onLongPress={(e) => onLongPress(e.nativeEvent.lngLat)}
           onPress={() => setSelectedSpotId(null)}
-          toolbarEnabled={false}
         >
-          <UrlTile
-            urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-            maximumZ={19}
-            shouldReplaceMapContent
+          <Camera
+            ref={cameraRef}
+            initialViewState={{ center: [13.405, 52.52], zoom: 12 }}
+            maxZoom={19}
           />
+          <UserLocation accuracy />
+          {selectedSpot && (
+            <GeoJSONSource
+              id="selected-radius"
+              data={circlePolygon(selectedSpot.latitude, selectedSpot.longitude, selectedSpot.radius)}
+            >
+              <Layer
+                id="selected-radius-fill"
+                type="fill"
+                paint={{ 'fill-color': colors.pitch, 'fill-opacity': 0.15 }}
+              />
+              <Layer
+                id="selected-radius-line"
+                type="line"
+                paint={{ 'line-color': colors.pitch, 'line-width': 2 }}
+              />
+            </GeoJSONSource>
+          )}
           {spots.map((spot) => {
             const onCooldown = spot.cooldownUntil > now;
+            const pinColor = onCooldown
+              ? '#9BA6B2'
+              : spot.source === 'user'
+                ? colors.accent
+                : colors.pitch;
             return (
               <Marker
                 key={spot.id}
-                coordinate={{ latitude: spot.latitude, longitude: spot.longitude }}
-                pinColor={onCooldown ? 'gray' : spot.source === 'user' ? 'orange' : 'green'}
+                id={spot.id}
+                lngLat={[spot.longitude, spot.latitude]}
+                anchor="bottom"
                 onPress={() => setSelectedSpotId(spot.id)}
-              />
+              >
+                <View style={styles.pinWrap}>
+                  <IconPin size={selectedSpotId === spot.id ? 40 : 32} color={pinColor} />
+                </View>
+              </Marker>
             );
           })}
-          {selectedSpot && (
-            <Circle
-              center={{ latitude: selectedSpot.latitude, longitude: selectedSpot.longitude }}
-              radius={selectedSpot.radius}
-              strokeColor={colors.pitch}
-              fillColor="rgba(46,125,50,0.15)"
-            />
-          )}
-        </MapView>
+        </LibreMap>
         {/* ODbL attribution (chapter 9.2) */}
         <Text style={styles.attribution}>© OpenStreetMap contributors</Text>
         <View style={styles.mapButtons}>
@@ -317,6 +358,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.7)',
     paddingHorizontal: 4,
     borderRadius: 4,
+  },
+  pinWrap: {
+    alignItems: 'center',
+    justifyContent: 'flex-end',
   },
   mapButtons: {
     position: 'absolute',

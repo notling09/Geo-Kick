@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { FORMATIONS, POSITION_SHORT } from '../core/domain/constants';
 import type { FormationId, OwnedPlayer, Position } from '../core/domain/types';
 import { effectiveOverall } from '../core/engine/playerGen';
+import { IconSwap } from './icons';
 import { PitchBackground } from './PitchBackground';
 import { PlayerAvatar } from './PlayerAvatar';
 import { colors, font, radius } from './theme';
@@ -52,13 +53,16 @@ export function formationLayout(formation: FormationId): SlotLayout[] {
 interface Props {
   formation: FormationId;
   lineup: Array<OwnedPlayer | null>;
-  onSlotPress: (slot: number) => void;
+  /** Tap auf den Spieler selbst → Details (wie auf der Bank) */
+  onPlayerPress: (playerId: number) => void;
+  /** Tap auf den Tausch-Button (bzw. leeren Slot) → Picker für diesen Slot */
+  onSwapPress: (slot: number) => void;
 }
 
 const CHIP_W = 72;
 const CHIP_H = 64;
 
-export function FormationPitch({ formation, lineup, onSlotPress }: Props) {
+export function FormationPitch({ formation, lineup, onPlayerPress, onSwapPress }: Props) {
   const [size, setSize] = React.useState({ w: 0, h: 0 });
   const layout = formationLayout(formation);
 
@@ -76,14 +80,10 @@ export function FormationPitch({ formation, lineup, onSlotPress }: Props) {
           const left = (xPct / 100) * size.w - CHIP_W / 2;
           const top = (yPct / 100) * size.h - CHIP_H / 2;
           return (
-            <Pressable
-              key={slot}
-              onPress={() => onSlotPress(slot)}
-              style={[styles.chip, { left, top }]}
-            >
+            <View key={slot} style={[styles.chip, { left, top }]}>
               {player ? (
                 <>
-                  <View style={styles.avatarWrap}>
+                  <Pressable onPress={() => onPlayerPress(player.id)} style={styles.avatarWrap}>
                     <PlayerAvatar player={player.pool} size={40} />
                     <View style={styles.ovBadge}>
                       <Text style={styles.ovText}>
@@ -95,20 +95,27 @@ export function FormationPitch({ formation, lineup, onSlotPress }: Props) {
                         <Text style={styles.warnText}>!</Text>
                       </View>
                     )}
-                  </View>
+                    <Pressable
+                      onPress={() => onSwapPress(slot)}
+                      hitSlop={6}
+                      style={styles.swapBadge}
+                    >
+                      <IconSwap color="#fff" size={12} />
+                    </Pressable>
+                  </Pressable>
                   <Text style={styles.chipName} numberOfLines={1}>
                     {player.pool.name.split(' ').pop()}
                   </Text>
                 </>
               ) : (
                 <>
-                  <View style={styles.emptySlot}>
+                  <Pressable onPress={() => onSwapPress(slot)} style={styles.emptySlot}>
                     <Text style={styles.emptyText}>{POSITION_SHORT[position]}</Text>
-                  </View>
+                  </Pressable>
                   <Text style={styles.chipName}>tap to fill</Text>
                 </>
               )}
-            </Pressable>
+            </View>
           );
         })}
     </View>
@@ -163,6 +170,19 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 10,
     fontWeight: '900',
+  },
+  swapBadge: {
+    position: 'absolute',
+    right: -10,
+    bottom: -4,
+    backgroundColor: colors.sky,
+    borderRadius: radius.round,
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#fff',
   },
   chipName: {
     marginTop: 2,
