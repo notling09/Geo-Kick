@@ -233,3 +233,18 @@ export function IconSwap({ color = '#1A2E1A', size = 24 }: IconProps) {
     </Svg>
   );
 }
+
+/** Klassischer Karten-Pin (Tropfenform) für Map-Marker. */
+export function MapPin({ color = '#2E7D32', size = 32 }: IconProps) {
+  return (
+    <Svg width={size} height={size * 1.25} viewBox="0 0 24 30">
+      <Path
+        d="M 12 29 C 12 29 3 17.5 3 10.8 A 9 9 0 1 1 21 10.8 C 21 17.5 12 29 12 29 Z"
+        fill={color}
+        stroke="#FFFFFF"
+        strokeWidth={1.5}
+      />
+      <Circle cx={12} cy={10.8} r={3.6} fill="#FFFFFF" />
+    </Svg>
+  );
+}

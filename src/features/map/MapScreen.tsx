@@ -24,7 +24,7 @@ import { circlePolygon, distanceMeters } from '../../core/services/geo';
 import { useSessionStore, type CheckInResult } from '../../state/sessionStore';
 import { useGameStore } from '../../state/gameStore';
 import { GKButton, Card, CoinBadge, IconCircleButton } from '../../ui/components';
-import { IconLocate, IconPin, IconRefresh } from '../../ui/icons';
+import { IconLocate, IconRefresh, MapPin } from '../../ui/icons';
 import { colors, font, radius, spacing } from '../../ui/theme';
 
 /**
@@ -230,7 +230,7 @@ export function MapScreen() {
                 onPress={() => setSelectedSpotId(spot.id)}
               >
                 <View style={styles.pinWrap}>
-                  <IconPin size={selectedSpotId === spot.id ? 40 : 32} color={pinColor} />
+                  <MapPin size={selectedSpotId === spot.id ? 36 : 28} color={pinColor} />
                 </View>
               </Marker>
             );
