@@ -25,9 +25,9 @@ export const LAST_NAMES = [
 
 /** The three selectable starters: invented left wingers (chapter 2.2). */
 export const STARTER_WINGERS = [
-  { name: 'David Neris', flavor: 'Explosive dribbler with a turbo first step' },
-  { name: 'Jan Demande', flavor: 'Tricky wing wizard with silky technique' },
-  { name: 'Notling Elmejor', flavor: 'Ice-cold finisher cutting in from the left' },
+  { name: 'David Neris', flavor: 'Explosive attacker with a turbo first step' },
+  { name: 'Jan Demande', flavor: 'Tricky forward with silky technique' },
+  { name: 'Notling Elmejor', flavor: 'Ice-cold finisher in the box' },
 ];
 
 /** Prefixes go before the place name ("FC Misthill"), suffixes after ("Misthill Rovers"). */

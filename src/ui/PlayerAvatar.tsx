@@ -11,6 +11,12 @@ import type { PoolPlayer, Position } from '../core/domain/types';
  */
 
 const SKIN_TONES = ['#FFD3B6', '#F2B380', '#D99860', '#A9714B', '#8A5A3B', '#6B4226'];
+
+/** Feste Hauttöne für die Starter-Captains (Nutzerwunsch). */
+const SKIN_OVERRIDES: Record<string, string> = {
+  'Jan Demande': '#6B4226',
+  'Notling Elmejor': '#FFD3B6',
+};
 const HAIR_COLORS = ['#2B1B12', '#5A3825', '#8C5A2B', '#C98A3D', '#E8C46A', '#1A1A1A', '#6E6E6E', '#B23A2E'];
 
 const POSITION_KIT: Record<Position, string> = {
@@ -29,12 +35,14 @@ function hash(seed: number, salt: number): number {
 }
 
 interface Props {
-  player: Pick<PoolPlayer, 'id' | 'position' | 'rarity'>;
+  player: Pick<PoolPlayer, 'id' | 'position' | 'rarity'> & { name?: string };
   size?: number;
 }
 
 export function PlayerAvatar({ player, size = 48 }: Props) {
-  const skin = SKIN_TONES[hash(player.id, 1) % SKIN_TONES.length];
+  const skin =
+    (player.name && SKIN_OVERRIDES[player.name]) ||
+    SKIN_TONES[hash(player.id, 1) % SKIN_TONES.length];
   const hairColor = HAIR_COLORS[hash(player.id, 2) % HAIR_COLORS.length];
   const hairStyle = hash(player.id, 3) % 4;
   const kit = POSITION_KIT[player.position];

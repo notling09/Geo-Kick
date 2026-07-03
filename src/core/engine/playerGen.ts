@@ -111,16 +111,16 @@ export function generatePlayerPool(): NewPoolPlayer[] {
     });
   });
 
-  // Die drei wählbaren Starter: starke (Gold-)Linksaußen im Mittelfeld
+  // Die drei wählbaren Starter-Captains: starke (Gold-)Angreifer
   STARTER_WINGERS.forEach((starter) => {
     usedNames.add(starter.name);
     players.push({
       name: starter.name,
-      position: 'MF',
+      position: 'ST',
       rarity: 'gold',
       isStarterChoice: true,
       isFiller: false,
-      ...rollAttributes('MF', randInt(78, 84)),
+      ...rollAttributes('ST', randInt(78, 84)),
     });
   });
 

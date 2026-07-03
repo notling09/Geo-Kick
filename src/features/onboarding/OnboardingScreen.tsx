@@ -23,7 +23,7 @@ import type { RootScreenProps } from '../../navigation/types';
 
 /**
  * Onboarding (chapter 2.2): pick a club name and crest, then choose one of
- * three left wingers as the first strong player. The rest of the squad is
+ * three attackers as the first strong player. The rest of the squad is
  * filled with very weak filler players; the club starts in Division 4.
  */
 export function OnboardingScreen({ navigation }: RootScreenProps<'Onboarding'>) {
@@ -49,7 +49,7 @@ export function OnboardingScreen({ navigation }: RootScreenProps<'Onboarding'>) 
       return;
     }
     if (chosen === null) {
-      Alert.alert('No captain picked', 'Choose one of the three wingers.');
+      Alert.alert('No captain picked', 'Choose one of the three attackers.');
       return;
     }
     setSaving(true);
@@ -87,7 +87,7 @@ export function OnboardingScreen({ navigation }: RootScreenProps<'Onboarding'>) 
           ))}
         </View>
 
-        <SectionTitle>Choose your captain (left winger)</SectionTitle>
+        <SectionTitle>Choose your captain (attacker)</SectionTitle>
         {starters.map((p) => (
           <Pressable key={p.id} onPress={() => setChosen(p.id)}>
             <Card

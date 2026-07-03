@@ -66,6 +66,10 @@ export async function syncStarterNames(names: string[]): Promise<void> {
       await db.runAsync('UPDATE player_pool SET name = ? WHERE id = ?', names[i], rows[i].id);
     }
   }
+  // Migration: Starter-Captains sind Angreifer (früher Mittelfeld)
+  await db.runAsync(
+    "UPDATE player_pool SET position = 'ST' WHERE isStarterChoice = 1 AND position != 'ST'",
+  );
 }
 
 export async function getStarterChoices(): Promise<PoolPlayer[]> {
