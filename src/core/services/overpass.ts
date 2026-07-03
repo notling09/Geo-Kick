@@ -15,7 +15,8 @@ const OVERPASS_URLS = [
   'https://overpass.private.coffee/api/interpreter',
 ];
 const SEARCH_RADIUS_M = 5000;
-const FETCH_TIMEOUT_MS = 15000;
+// Overpass rechnet serverseitig bis zu 20 s ([timeout:20]) – plus Latenzpuffer
+const FETCH_TIMEOUT_MS = 30000;
 
 async function postWithTimeout(url: string, body: string): Promise<Response> {
   const controller = new AbortController();
@@ -65,15 +66,16 @@ export async function fetchNearbyPitches(
     try {
       const res = await postWithTimeout(url, body);
       if (!res.ok) {
-        lastError = new Error(`Overpass HTTP ${res.status} (${url})`);
+        lastError = new Error(`Overpass HTTP ${res.status}`);
+        console.warn(`[overpass] ${url} failed: HTTP ${res.status}`);
         continue;
       }
       json = (await res.json()) as { elements?: OverpassElement[] };
       break;
     } catch (e) {
       lastError = e;
+      console.warn(`[overpass] ${url} failed:`, String(e));
     }
-    if (lastError) console.warn(`[overpass] ${url} failed:`, String(lastError));
   }
   if (!json) {
     throw lastError ?? new Error('Overpass unreachable');

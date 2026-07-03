@@ -24,7 +24,8 @@ export function LoadingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.pitchDark,
+    // Gleicher Blauton wie der native Splash (app.json), nahtloser Übergang
+    backgroundColor: '#0065CC',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -36,7 +37,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   hint: {
-    color: colors.pitchLight,
+    color: 'rgba(255,255,255,0.85)',
     marginTop: spacing.md,
     fontSize: font.body,
   },

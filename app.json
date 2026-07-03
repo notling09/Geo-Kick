@@ -12,7 +12,7 @@
     "android": {
       "package": "com.geokick.app",
       "adaptiveIcon": {
-        "backgroundColor": "#FFFFFF",
+        "backgroundColor": "#0065CC",
         "foregroundImage": "./assets/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false,
@@ -32,7 +32,15 @@
           "locationWhenInUsePermission": "Geo-Kick nutzt deinen Standort für den Check-in an Fußballplätzen."
         }
       ],
-      "@maplibre/maplibre-react-native"
+      "@maplibre/maplibre-react-native",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/icon-transparent.png",
+          "backgroundColor": "#0065CC",
+          "imageWidth": 200
+        }
+      ]
     ]
   }
 }

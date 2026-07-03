@@ -118,9 +118,14 @@ export function MapScreen() {
       Alert.alert('No location', 'Could not determine your location.');
       return;
     }
-    const count = await refreshOsmSpots(coords.latitude, coords.longitude);
+    const count = await refreshOsmSpots(coords.latitude, coords.longitude, { force: true });
     if (count > 0) {
       Alert.alert('Pitches updated', `Loaded ${count} pitches from OpenStreetMap.`);
+    } else if (useSessionStore.getState().osmError) {
+      Alert.alert(
+        'Update failed',
+        'The OpenStreetMap servers did not respond. Cached pitches stay available - try again in a few minutes.',
+      );
     }
   };
 
@@ -243,7 +248,8 @@ export function MapScreen() {
         </View>
       </View>
 
-      {osmError && !activeSession && !selectedSpot ? (
+      {/* Nur blockierend anzeigen, wenn wirklich keine Plätze (auch keine gecachten) da sind */}
+      {osmError && spots.length === 0 && !activeSession && !selectedSpot ? (
         <Card style={styles.bottomCard}>
           <Text style={styles.errorText}>{osmError}</Text>
         </Card>
@@ -283,7 +289,7 @@ export function MapScreen() {
         </Card>
       )}
 
-      {!activeSession && !selectedSpot && !osmError && (
+      {!activeSession && !selectedSpot && (!osmError || spots.length > 0) && (
         <Card style={styles.bottomCard}>
           <Text style={styles.spotMeta}>
             Tap a pitch to check in. Long-press the map to add a missing pitch.

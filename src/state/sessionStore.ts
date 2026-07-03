@@ -5,6 +5,7 @@ import type { Session, Spot } from '../core/domain/types';
 import { calculateReward } from '../core/engine/rewards';
 import { distanceMeters } from '../core/services/geo';
 import { fetchNearbyPitches } from '../core/services/overpass';
+import * as metaRepo from '../core/db/repositories/metaRepo';
 import * as sessionRepo from '../core/db/repositories/sessionRepo';
 import * as spotRepo from '../core/db/repositories/spotRepo';
 import { useGameStore } from './gameStore';
@@ -33,7 +34,12 @@ interface SessionState {
   osmError: string | null;
 
   hydrate: () => Promise<void>;
-  refreshOsmSpots: (latitude: number, longitude: number) => Promise<number>;
+  /** Liefert Anzahl geladener Plätze, -1 wenn wegen Drosselung übersprungen. */
+  refreshOsmSpots: (
+    latitude: number,
+    longitude: number,
+    options?: { force?: boolean },
+  ) => Promise<number>;
   addUserSpot: (name: string, latitude: number, longitude: number) => Promise<void>;
   checkIn: (spot: Spot) => Promise<CheckInResult>;
   checkOut: () => Promise<CheckOutResult>;
@@ -70,11 +76,18 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     });
   },
 
-  refreshOsmSpots: async (latitude, longitude) => {
+  refreshOsmSpots: async (latitude, longitude, options) => {
+    // Auto-Refresh drosseln: Overpass-Server sind gratis und rate-limitiert.
+    // Manuelle Refreshes (force) gehen immer durch.
+    if (!options?.force) {
+      const last = await metaRepo.getMetaNumber('lastOsmFetchAt', 0);
+      if (Date.now() - last < 15 * 60 * 1000) return -1;
+    }
     set({ osmLoading: true, osmError: null });
     try {
       const fetched = await fetchNearbyPitches(latitude, longitude);
       await spotRepo.upsertOsmSpots(fetched);
+      await metaRepo.setMeta('lastOsmFetchAt', String(Date.now()));
       set({ spots: await spotRepo.getSpots(), osmLoading: false });
       return fetched.length;
     } catch (e) {
