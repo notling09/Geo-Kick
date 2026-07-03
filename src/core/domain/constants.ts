@@ -47,9 +47,9 @@ export const RARITY_OVERALL_RANGE: Record<Rarity, [number, number]> = {
 
 export const RARITY_LABEL: Record<Rarity, string> = {
   bronze: 'Bronze',
-  silber: 'Silber',
+  silber: 'Silver',
   gold: 'Gold',
-  legendaer: 'Legendär',
+  legendaer: 'Legendary',
 };
 
 export const RARITY_COLOR: Record<Rarity, string> = {
@@ -60,10 +60,18 @@ export const RARITY_COLOR: Record<Rarity, string> = {
 };
 
 export const POSITION_LABEL: Record<Position, string> = {
-  TW: 'Torwart',
-  ABW: 'Abwehr',
-  MF: 'Mittelfeld',
-  ST: 'Sturm',
+  TW: 'Goalkeeper',
+  ABW: 'Defence',
+  MF: 'Midfield',
+  ST: 'Attack',
+};
+
+/** Short position tags for compact UI (stored enum values stay unchanged). */
+export const POSITION_SHORT: Record<Position, string> = {
+  TW: 'GK',
+  ABW: 'DEF',
+  MF: 'MID',
+  ST: 'ATT',
 };
 
 /** Slot-Belegung je Formation: Reihenfolge = Slot-Index 0..10 */
@@ -76,9 +84,9 @@ export const FORMATIONS: Record<FormationId, Position[]> = {
 export const FORMATION_IDS: FormationId[] = ['4-4-2', '4-3-3', '3-5-2'];
 
 export const TACTIC_LABEL: Record<Tactic, string> = {
-  offensiv: 'Offensiv',
-  ausgewogen: 'Ausgewogen',
-  defensiv: 'Defensiv',
+  offensiv: 'Offensive',
+  ausgewogen: 'Balanced',
+  defensiv: 'Defensive',
 };
 
 /** Match-Simulation (Kapitel 8.2) */
@@ -113,8 +121,8 @@ export const LEAGUE = {
   } as Record<number, [number, number]>,
 } as const;
 
-/** Wappen-Vorlagen (Kapitel 3.5: auswählbar aus Vorlagen) */
-export const CREST_TEMPLATES = ['⚽', '🦁', '🦅', '🐺', '🐉', '⚡', '🔥', '🌊', '⭐', '🛡️'];
+/** Wappen-Vorlagen-IDs (Kapitel 3.5); Rendering: src/ui/Crest.tsx */
+export const CREST_IDS = Array.from({ length: 10 }, (_, i) => `crest-${i}`);
 
 export const USER_CLUB_ID = 'user';
 

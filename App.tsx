@@ -19,6 +19,8 @@ export default function App() {
 
   useEffect(() => {
     (async () => {
+      // Mindestanzeigedauer, damit der Loading-Screen sichtbar bleibt (Kapitel 2.3)
+      const minSplash = new Promise((resolve) => setTimeout(resolve, 1800));
       await useGameStore.getState().init();
       if (useGameStore.getState().onboarded) {
         await Promise.all([
@@ -26,6 +28,7 @@ export default function App() {
           useSessionStore.getState().hydrate(),
         ]);
       }
+      await minSplash;
       setReady(true);
     })();
   }, []);

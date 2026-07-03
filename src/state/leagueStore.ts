@@ -53,7 +53,7 @@ function recomputeStandings(
   const club = useGameStore.getState().club;
   return computeStandings(
     matches,
-    clubList(npcs, club?.name ?? 'Mein Klub', club?.crest ?? '⚽'),
+    clubList(npcs, club?.name ?? 'My Club', club?.crest ?? 'crest-0'),
   );
 }
 
@@ -99,7 +99,7 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
 
     const npcById = new Map(npcs.map((n) => [String(n.id), n]));
     const nameOf = (id: string) => (id === USER_CLUB_ID ? club.name : npcById.get(id)?.name ?? '?');
-    const crestOf = (id: string) => (id === USER_CLUB_ID ? club.crest : npcById.get(id)?.crest ?? '❓');
+    const crestOf = (id: string) => (id === USER_CLUB_ID ? club.crest : npcById.get(id)?.crest ?? 'crest-0');
 
     const userStrength = teamStrength(game.lineupPlayers(), club.formation);
     const npcTactics: Tactic[] = ['offensiv', 'ausgewogen', 'defensiv'];
@@ -138,10 +138,10 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
     if (seasonFinished(newRound)) {
       const finalStandings = recomputeStandings(updatedMatches, npcs);
       const outcome = resolveSeason(finalStandings, club.division);
-      let message = `Saison ${season} beendet – Platz ${outcome.finalRank}.`;
-      if (outcome.promoted) message += ` Aufstieg in Division ${outcome.newDivision}! 🎉`;
-      else if (outcome.relegated) message += ` Abstieg in Division ${outcome.newDivision}.`;
-      else message += ` Du bleibst in Division ${club.division}.`;
+      let message = `Season ${season} finished - you placed ${outcome.finalRank}.`;
+      if (outcome.promoted) message += ` Promoted to Division ${outcome.newDivision}!`;
+      else if (outcome.relegated) message += ` Relegated to Division ${outcome.newDivision}.`;
+      else message += ` You stay in Division ${club.division}.`;
       await metaRepo.setMeta('seasonMessage', message);
       await metaRepo.setMeta('division', String(outcome.newDivision));
 
@@ -186,13 +186,13 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
   },
 
   clubName: (clubId) => {
-    if (clubId === USER_CLUB_ID) return useGameStore.getState().club?.name ?? 'Mein Klub';
+    if (clubId === USER_CLUB_ID) return useGameStore.getState().club?.name ?? 'My Club';
     return get().npcs.find((n) => String(n.id) === clubId)?.name ?? '?';
   },
 
   clubCrest: (clubId) => {
-    if (clubId === USER_CLUB_ID) return useGameStore.getState().club?.crest ?? '⚽';
-    return get().npcs.find((n) => String(n.id) === clubId)?.crest ?? '❓';
+    if (clubId === USER_CLUB_ID) return useGameStore.getState().club?.crest ?? 'crest-0';
+    return get().npcs.find((n) => String(n.id) === clubId)?.crest ?? 'crest-0';
   },
 }));
 

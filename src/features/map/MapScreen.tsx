@@ -15,22 +15,23 @@ import type { Spot } from '../../core/domain/types';
 import { distanceMeters } from '../../core/services/geo';
 import { useSessionStore, type CheckInResult } from '../../state/sessionStore';
 import { useGameStore } from '../../state/gameStore';
-import { GKButton, Card, CoinBadge } from '../../ui/components';
+import { GKButton, Card, CoinBadge, IconCircleButton } from '../../ui/components';
+import { IconLocate, IconRefresh } from '../../ui/icons';
 import { colors, font, radius, spacing } from '../../ui/theme';
 
 /**
- * Kartenansicht (Kapitel 3.1): OSM-Tiles über react-native-maps, Plätze in
- * der Nähe, Check-in/Check-out mit Geofencing und Cooldown. Nutzer können
- * per Long-Press eigene Plätze vorschlagen/hinzufügen.
+ * Map view (chapter 3.1): OSM tiles via react-native-maps, nearby pitches,
+ * check-in/check-out with geofencing and cooldown. Long-press the map to
+ * suggest/add a pitch that is missing from the map data.
  */
 
 const CHECKIN_ERROR_TEXT: Record<Exclude<CheckInResult, { ok: true }>['reason'], string> = {
-  permission: 'Standort-Berechtigung fehlt. Bitte in den Einstellungen erlauben.',
-  mocked: 'Simulierte GPS-Position erkannt – Check-in blockiert.',
-  too_far: 'Du bist zu weit vom Platz entfernt.',
-  cooldown: 'Dieser Platz ist noch im Cooldown.',
-  active_session: 'Du bist bereits an einem Platz eingecheckt.',
-  no_location: 'Standort konnte nicht ermittelt werden.',
+  permission: 'Location permission missing. Please allow it in the settings.',
+  mocked: 'Simulated GPS position detected - check-in blocked.',
+  too_far: 'You are too far away from this pitch.',
+  cooldown: 'This pitch is still on cooldown.',
+  active_session: 'You are already checked in at a pitch.',
+  no_location: 'Could not determine your location.',
 };
 
 function formatDuration(ms: number): string {
@@ -61,7 +62,7 @@ export function MapScreen() {
     [spots, activeSession],
   );
 
-  // Sekunden-Ticker für Session-Timer und Cooldown-Anzeigen
+  // One-second tick for the session timer and cooldown labels
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
@@ -87,7 +88,7 @@ export function MapScreen() {
     hydrate();
     (async () => {
       const coords = await locate();
-      // Beim ersten Öffnen automatisch Plätze aus OSM nachladen
+      // Load pitches from OSM automatically on first open
       if (coords) await refreshOsmSpots(coords.latitude, coords.longitude);
     })();
   }, [hydrate, locate, refreshOsmSpots]);
@@ -95,12 +96,12 @@ export function MapScreen() {
   const onRefreshSpots = async () => {
     const coords = myPos ?? (await locate());
     if (!coords) {
-      Alert.alert('Kein Standort', 'Standort konnte nicht ermittelt werden.');
+      Alert.alert('No location', 'Could not determine your location.');
       return;
     }
     const count = await refreshOsmSpots(coords.latitude, coords.longitude);
     if (count > 0) {
-      Alert.alert('Plätze aktualisiert', `${count} Plätze aus OpenStreetMap geladen.`);
+      Alert.alert('Pitches updated', `Loaded ${count} pitches from OpenStreetMap.`);
     }
   };
 
@@ -108,7 +109,7 @@ export function MapScreen() {
     const result = await checkIn(spot);
     if (!result.ok) {
       const extra = result.detail ? ` (${result.detail})` : '';
-      Alert.alert('Check-in nicht möglich', CHECKIN_ERROR_TEXT[result.reason] + extra);
+      Alert.alert('Check-in not possible', CHECKIN_ERROR_TEXT[result.reason] + extra);
     }
   };
 
@@ -116,13 +117,13 @@ export function MapScreen() {
     const result = await checkOut();
     if (result.ok) {
       Alert.alert(
-        'Session beendet! 🎉',
-        `${result.durationMinutes} Minuten am Platz.\n+${result.coins} Coins und 1 Pack erhalten!`,
+        'Session complete!',
+        `${result.durationMinutes} minutes at the pitch.\nYou earned ${result.coins} coins and 1 pack!`,
       );
     } else if (result.reason === 'too_short') {
       Alert.alert(
-        'Zu kurz',
-        `Nur ${result.durationMinutes ?? 0} Minuten – ab ${BALANCING.minSessionMs / 60000} Minuten gibt es eine Belohnung. Diesmal leider nichts.`,
+        'Too short',
+        `Only ${result.durationMinutes ?? 0} minutes - you need at least ${BALANCING.minSessionMs / 60000} minutes for a reward. Nothing this time.`,
       );
     }
   };
@@ -153,7 +154,7 @@ export function MapScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Karte</Text>
+        <Text style={styles.headerTitle}>Map</Text>
         <CoinBadge coins={coins} />
       </View>
 
@@ -198,16 +199,15 @@ export function MapScreen() {
             />
           )}
         </MapView>
-        {/* ODbL-Attribution (Kapitel 9.2) */}
-        <Text style={styles.attribution}>© OpenStreetMap-Mitwirkende</Text>
+        {/* ODbL attribution (chapter 9.2) */}
+        <Text style={styles.attribution}>© OpenStreetMap contributors</Text>
         <View style={styles.mapButtons}>
-          <GKButton title="📍" variant="ghost" style={styles.roundBtn} onPress={locate} />
-          <GKButton
-            title={osmLoading ? '…' : '🔄'}
-            variant="ghost"
-            style={styles.roundBtn}
-            onPress={onRefreshSpots}
-          />
+          <IconCircleButton onPress={locate}>
+            <IconLocate size={24} color={colors.ink} />
+          </IconCircleButton>
+          <IconCircleButton onPress={onRefreshSpots}>
+            <IconRefresh size={24} color={osmLoading ? colors.inkSoft : colors.ink} />
+          </IconCircleButton>
         </View>
       </View>
 
@@ -219,35 +219,34 @@ export function MapScreen() {
 
       {activeSession && (
         <Card style={styles.bottomCard}>
-          <Text style={styles.spotName}>⏱️ Session läuft: {activeSpot?.name ?? 'Platz'}</Text>
+          <Text style={styles.spotName}>Session running: {activeSpot?.name ?? 'Pitch'}</Text>
           <Text style={styles.sessionTimer}>{formatDuration(sessionMs)}</Text>
           <Text style={styles.sessionHint}>
             {fullReached
-              ? 'Volle Belohnung erreicht! 🏆'
+              ? 'Full reward reached!'
               : rewardReached
-                ? `Belohnung gesichert – volle Belohnung bei ${BALANCING.fullSessionMs / 60000} Min.`
-                : `Mindestens ${BALANCING.minSessionMs / 60000} Min. bleiben für eine Belohnung.`}
+                ? `Reward secured - full reward at ${BALANCING.fullSessionMs / 60000} min.`
+                : `Stay at least ${BALANCING.minSessionMs / 60000} min. to earn a reward.`}
           </Text>
-          <GKButton title="Auschecken" variant="secondary" onPress={onCheckOut} />
+          <GKButton title="Check out" variant="secondary" onPress={onCheckOut} />
         </Card>
       )}
 
       {!activeSession && selectedSpot && (
         <Card style={styles.bottomCard}>
-          <Text style={styles.spotName}>
-            {selectedSpot.source === 'user' ? '📌' : '⚽'} {selectedSpot.name}
-          </Text>
+          <Text style={styles.spotName}>{selectedSpot.name}</Text>
           <Text style={styles.spotMeta}>
-            {spotDistance !== null ? `${spotDistance} m entfernt · ` : ''}
-            Check-in-Radius {Math.round(selectedSpot.radius)} m
+            {selectedSpot.source === 'user' ? 'Added by you · ' : 'From OpenStreetMap · '}
+            {spotDistance !== null ? `${spotDistance} m away · ` : ''}
+            check-in radius {Math.round(selectedSpot.radius)} m
           </Text>
           {selectedSpot.cooldownUntil > now ? (
             <Text style={styles.cooldownText}>
-              Cooldown: wieder verfügbar in{' '}
-              {Math.ceil((selectedSpot.cooldownUntil - now) / 60000)} Min.
+              Cooldown: available again in{' '}
+              {Math.ceil((selectedSpot.cooldownUntil - now) / 60000)} min.
             </Text>
           ) : (
-            <GKButton title="Einchecken" onPress={() => onCheckIn(selectedSpot)} />
+            <GKButton title="Check in" onPress={() => onCheckIn(selectedSpot)} />
           )}
         </Card>
       )}
@@ -255,8 +254,7 @@ export function MapScreen() {
       {!activeSession && !selectedSpot && !osmError && (
         <Card style={styles.bottomCard}>
           <Text style={styles.spotMeta}>
-            Tippe einen Platz an, um einzuchecken. Halte die Karte gedrückt, um einen neuen
-            Platz vorzuschlagen.
+            Tap a pitch to check in. Long-press the map to add a missing pitch.
           </Text>
         </Card>
       )}
@@ -264,10 +262,10 @@ export function MapScreen() {
       <Modal visible={newSpotCoords !== null} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
           <Card style={styles.modalCard}>
-            <Text style={styles.spotName}>Neuen Platz hinzufügen</Text>
+            <Text style={styles.spotName}>Add a new pitch</Text>
             <TextInput
               style={styles.input}
-              placeholder="Name des Platzes"
+              placeholder="Name of the pitch"
               placeholderTextColor={colors.inkSoft}
               value={newSpotName}
               onChangeText={setNewSpotName}
@@ -275,12 +273,12 @@ export function MapScreen() {
             />
             <View style={styles.modalButtons}>
               <GKButton
-                title="Abbrechen"
+                title="Cancel"
                 variant="ghost"
                 style={{ flex: 1 }}
                 onPress={() => setNewSpotCoords(null)}
               />
-              <GKButton title="Hinzufügen" style={{ flex: 1 }} onPress={confirmNewSpot} />
+              <GKButton title="Add" style={{ flex: 1 }} onPress={confirmNewSpot} />
             </View>
           </Card>
         </View>
@@ -325,14 +323,6 @@ const styles = StyleSheet.create({
     right: spacing.sm,
     top: spacing.sm,
     gap: spacing.sm,
-  },
-  roundBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: radius.round,
-    paddingHorizontal: 0,
-    paddingVertical: 0,
-    backgroundColor: 'rgba(255,255,255,0.9)',
   },
   bottomCard: {
     margin: spacing.sm,

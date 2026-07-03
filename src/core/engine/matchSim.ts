@@ -45,23 +45,23 @@ function tacticChanceRate(tactic: Tactic): number {
 }
 
 const CHANCE_TEXTS = [
-  'Großchance! Der Abschluss geht knapp am Pfosten vorbei.',
-  'Gefährlicher Distanzschuss – der Torwart lenkt den Ball über die Latte.',
-  'Konter! Aber der letzte Pass ist zu ungenau.',
-  'Kopfball nach Flanke – knapp über das Tor.',
-  'Der Stürmer taucht frei vor dem Tor auf, scheitert aber am Torwart.',
+  'Big chance! The shot whistles just past the post.',
+  'Dangerous strike from distance - the keeper tips it over the bar.',
+  'Counter-attack! But the final pass is overhit.',
+  'Header from the cross - inches over the crossbar.',
+  'The striker is through one-on-one but the keeper stands tall.',
 ];
 
 const GOAL_TEXTS = [
-  'TOOOR! Trockener Abschluss ins lange Eck!',
-  'TOOOR! Kopfball nach einer Ecke – unhaltbar!',
-  'TOOOR! Traumkombination durch die Mitte, eiskalt vollendet!',
-  'TOOOR! Abgefälschter Schuss – der Torwart ist machtlos!',
-  'TOOOR! Konter wie aus dem Lehrbuch!',
+  'GOAL! A dry finish into the far corner!',
+  'GOAL! Towering header from the corner - unstoppable!',
+  'GOAL! Dream combination through the middle, finished ice-cold!',
+  'GOAL! Deflected shot - the keeper had no chance!',
+  'GOAL! A textbook counter-attack!',
 ];
 
-const CORNER_TEXTS = ['Eckball – die Hereingabe wird geklärt.', 'Ecke von links, der Torwart fängt sicher.'];
-const FOUL_TEXTS = ['Hartes Einsteigen im Mittelfeld – Freistoß.', 'Taktisches Foul, der Schiedsrichter ermahnt.'];
+const CORNER_TEXTS = ['Corner kick - the delivery is cleared.', 'Corner from the left, the keeper claims it safely.'];
+const FOUL_TEXTS = ['Crunching tackle in midfield - free kick.', 'Tactical foul, the referee has a word.'];
 
 function pickText(texts: readonly string[]): string {
   return texts[Math.floor(Math.random() * texts.length)];
@@ -72,7 +72,7 @@ export function simulateMatch(home: SimTeam, away: SimTeam): SimResult {
   let homeGoals = 0;
   let awayGoals = 0;
 
-  events.push({ minute: 1, type: 'anpfiff', text: 'Anpfiff! Das Spiel läuft.' });
+  events.push({ minute: 1, type: 'anpfiff', text: 'Kick-off! The match is under way.' });
 
   const homeChanceRate = tacticChanceRate(home.tactic);
   const awayChanceRate = tacticChanceRate(away.tactic);
@@ -82,7 +82,7 @@ export function simulateMatch(home: SimTeam, away: SimTeam): SimResult {
       events.push({
         minute: 45,
         type: 'halbzeit',
-        text: `Halbzeit. Es steht ${homeGoals}:${awayGoals}.`,
+        text: `Half-time. The score is ${homeGoals}:${awayGoals}.`,
       });
     }
 
@@ -125,7 +125,7 @@ export function simulateMatch(home: SimTeam, away: SimTeam): SimResult {
   events.push({
     minute: 90,
     type: 'abpfiff',
-    text: `Abpfiff! Endstand ${homeGoals}:${awayGoals}.`,
+    text: `Full-time! Final score ${homeGoals}:${awayGoals}.`,
   });
 
   return { homeGoals, awayGoals, events };

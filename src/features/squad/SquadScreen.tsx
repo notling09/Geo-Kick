@@ -10,20 +10,21 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FORMATIONS, FORMATION_IDS, POSITION_LABEL } from '../../core/domain/constants';
-import type { FormationId, OwnedPlayer } from '../../core/domain/types';
+import type { FormationId } from '../../core/domain/types';
 import { effectiveOverall } from '../../core/engine/playerGen';
 import { teamStrength } from '../../core/engine/strength';
 import { useGameStore } from '../../state/gameStore';
-import { GKButton, Card, SectionTitle } from '../../ui/components';
+import { GKButton } from '../../ui/components';
+import { FormationPitch } from '../../ui/FormationPitch';
 import { PlayerCard } from '../../ui/PlayerCard';
 import { colors, font, radius, spacing } from '../../ui/theme';
 import type { TabScreenProps } from '../../navigation/types';
 
 /**
- * Kadermanagement (Kapitel 3.3): Aufstellung nach Formation, Positionen,
- * Bank und Zugriff auf Spieler-Details (Training über Duplikate).
+ * Squad management (chapter 3.3): the starting eleven laid out visually on
+ * a drawn pitch per formation, bench below, player details via tap.
  */
-export function SquadScreen({ navigation }: TabScreenProps<'Kader'>) {
+export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
   const { club, players, lineup, setFormation, setLineupSlot, autoLineup, lineupPlayers } =
     useGameStore();
   const [pickSlot, setPickSlot] = useState<number | null>(null);
@@ -55,13 +56,12 @@ export function SquadScreen({ navigation }: TabScreenProps<'Kader'>) {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.headerRow}>
-          <Text style={styles.title}>Kader</Text>
+          <Text style={styles.title}>Squad</Text>
           <View style={styles.strengthBadge}>
-            <Text style={styles.strengthText}>💪 {strength}</Text>
+            <Text style={styles.strengthText}>Strength {strength}</Text>
           </View>
         </View>
 
-        <SectionTitle>Formation</SectionTitle>
         <View style={styles.formationRow}>
           {FORMATION_IDS.map((f) => (
             <Pressable
@@ -76,44 +76,21 @@ export function SquadScreen({ navigation }: TabScreenProps<'Kader'>) {
               </Text>
             </Pressable>
           ))}
+          <View style={{ flex: 1 }} />
+          <GKButton title="Auto pick" variant="ghost" style={styles.autoBtn} onPress={autoLineup} />
         </View>
 
-        <View style={styles.headerRow}>
-          <SectionTitle>Aufstellung</SectionTitle>
-          <GKButton title="Auto" variant="ghost" style={styles.autoBtn} onPress={autoLineup} />
-        </View>
-        {slots.map((pos, slot) => {
-          const player = lineupList[slot];
-          return (
-            <Pressable key={slot} onPress={() => setPickSlot(slot)}>
-              <Card style={styles.slotCard}>
-                <View style={styles.slotBadge}>
-                  <Text style={styles.slotBadgeText}>{pos}</Text>
-                </View>
-                {player ? (
-                  <View style={styles.slotPlayer}>
-                    <Text style={styles.slotPlayerName} numberOfLines={1}>
-                      {player.pool.name}
-                    </Text>
-                    <Text style={styles.slotPlayerMeta}>
-                      {POSITION_LABEL[player.pool.position]} · Lv. {player.level}
-                      {player.pool.position !== pos ? '  ⚠️ fremde Position' : ''}
-                    </Text>
-                  </View>
-                ) : (
-                  <Text style={styles.slotEmpty}>Slot frei – tippen zum Besetzen</Text>
-                )}
-                {player && (
-                  <Text style={styles.slotOverall}>
-                    {effectiveOverall(player.pool, player.level)}
-                  </Text>
-                )}
-              </Card>
-            </Pressable>
-          );
-        })}
+        <FormationPitch
+          formation={formation}
+          lineup={lineupList}
+          onSlotPress={(slot) => setPickSlot(slot)}
+        />
+        <Text style={styles.pitchHint}>
+          Tap a player on the pitch to change that slot. The badge shows the player's
+          overall rating; an orange mark means he is playing out of position.
+        </Text>
 
-        <SectionTitle>Bank ({bench.length})</SectionTitle>
+        <Text style={styles.benchTitle}>Bench ({bench.length})</Text>
         {bench.map((p) => (
           <PlayerCard
             key={p.id}
@@ -122,7 +99,7 @@ export function SquadScreen({ navigation }: TabScreenProps<'Kader'>) {
           />
         ))}
         {bench.length === 0 && (
-          <Text style={styles.emptyText}>Keine Ersatzspieler – öffne Packs für Nachschub!</Text>
+          <Text style={styles.emptyText}>No substitutes - open packs to sign new players!</Text>
         )}
       </ScrollView>
 
@@ -130,8 +107,7 @@ export function SquadScreen({ navigation }: TabScreenProps<'Kader'>) {
         <View style={styles.modalBackdrop}>
           <View style={styles.modalSheet}>
             <Text style={styles.modalTitle}>
-              Slot {pickSlot !== null ? pickSlot + 1 : ''} (
-              {pickSlot !== null ? POSITION_LABEL[slots[pickSlot]] : ''}) besetzen
+              Fill slot: {pickSlot !== null ? POSITION_LABEL[slots[pickSlot]] : ''}
             </Text>
             <FlatList
               data={pickCandidates}
@@ -140,7 +116,7 @@ export function SquadScreen({ navigation }: TabScreenProps<'Kader'>) {
                 <PlayerCard
                   player={item}
                   compact
-                  badge={lineup.includes(item.id) ? 'aufgestellt' : undefined}
+                  badge={lineup.includes(item.id) ? 'in XI' : undefined}
                   onPress={async () => {
                     if (pickSlot !== null) await setLineupSlot(pickSlot, item.id);
                     setPickSlot(null);
@@ -148,7 +124,7 @@ export function SquadScreen({ navigation }: TabScreenProps<'Kader'>) {
                 />
               )}
             />
-            <GKButton title="Schließen" variant="ghost" onPress={() => setPickSlot(null)} />
+            <GKButton title="Close" variant="ghost" onPress={() => setPickSlot(null)} />
           </View>
         </View>
       </Modal>
@@ -169,12 +145,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: spacing.sm,
   },
   title: {
     fontSize: font.title,
     fontWeight: '900',
     color: colors.pitchDark,
-    marginBottom: spacing.sm,
   },
   strengthBadge: {
     backgroundColor: colors.pitch,
@@ -188,8 +164,9 @@ const styles = StyleSheet.create({
   },
   formationRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.sm,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
   formationChip: {
     borderRadius: radius.round,
@@ -212,46 +189,17 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: spacing.md,
   },
-  slotCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.sm,
-    marginBottom: spacing.xs,
-  },
-  slotBadge: {
-    width: 44,
-    borderRadius: radius.sm,
-    backgroundColor: colors.grass,
-    alignItems: 'center',
-    paddingVertical: 6,
-    marginRight: spacing.sm,
-  },
-  slotBadgeText: {
-    fontWeight: '900',
-    color: colors.pitchDark,
+  pitchHint: {
     fontSize: font.small,
+    color: colors.inkSoft,
+    marginTop: spacing.sm,
+    marginBottom: spacing.md,
   },
-  slotPlayer: {
-    flex: 1,
-  },
-  slotPlayerName: {
+  benchTitle: {
+    fontSize: font.h2,
     fontWeight: '800',
     color: colors.ink,
-  },
-  slotPlayerMeta: {
-    fontSize: font.small,
-    color: colors.inkSoft,
-  },
-  slotEmpty: {
-    flex: 1,
-    color: colors.inkSoft,
-    fontStyle: 'italic',
-    fontSize: font.small,
-  },
-  slotOverall: {
-    fontSize: font.h1,
-    fontWeight: '900',
-    color: colors.pitch,
+    marginBottom: spacing.sm,
   },
   emptyText: {
     color: colors.inkSoft,

@@ -52,6 +52,22 @@ export async function getPool(): Promise<PoolPlayer[]> {
   return rows.map(toPoolPlayer);
 }
 
+/**
+ * Gleicht die Namen der drei Starter-Identitäten an die aktuelle Liste an
+ * (für Installationen, deren Pool vor einer Namensänderung geseedet wurde).
+ */
+export async function syncStarterNames(names: string[]): Promise<void> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<{ id: number; name: string }>(
+    'SELECT id, name FROM player_pool WHERE isStarterChoice = 1 ORDER BY id',
+  );
+  for (let i = 0; i < rows.length && i < names.length; i++) {
+    if (rows[i].name !== names[i]) {
+      await db.runAsync('UPDATE player_pool SET name = ? WHERE id = ?', names[i], rows[i].id);
+    }
+  }
+}
+
 export async function getStarterChoices(): Promise<PoolPlayer[]> {
   const db = await getDb();
   const rows = await db.getAllAsync<PoolRow>(

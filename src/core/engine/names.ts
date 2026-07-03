@@ -1,44 +1,42 @@
 /**
- * Namens-Pools für fiktive Spieler und NPC-Klubs.
- * Gemäß Kapitel 9 (Namensrechte) ausschließlich erfundene bzw. klar
- * abgewandelte Namen – keine echten Spieler-, Klub- oder Liganamen.
+ * Name pools for fictional players and NPC clubs.
+ * Per chapter 9 (naming rights) only invented or clearly altered names are
+ * used - no real player, club or league names.
  */
 
 export const FIRST_NAMES = [
-  'Luka', 'Mats', 'Jano', 'Timo', 'Nico', 'Elias', 'Bruno', 'Diego', 'Rafa', 'Enzo',
-  'Milan', 'Joris', 'Levin', 'Samu', 'Tarek', 'Yannik', 'Ole', 'Pepe', 'Santi', 'Marlon',
-  'Fynn', 'Jarno', 'Kimi', 'Lasse', 'Mika', 'Noel', 'Oskar', 'Pavel', 'Quirin', 'Rasmus',
-  'Silas', 'Thies', 'Umut', 'Viktor', 'Wanja', 'Xaver', 'Yusuf', 'Zeno', 'Arda', 'Bosse',
-  'Carlo', 'Darius', 'Emir', 'Fedor', 'Gianni', 'Henri', 'Ivo', 'Jonte', 'Kai', 'Lior',
+  'Alfie', 'Bruno', 'Callum', 'Dario', 'Enzo', 'Finn', 'Gino', 'Harvey', 'Iker', 'Jayden',
+  'Kofi', 'Luca', 'Mason', 'Nilo', 'Oscar', 'Pablo', 'Quinn', 'Ronny', 'Santi', 'Tyrese',
+  'Umar', 'Vito', 'Wesley', 'Xavi', 'Yannick', 'Zack', 'Ade', 'Bo', 'Cyrus', 'Dex',
+  'Eli', 'Fabio', 'Grady', 'Hugo', 'Idris', 'Jonah', 'Kian', 'Leo', 'Milo', 'Nate',
+  'Otis', 'Pele-Jay', 'Rufus', 'Sonny', 'Theo', 'Ugo', 'Vinnie', 'Walt', 'Yusuf', 'Zane',
 ];
 
 export const LAST_NAMES = [
-  'Sturmfeld', 'Ballhorn', 'Kickmann', 'Torwald', 'Flankenberg', 'Rasenmeier', 'Eckstein',
-  'Volleyer', 'Dribbler', 'Grätschke', 'Pfostner', 'Lattner', 'Netzer-Falk', 'Abseitz',
-  'Kontermann', 'Pressinger', 'Tempelhof', 'Wadenbach', 'Stollenberg', 'Freistoss',
-  'Elfmeter', 'Hattrich', 'Doppelpass', 'Fallrück', 'Aufsetzer', 'Querpass', 'Steilmann',
-  'Lupfer', 'Heber', 'Schlenzer', 'Knipser', 'Wandspieler', 'Sechser', 'Zehner',
-  'Libero', 'Manndecker', 'Vorstopper', 'Ausputzer', 'Balleroni', 'Kombinado',
-  'Tikitakos', 'Gegenpress', 'Umschalter', 'Boxtorius', 'Fangmeister', 'Paradenko',
-  'Hechter', 'Fausterella', 'Strafraum', 'Nachschuss',
+  'Strikefield', 'Ballhorn', 'Kickman', 'Netkeeper', 'Wingblade', 'Turfmeyer', 'Cornerstone',
+  'Volleyman', 'Dribbleton', 'Slidewell', 'Postwood', 'Crossbar', 'Nutmegson', 'Offsider',
+  'Counterman', 'Pressley', 'Templeford', 'Shinbridge', 'Studsworth', 'Freekicker',
+  'Penfold', 'Hattrickson', 'Passmore', 'Backheeler', 'Bouncer', 'Squarepass', 'Throughman',
+  'Lofton', 'Chipwell', 'Curlington', 'Finisher', 'Wallplay', 'Sixton', 'Tenner',
+  'Sweeperton', 'Markwell', 'Stopperfield', 'Clearman', 'Ballerino', 'Combino',
+  'Tikitakos', 'Counterpress', 'Switchplay', 'Boxton', 'Catchwell', 'Saveson',
+  'Diverton', 'Fistwell', 'Boxridge', 'Rebounder',
 ];
 
-/** Die drei wählbaren Starter: klar abgewandelte Fantasienamen linker Flügelspieler (Kapitel 2.2). */
+/** The three selectable starters: invented left wingers (chapter 2.2). */
 export const STARTER_WINGERS = [
-  { name: 'Vinzenz Junor', flavor: 'Explosiver Dribbler mit Turbo-Antritt' },
-  { name: 'Raffael Löwenmut', flavor: 'Trickreicher Flügelflitzer mit feiner Technik' },
-  { name: 'Kylan Bappé', flavor: 'Eiskalter Vollstrecker von der linken Seite' },
+  { name: 'David Neris', flavor: 'Explosive dribbler with a turbo first step' },
+  { name: 'Jan Demande', flavor: 'Tricky wing wizard with silky technique' },
+  { name: 'Notling Elmejor', flavor: 'Ice-cold finisher cutting in from the left' },
 ];
 
-export const NPC_CLUB_PREFIXES = [
-  'FC', 'SV', 'TSV', 'Dynamo', 'Union', 'Eintracht', 'Borussia-', 'Fortuna', 'Viktoria', 'Athletik',
-];
+/** Prefixes go before the place name ("FC Misthill"), suffixes after ("Misthill Rovers"). */
+export const NPC_CLUB_PREFIXES = ['FC', 'Athletic', 'Real', 'Sporting', 'Dynamo'];
+export const NPC_CLUB_SUFFIXES = ['United', 'Rovers', 'Wanderers', 'City', 'Town'];
 
 export const NPC_CLUB_PLACES = [
-  'Nebelberg', 'Steinbach', 'Wolkenau', 'Hohenkick', 'Ballstedt', 'Grünfeld', 'Torhausen',
-  'Rasenheim', 'Flutlicht', 'Eckwalde', 'Pfostenberg', 'Lattenbrück', 'Kickersdorf',
-  'Sturmhagen', 'Abstoßtal', 'Elfershausen', 'Konterfurt', 'Dribbelbach', 'Flankenthal',
-  'Netzhusen', 'Strafraumdorf', 'Auswärtsberg', 'Heimsiegen', 'Doppelpassau',
+  'Misthill', 'Stonebrook', 'Cloudmere', 'Highkick', 'Ballstead', 'Greenfield', 'Goalhaven',
+  'Turfholm', 'Floodlight', 'Cornerdale', 'Postbury', 'Crossbridge', 'Kickerton',
+  'Stormhage', 'Kickoff Vale', 'Netherfield', 'Counterford', 'Dribbleburn', 'Wingdale',
+  'Netham', 'Boxmoor', 'Awayside', 'Homewin', 'Doublepass',
 ];
-
-export const NPC_CRESTS = ['🦊', '🐗', '🦌', '🐻', '🦉', '🐍', '🐝', '🦈', '🐊', '🦬', '🐆', '🦫'];

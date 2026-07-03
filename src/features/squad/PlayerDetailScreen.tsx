@@ -5,21 +5,21 @@ import { BALANCING, POSITION_LABEL, RARITY_COLOR, RARITY_LABEL } from '../../cor
 import { effectiveAttributes, effectiveOverall } from '../../core/engine/playerGen';
 import { useGameStore } from '../../state/gameStore';
 import { GKButton, Card, SectionTitle } from '../../ui/components';
-import { avatarFor } from '../../ui/PlayerCard';
+import { PlayerAvatar } from '../../ui/PlayerAvatar';
 import { colors, font, radius, spacing } from '../../ui/theme';
 import type { RootScreenProps } from '../../navigation/types';
 
 /**
- * Spieler-Detail: Attribute, Level und Training über Duplikate
- * (gleiche Spieler-Identität aus Packs, Kapitel 3.3).
+ * Player detail: attributes, level and training via duplicates
+ * (same player identity drawn from packs, chapter 3.3).
  */
 
 const ATTR_LABELS: Array<[keyof ReturnType<typeof effectiveAttributes>, string]> = [
-  ['tempo', 'Tempo'],
-  ['technik', 'Technik'],
-  ['abschluss', 'Abschluss'],
-  ['verteidigung', 'Verteidigung'],
-  ['kondition', 'Kondition'],
+  ['tempo', 'Pace'],
+  ['technik', 'Technique'],
+  ['abschluss', 'Finishing'],
+  ['verteidigung', 'Defending'],
+  ['kondition', 'Stamina'],
 ];
 
 export function PlayerDetailScreen({ route, navigation }: RootScreenProps<'PlayerDetail'>) {
@@ -35,8 +35,8 @@ export function PlayerDetailScreen({ route, navigation }: RootScreenProps<'Playe
   if (!player) {
     return (
       <SafeAreaView style={styles.safe}>
-        <Text style={styles.emptyText}>Spieler nicht gefunden.</Text>
-        <GKButton title="Zurück" variant="ghost" onPress={() => navigation.goBack()} />
+        <Text style={styles.emptyText}>Player not found.</Text>
+        <GKButton title="Back" variant="ghost" onPress={() => navigation.goBack()} />
       </SafeAreaView>
     );
   }
@@ -51,7 +51,7 @@ export function PlayerDetailScreen({ route, navigation }: RootScreenProps<'Playe
     if (!dup) return;
     const ok = await trainPlayer(player.id, dup.id);
     if (ok) {
-      Alert.alert('Training! 💪', `${player.pool.name} ist jetzt Level ${player.level + 1}.`);
+      Alert.alert('Training complete', `${player.pool.name} is now level ${player.level + 1}.`);
     }
   };
 
@@ -59,7 +59,7 @@ export function PlayerDetailScreen({ route, navigation }: RootScreenProps<'Playe
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.container}>
         <View style={[styles.hero, { backgroundColor: rarityColor }]}>
-          <Text style={styles.heroAvatar}>{avatarFor(player.pool)}</Text>
+          <PlayerAvatar player={player.pool} size={96} />
           <Text style={styles.heroName}>{player.pool.name}</Text>
           <Text style={styles.heroMeta}>
             {POSITION_LABEL[player.pool.position]} · {RARITY_LABEL[player.pool.rarity]} · Level{' '}
@@ -68,7 +68,7 @@ export function PlayerDetailScreen({ route, navigation }: RootScreenProps<'Playe
           <Text style={styles.heroOverall}>{overall}</Text>
         </View>
 
-        <SectionTitle>Attribute</SectionTitle>
+        <SectionTitle>Attributes</SectionTitle>
         <Card>
           {ATTR_LABELS.map(([key, label]) => (
             <View key={key} style={styles.attrRow}>
@@ -90,20 +90,20 @@ export function PlayerDetailScreen({ route, navigation }: RootScreenProps<'Playe
         <Card>
           <Text style={styles.trainText}>
             {maxed
-              ? 'Maximales Level erreicht!'
+              ? 'Maximum level reached!'
               : duplicates.length > 0
-                ? `${duplicates.length} Duplikat${duplicates.length > 1 ? 'e' : ''} verfügbar. Ein Duplikat einsetzen → +1 Level (alle Attribute +1).`
-                : 'Keine Duplikate im Kader. Ziehe denselben Spieler aus einem Pack, um zu trainieren.'}
+                ? `${duplicates.length} duplicate${duplicates.length > 1 ? 's' : ''} available. Consume one duplicate for +1 level (all attributes +1).`
+                : 'No duplicates in your squad. Pull the same player from a pack to train him.'}
           </Text>
           <GKButton
-            title="Duplikat einsetzen (+1 Level)"
+            title="Use duplicate (+1 level)"
             onPress={onTrain}
             disabled={duplicates.length === 0 || maxed}
           />
         </Card>
 
         <GKButton
-          title="Zurück"
+          title="Back"
           variant="ghost"
           style={{ marginTop: spacing.md }}
           onPress={() => navigation.goBack()}
@@ -127,9 +127,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: spacing.lg,
     marginBottom: spacing.md,
-  },
-  heroAvatar: {
-    fontSize: 64,
   },
   heroName: {
     fontSize: font.h1,

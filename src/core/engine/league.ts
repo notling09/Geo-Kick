@@ -1,6 +1,6 @@
 import { LEAGUE, USER_CLUB_ID } from '../domain/constants';
 import type { Match, NpcClub, StandingRow } from '../domain/types';
-import { NPC_CLUB_PLACES, NPC_CLUB_PREFIXES, NPC_CRESTS } from './names';
+import { NPC_CLUB_PLACES, NPC_CLUB_PREFIXES, NPC_CLUB_SUFFIXES } from './names';
 import { pick, randInt, shuffle } from './random';
 
 /** Erzeugt 7 NPC-Klubs für die angegebene Division (Kapitel 3.4). */
@@ -9,12 +9,14 @@ export function generateNpcClubs(division: number, season: number): Array<Omit<N
   const usedNames = new Set<string>();
   const clubs: Array<Omit<NpcClub, 'id'>> = [];
   while (clubs.length < LEAGUE.clubsPerDivision - 1) {
-    const name = `${pick(NPC_CLUB_PREFIXES)} ${pick(NPC_CLUB_PLACES)}`.replace('- ', ' ');
+    const place = pick(NPC_CLUB_PLACES);
+    const name =
+      Math.random() < 0.5 ? `${pick(NPC_CLUB_PREFIXES)} ${place}` : `${place} ${pick(NPC_CLUB_SUFFIXES)}`;
     if (usedNames.has(name)) continue;
     usedNames.add(name);
     clubs.push({
       name,
-      crest: pick(NPC_CRESTS),
+      crest: `crest-${randInt(0, 9)}`,
       strength: randInt(minS, maxS),
       division,
       season,

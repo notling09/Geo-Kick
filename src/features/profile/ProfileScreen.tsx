@@ -6,11 +6,12 @@ import { getSessionStats, type SessionStats } from '../../core/db/repositories/s
 import { useGameStore } from '../../state/gameStore';
 import { useLeagueStore } from '../../state/leagueStore';
 import { Card, SectionTitle } from '../../ui/components';
+import { Crest } from '../../ui/Crest';
 import { colors, font, radius, spacing } from '../../ui/theme';
 
 /**
- * Profil & Fortschritt (Kapitel 3.5): Klubname, Wappen, Division sowie
- * Statistiken zur realen Aktivität (besuchte Plätze, Sessions, Coins).
+ * Profile & progress (chapter 3.5): club name, crest, division plus
+ * statistics about real-world activity (visited pitches, sessions, coins).
  */
 export function ProfileScreen() {
   const club = useGameStore((s) => s.club);
@@ -30,14 +31,14 @@ export function ProfileScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.clubHero}>
-          <Text style={styles.clubCrest}>{club?.crest ?? '⚽'}</Text>
-          <Text style={styles.clubName}>{club?.name ?? 'Mein Klub'}</Text>
+          <Crest crestId={club?.crest} size={80} />
+          <Text style={styles.clubName}>{club?.name ?? 'My Club'}</Text>
           <Text style={styles.clubMeta}>
-            Division {club?.division ?? 4} · Saison {season}
+            Division {club?.division ?? 4} · Season {season}
           </Text>
         </View>
 
-        <SectionTitle>Reale Aktivität</SectionTitle>
+        <SectionTitle>Real-world activity</SectionTitle>
         <View style={styles.statsGrid}>
           <Card style={styles.statCard}>
             <Text style={styles.statValue}>{stats?.totalSessions ?? 0}</Text>
@@ -45,34 +46,33 @@ export function ProfileScreen() {
           </Card>
           <Card style={styles.statCard}>
             <Text style={styles.statValue}>{stats?.distinctSpots ?? 0}</Text>
-            <Text style={styles.statLabel}>Besuchte Plätze</Text>
+            <Text style={styles.statLabel}>Pitches visited</Text>
           </Card>
           <Card style={styles.statCard}>
             <Text style={styles.statValue}>{stats?.totalMinutes ?? 0}</Text>
-            <Text style={styles.statLabel}>Minuten am Platz</Text>
+            <Text style={styles.statLabel}>Minutes on pitch</Text>
           </Card>
           <Card style={styles.statCard}>
             <Text style={styles.statValue}>{stats?.totalCoins ?? 0}</Text>
-            <Text style={styles.statLabel}>Coins verdient</Text>
+            <Text style={styles.statLabel}>Coins earned</Text>
           </Card>
         </View>
 
-        <SectionTitle>Klub</SectionTitle>
+        <SectionTitle>Club</SectionTitle>
         <Card>
-          <Text style={styles.infoRow}>👥 Kadergröße: {players.length} Spieler</Text>
-          <Text style={styles.infoRow}>🌟 Legendäre Spieler: {legendaries}</Text>
-          <Text style={styles.infoRow}>🪙 Coins: {club?.coins ?? 0}</Text>
+          <Text style={styles.infoRow}>Squad size: {players.length} players</Text>
+          <Text style={styles.infoRow}>Legendary players: {legendaries}</Text>
+          <Text style={styles.infoRow}>Coins: {club?.coins ?? 0}</Text>
         </Card>
 
-        <SectionTitle>Info</SectionTitle>
+        <SectionTitle>About</SectionTitle>
         <Card>
           <Text style={styles.aboutText}>
-            Geo-Kick Version 1 (MVP) – alle Daten werden ausschließlich lokal auf deinem
-            Gerät gespeichert.
+            Geo-Kick version 1 (MVP) - all data is stored locally on your device only.
           </Text>
           <Text style={styles.aboutText}>
-            Kartendaten: © OpenStreetMap-Mitwirkende (ODbL). Alle Spieler- und Klubnamen
-            sind frei erfunden.
+            Map data: © OpenStreetMap contributors (ODbL). All player and club names are
+            entirely fictional.
           </Text>
         </Card>
       </ScrollView>
@@ -95,9 +95,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.lg,
     marginBottom: spacing.md,
-  },
-  clubCrest: {
-    fontSize: 64,
   },
   clubName: {
     fontSize: font.h1,

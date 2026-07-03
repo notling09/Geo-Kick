@@ -80,7 +80,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     } catch (e) {
       set({
         osmLoading: false,
-        osmError: 'Plätze konnten nicht geladen werden (offline?). Gecachte Plätze werden angezeigt.',
+        osmError:
+          'Could not load pitches from OpenStreetMap right now. Tap the refresh button to retry, or add a pitch yourself by long-pressing the map.',
       });
       return 0;
     }
@@ -89,7 +90,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   addUserSpot: async (name, latitude, longitude) => {
     await spotRepo.addUserSpot({
       id: `user-${Date.now()}`,
-      name: name.trim() || 'Eigener Platz',
+      name: name.trim() || 'My pitch',
       latitude,
       longitude,
       radius: BALANCING.defaultSpotRadius,

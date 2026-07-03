@@ -5,13 +5,14 @@ import { BALANCING, RARITY_COLOR, RARITY_LABEL, POSITION_LABEL } from '../../cor
 import type { PoolPlayer } from '../../core/domain/types';
 import { useGameStore } from '../../state/gameStore';
 import { GKButton, Card, CoinBadge, SectionTitle } from '../../ui/components';
-import { avatarFor } from '../../ui/PlayerCard';
+import { IconPack, IconStar } from '../../ui/icons';
+import { PlayerAvatar } from '../../ui/PlayerAvatar';
 import { colors, font, radius, spacing } from '../../ui/theme';
 
 /**
- * Pack-Öffnung (Kapitel 3.2): Packs aus Sessions öffnen, Ergebnis mit
- * Seltenheits-Farben präsentieren. Coins können im Shop gegen weitere
- * Packs getauscht werden (Game Loop Schritt 5) – kein Echtgeld.
+ * Pack opening (chapter 3.2): open packs earned from sessions, present the
+ * pulls with rarity colors. Coins can be exchanged for extra packs in the
+ * shop (game loop step 5) - no real money.
  */
 export function PacksScreen() {
   const { club, packs, players, openPack, buyPack } = useGameStore();
@@ -37,8 +38,8 @@ export function PacksScreen() {
     const ok = await buyPack();
     if (!ok) {
       Alert.alert(
-        'Nicht genug Coins',
-        `Ein Pack kostet ${BALANCING.packShopPrice} Coins. Sammle Coins durch echte Sessions am Platz!`,
+        'Not enough coins',
+        `A pack costs ${BALANCING.packShopPrice} coins. Earn coins with real sessions at a pitch!`,
       );
     }
   };
@@ -55,17 +56,16 @@ export function PacksScreen() {
         </View>
 
         <Card style={styles.packCard}>
-          <Text style={styles.packEmoji}>🎁</Text>
+          <IconPack size={64} color={colors.accentDark} />
           <Text style={styles.packCount}>
-            {unopened.length} ungeöffnete{unopened.length === 1 ? 's' : ''} Pack
-            {unopened.length === 1 ? '' : 's'}
+            {unopened.length} unopened pack{unopened.length === 1 ? '' : 's'}
           </Text>
           <Text style={styles.packHint}>
-            Jedes Pack enthält {BALANCING.playersPerPack} Spieler.
-            Seltenheiten: Bronze 60 % · Silber 28 % · Gold 10 % · Legendär 2 %
+            Every pack contains {BALANCING.playersPerPack} players.
+            Rarity odds: Bronze 60% · Silver 28% · Gold 10% · Legendary 2%
           </Text>
           <GKButton
-            title="Pack öffnen! 🎉"
+            title="Open pack!"
             onPress={onOpen}
             disabled={unopened.length === 0}
             loading={opening}
@@ -74,45 +74,39 @@ export function PacksScreen() {
 
         <SectionTitle>Shop</SectionTitle>
         <Card>
-          <Text style={styles.shopText}>
-            Standard-Pack – {BALANCING.packShopPrice} 🪙
-          </Text>
+          <Text style={styles.shopText}>Standard pack - {BALANCING.packShopPrice} coins</Text>
           <Text style={styles.packHint}>
-            Coins verdienst du ausschließlich durch echte Sessions an Plätzen. Kein Echtgeld.
+            Coins are earned exclusively through real sessions at pitches. No real money.
           </Text>
-          <GKButton title="Pack kaufen" variant="secondary" onPress={onBuy} />
+          <GKButton title="Buy pack" variant="secondary" onPress={onBuy} />
         </Card>
 
         <Text style={styles.statsText}>
-          Bisher geöffnet: {openedCount} Packs · Kadergröße: {players.length} Spieler
+          Packs opened so far: {openedCount} · squad size: {players.length} players
         </Text>
       </ScrollView>
 
       <Modal visible={revealed !== null} transparent animationType="slide">
         <View style={styles.modalBackdrop}>
           <View style={styles.modalSheet}>
-            <Text style={styles.revealTitle}>Deine neuen Spieler! ✨</Text>
+            <Text style={styles.revealTitle}>Your new players!</Text>
             {(revealed ?? []).map((p, i) => (
               <View
                 key={`${p.id}-${i}`}
                 style={[styles.revealCard, { borderColor: RARITY_COLOR[p.rarity] }]}
               >
-                <View style={[styles.revealAvatar, { backgroundColor: RARITY_COLOR[p.rarity] }]}>
-                  <Text style={{ fontSize: 26 }}>{avatarFor(p)}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
+                <PlayerAvatar player={p} size={46} />
+                <View style={{ flex: 1, marginLeft: spacing.sm }}>
                   <Text style={styles.revealName}>{p.name}</Text>
                   <Text style={styles.revealMeta}>
                     {POSITION_LABEL[p.position]} · {RARITY_LABEL[p.rarity]}
-                    {ownedCountFor(p.id) > 1 ? ' · Duplikat (Training möglich!)' : ''}
+                    {ownedCountFor(p.id) > 1 ? ' · duplicate (training!)' : ''}
                   </Text>
                 </View>
-                <Text style={[styles.revealRarity, { color: RARITY_COLOR[p.rarity] }]}>
-                  {p.rarity === 'legendaer' ? '🌟' : '⚽'}
-                </Text>
+                {p.rarity === 'legendaer' && <IconStar size={26} />}
               </View>
             ))}
-            <GKButton title="Super!" onPress={() => setRevealed(null)} />
+            <GKButton title="Nice!" onPress={() => setRevealed(null)} />
           </View>
         </View>
       </Modal>
@@ -143,9 +137,6 @@ const styles = StyleSheet.create({
   packCard: {
     alignItems: 'center',
     marginBottom: spacing.md,
-  },
-  packEmoji: {
-    fontSize: 64,
   },
   packCount: {
     fontSize: font.h2,
@@ -199,14 +190,6 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
     marginBottom: spacing.sm,
   },
-  revealAvatar: {
-    width: 46,
-    height: 46,
-    borderRadius: radius.round,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.sm,
-  },
   revealName: {
     fontWeight: '800',
     color: colors.ink,
@@ -214,8 +197,5 @@ const styles = StyleSheet.create({
   revealMeta: {
     fontSize: font.small,
     color: colors.inkSoft,
-  },
-  revealRarity: {
-    fontSize: font.h1,
   },
 });

@@ -8,8 +8,29 @@ import type { Spot } from '../domain/types';
  * Attribution: © OpenStreetMap-Mitwirkende (ODbL), siehe Profil-Screen.
  */
 
-const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
+/** Mehrere Overpass-Instanzen als Fallback – einzelne Server sind oft ausgelastet (429/504). */
+const OVERPASS_URLS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter',
+];
 const SEARCH_RADIUS_M = 5000;
+const FETCH_TIMEOUT_MS = 15000;
+
+async function postWithTimeout(url: string, body: string): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 interface OverpassElement {
   type: 'node' | 'way' | 'relation';
@@ -32,15 +53,25 @@ export async function fetchNearbyPitches(
     );
     out center 60;
   `;
-  const res = await fetch(OVERPASS_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `data=${encodeURIComponent(query)}`,
-  });
-  if (!res.ok) {
-    throw new Error(`Overpass-Fehler: HTTP ${res.status}`);
+  const body = `data=${encodeURIComponent(query)}`;
+  let json: { elements?: OverpassElement[] } | null = null;
+  let lastError: unknown = null;
+  for (const url of OVERPASS_URLS) {
+    try {
+      const res = await postWithTimeout(url, body);
+      if (!res.ok) {
+        lastError = new Error(`Overpass HTTP ${res.status} (${url})`);
+        continue;
+      }
+      json = (await res.json()) as { elements?: OverpassElement[] };
+      break;
+    } catch (e) {
+      lastError = e;
+    }
   }
-  const json = (await res.json()) as { elements?: OverpassElement[] };
+  if (!json) {
+    throw lastError ?? new Error('Overpass unreachable');
+  }
   const spots: Array<Omit<Spot, 'cooldownUntil'>> = [];
   (json.elements ?? []).forEach((el) => {
     const lat = el.lat ?? el.center?.lat;
@@ -48,7 +79,7 @@ export async function fetchNearbyPitches(
     if (lat === undefined || lon === undefined) return;
     spots.push({
       id: `osm-${el.type}-${el.id}`,
-      name: el.tags?.name ?? 'Fußballplatz',
+      name: el.tags?.name ?? 'Football pitch',
       latitude: lat,
       longitude: lon,
       radius: BALANCING.defaultSpotRadius,

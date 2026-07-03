@@ -4,6 +4,7 @@ import type {
   Club, FormationId, OwnedPlayer, Pack, PoolPlayer, Tactic,
 } from '../core/domain/types';
 import { generateFillerSquad, generatePlayerPool, effectiveOverall } from '../core/engine/playerGen';
+import { STARTER_WINGERS } from '../core/engine/names';
 import { drawPackContent } from '../core/engine/packGen';
 import * as metaRepo from '../core/db/repositories/metaRepo';
 import * as playerRepo from '../core/db/repositories/playerRepo';
@@ -41,8 +42,8 @@ interface GameState {
 
 async function loadClub(): Promise<Club> {
   return {
-    name: (await metaRepo.getMeta('clubName')) ?? 'Mein Klub',
-    crest: (await metaRepo.getMeta('crest')) ?? '⚽',
+    name: (await metaRepo.getMeta('clubName')) ?? 'My Club',
+    crest: (await metaRepo.getMeta('crest')) ?? 'crest-0',
     division: await metaRepo.getMetaNumber('division', 4),
     coins: await metaRepo.getMetaNumber('coins', 0),
     formation: ((await metaRepo.getMeta('formation')) ?? '4-4-2') as FormationId,
@@ -100,6 +101,9 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (!seeded) {
       await playerRepo.insertPoolPlayers(generatePlayerPool());
       await metaRepo.setMeta('poolSeeded', '1');
+    } else {
+      // Bestehende Installationen: Starter-Namen an die aktuelle Liste angleichen
+      await playerRepo.syncStarterNames(STARTER_WINGERS.map((s) => s.name));
     }
     const onboarded = (await metaRepo.getMeta('onboarded')) === '1';
     const pool = await playerRepo.getPool();

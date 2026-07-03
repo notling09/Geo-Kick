@@ -7,12 +7,15 @@ import type { Tactic } from '../../core/domain/types';
 import { useGameStore } from '../../state/gameStore';
 import { useLeagueStore } from '../../state/leagueStore';
 import { GKButton, Card, SectionTitle } from '../../ui/components';
+import { Crest } from '../../ui/Crest';
+import { IconCheck, IconClock, IconCross, IconMinus } from '../../ui/icons';
 import { colors, font, radius, spacing } from '../../ui/theme';
 import type { TabScreenProps } from '../../navigation/types';
 
 /**
- * Liga (Kapitel 3.4): Tabelle, Spielplan, Taktikwahl vor jedem Spiel und
- * Start der Live-Simulation. 1 Spiel pro 24 h, 14 Spieltage, Auf-/Abstieg.
+ * League (chapter 3.4): table, fixtures, tactic choice before each match
+ * and the live simulation. One match per 24h, 14 rounds, promotion and
+ * relegation at the end of the season.
  */
 
 const TACTICS: Tactic[] = ['offensiv', 'ausgewogen', 'defensiv'];
@@ -20,14 +23,14 @@ const TACTICS: Tactic[] = ['offensiv', 'ausgewogen', 'defensiv'];
 function formatCountdown(ms: number): string {
   const h = Math.floor(ms / 3600000);
   const m = Math.ceil((ms % 3600000) / 60000);
-  return h > 0 ? `${h} Std. ${m} Min.` : `${m} Min.`;
+  return h > 0 ? `${h}h ${m}min` : `${m}min`;
 }
 
-export function LeagueScreen({ navigation }: TabScreenProps<'Liga'>) {
+export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
   const isFocused = useIsFocused();
   const club = useGameStore((s) => s.club);
   const {
-    season, round, standings, matches, seasonMessage, npcs,
+    season, round, standings, matches, seasonMessage,
     hydrate, matchReady, msUntilNextMatch, playUserMatchday, acknowledgeSeasonMessage,
     clubName, clubCrest,
   } = useLeagueStore();
@@ -40,7 +43,7 @@ export function LeagueScreen({ navigation }: TabScreenProps<'Liga'>) {
     if (isFocused) hydrate();
   }, [isFocused, hydrate]);
 
-  // Countdown-Anzeige regelmäßig aktualisieren
+  // Refresh the countdown label periodically
   useEffect(() => {
     const t = setInterval(() => forceTick((n) => n + 1), 30000);
     return () => clearInterval(t);
@@ -78,32 +81,32 @@ export function LeagueScreen({ navigation }: TabScreenProps<'Liga'>) {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>Liga</Text>
+        <Text style={styles.title}>League</Text>
         <Text style={styles.subtitle}>
-          Division {club?.division ?? 4} · Saison {season} · Spieltag{' '}
+          Division {club?.division ?? 4} · Season {season} · Matchday{' '}
           {Math.min(round, LEAGUE.roundsPerSeason)}/{LEAGUE.roundsPerSeason}
         </Text>
 
         {seasonMessage ? (
           <Card style={styles.messageCard}>
             <Text style={styles.messageText}>{seasonMessage}</Text>
-            <GKButton title="Alles klar!" variant="secondary" onPress={acknowledgeSeasonMessage} />
+            <GKButton title="Got it!" variant="secondary" onPress={acknowledgeSeasonMessage} />
           </Card>
         ) : null}
 
-        <SectionTitle>Nächstes Spiel</SectionTitle>
+        <SectionTitle>Next match</SectionTitle>
         {nextUserMatch && !seasonOver ? (
           <Card>
             <View style={styles.matchupRow}>
               <View style={styles.matchupSide}>
-                <Text style={styles.matchupCrest}>{clubCrest(nextUserMatch.homeId)}</Text>
+                <Crest crestId={clubCrest(nextUserMatch.homeId)} size={52} />
                 <Text style={styles.matchupName} numberOfLines={2}>
                   {clubName(nextUserMatch.homeId)}
                 </Text>
               </View>
               <Text style={styles.vs}>vs</Text>
               <View style={styles.matchupSide}>
-                <Text style={styles.matchupCrest}>{clubCrest(nextUserMatch.awayId)}</Text>
+                <Crest crestId={clubCrest(nextUserMatch.awayId)} size={52} />
                 <Text style={styles.matchupName} numberOfLines={2}>
                   {clubName(nextUserMatch.awayId)}
                 </Text>
@@ -112,7 +115,7 @@ export function LeagueScreen({ navigation }: TabScreenProps<'Liga'>) {
 
             {ready ? (
               <>
-                <Text style={styles.tacticTitle}>Taktik wählen:</Text>
+                <Text style={styles.tacticTitle}>Choose your tactic:</Text>
                 <View style={styles.tacticRow}>
                   {TACTICS.map((t) => (
                     <Pressable
@@ -127,30 +130,33 @@ export function LeagueScreen({ navigation }: TabScreenProps<'Liga'>) {
                   ))}
                 </View>
                 <Text style={styles.tacticHint}>
-                  Formation ({club?.formation}) stellst du im Kader-Tab ein.
+                  Formation ({club?.formation}) is set on the Squad tab.
                 </Text>
-                <GKButton title="Anpfiff! ⚽" onPress={onKickoff} loading={starting} />
+                <GKButton title="Kick off!" onPress={onKickoff} loading={starting} />
               </>
             ) : (
-              <Text style={styles.countdown}>
-                Anpfiff in {formatCountdown(msUntilNextMatch())} 🕑
-              </Text>
+              <View style={styles.countdownRow}>
+                <IconClock size={20} color={colors.accentDark} />
+                <Text style={styles.countdown}>
+                  Kick-off in {formatCountdown(msUntilNextMatch())}
+                </Text>
+              </View>
             )}
           </Card>
         ) : (
           <Card>
-            <Text style={styles.countdown}>Saison beendet – neue Saison startet gleich.</Text>
+            <Text style={styles.countdown}>Season finished - a new season starts right away.</Text>
           </Card>
         )}
 
-        <SectionTitle>Tabelle</SectionTitle>
+        <SectionTitle>Table</SectionTitle>
         <Card style={{ paddingVertical: spacing.sm }}>
           <View style={styles.tableHeader}>
             <Text style={[styles.th, styles.colPos]}>#</Text>
-            <Text style={[styles.th, styles.colClub]}>Klub</Text>
-            <Text style={[styles.th, styles.colNum]}>Sp</Text>
-            <Text style={[styles.th, styles.colNum]}>Diff</Text>
-            <Text style={[styles.th, styles.colNum]}>Pkt</Text>
+            <Text style={[styles.th, styles.colClub]}>Club</Text>
+            <Text style={[styles.th, styles.colNum]}>P</Text>
+            <Text style={[styles.th, styles.colNum]}>GD</Text>
+            <Text style={[styles.th, styles.colNum]}>Pts</Text>
           </View>
           {standings.map((row, i) => {
             const isUser = row.clubId === USER_CLUB_ID;
@@ -164,9 +170,12 @@ export function LeagueScreen({ navigation }: TabScreenProps<'Liga'>) {
                 <Text style={[styles.td, styles.colPos, promo && styles.promoText, releg && styles.relegText]}>
                   {i + 1}
                 </Text>
-                <Text style={[styles.td, styles.colClub, isUser && styles.userText]} numberOfLines={1}>
-                  {row.crest} {row.name}
-                </Text>
+                <View style={[styles.clubCell, styles.colClub]}>
+                  <Crest crestId={row.crest} size={18} />
+                  <Text style={[styles.td, styles.clubCellName, isUser && styles.userText]} numberOfLines={1}>
+                    {row.name}
+                  </Text>
+                </View>
                 <Text style={[styles.td, styles.colNum]}>{row.played}</Text>
                 <Text style={[styles.td, styles.colNum]}>{row.goalsFor - row.goalsAgainst}</Text>
                 <Text style={[styles.td, styles.colNum, styles.points]}>{row.points}</Text>
@@ -174,23 +183,24 @@ export function LeagueScreen({ navigation }: TabScreenProps<'Liga'>) {
             );
           })}
           <Text style={styles.legend}>
-            ↑ Platz 1–{LEAGUE.promotionSpots}: Aufstieg · ↓ letzte {LEAGUE.relegationSpots}: Abstieg
+            Top {LEAGUE.promotionSpots}: promotion · bottom {LEAGUE.relegationSpots}: relegation
           </Text>
         </Card>
 
-        <SectionTitle>Deine Ergebnisse</SectionTitle>
+        <SectionTitle>Your results</SectionTitle>
         {playedUserMatches.length === 0 ? (
-          <Text style={styles.emptyText}>Noch keine Spiele absolviert.</Text>
+          <Text style={styles.emptyText}>No matches played yet.</Text>
         ) : (
           playedUserMatches.map((m) => {
             const userIsHome = m.homeId === USER_CLUB_ID;
             const userGoals = userIsHome ? m.homeGoals : m.awayGoals;
             const oppGoals = userIsHome ? m.awayGoals : m.homeGoals;
-            const icon = userGoals > oppGoals ? '✅' : userGoals < oppGoals ? '❌' : '➖';
+            const ResultIcon = userGoals > oppGoals ? IconCheck : userGoals < oppGoals ? IconCross : IconMinus;
             return (
               <Card key={m.id} style={styles.resultCard}>
+                <ResultIcon size={16} />
                 <Text style={styles.resultText}>
-                  {icon} Spieltag {m.round}: {clubName(m.homeId)} {m.homeGoals}:{m.awayGoals}{' '}
+                  MD {m.round}: {clubName(m.homeId)} {m.homeGoals}:{m.awayGoals}{' '}
                   {clubName(m.awayId)}
                 </Text>
               </Card>
@@ -240,9 +250,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
   },
-  matchupCrest: {
-    fontSize: 40,
-  },
   matchupName: {
     fontWeight: '800',
     color: colors.ink,
@@ -289,12 +296,18 @@ const styles = StyleSheet.create({
     color: colors.inkSoft,
     marginBottom: spacing.sm,
   },
+  countdownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
   countdown: {
     fontSize: font.h2,
     fontWeight: '800',
     color: colors.accentDark,
     textAlign: 'center',
-    paddingVertical: spacing.sm,
   },
   tableHeader: {
     flexDirection: 'row',
@@ -328,6 +341,14 @@ const styles = StyleSheet.create({
   colClub: {
     flex: 1,
   },
+  clubCell: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  clubCellName: {
+    flexShrink: 1,
+  },
   colNum: {
     width: 36,
     textAlign: 'center',
@@ -354,10 +375,14 @@ const styles = StyleSheet.create({
   resultCard: {
     padding: spacing.sm,
     marginBottom: spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   resultText: {
     fontSize: font.small,
     color: colors.ink,
+    flex: 1,
   },
   emptyText: {
     color: colors.inkSoft,

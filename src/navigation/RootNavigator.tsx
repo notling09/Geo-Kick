@@ -1,5 +1,4 @@
 import React from 'react';
-import { Text } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MapScreen } from '../features/map/MapScreen';
@@ -12,17 +11,18 @@ import { ProfileScreen } from '../features/profile/ProfileScreen';
 import { StartScreen } from '../features/start/StartScreen';
 import { OnboardingScreen } from '../features/onboarding/OnboardingScreen';
 import { colors } from '../ui/theme';
+import { IconMap, IconPack, IconProfile, IconSquad, IconTrophy, type IconProps } from '../ui/icons';
 import type { MainTabParamList, RootStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tabs = createBottomTabNavigator<MainTabParamList>();
 
-const TAB_ICONS: Record<keyof MainTabParamList, string> = {
-  Karte: '🗺️',
-  Kader: '👥',
-  Liga: '🏆',
-  Packs: '🎁',
-  Profil: '🙋',
+const TAB_ICONS: Record<keyof MainTabParamList, React.ComponentType<IconProps>> = {
+  Map: IconMap,
+  Squad: IconSquad,
+  League: IconTrophy,
+  Packs: IconPack,
+  Profile: IconProfile,
 };
 
 function MainTabs() {
@@ -33,18 +33,17 @@ function MainTabs() {
         tabBarActiveTintColor: colors.pitch,
         tabBarInactiveTintColor: colors.inkSoft,
         tabBarLabelStyle: { fontWeight: '700' },
-        tabBarIcon: ({ focused }) => (
-          <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.55 }}>
-            {TAB_ICONS[route.name as keyof MainTabParamList]}
-          </Text>
-        ),
+        tabBarIcon: ({ color, size }) => {
+          const Icon = TAB_ICONS[route.name as keyof MainTabParamList];
+          return <Icon color={color} size={size ?? 24} />;
+        },
       })}
     >
-      <Tabs.Screen name="Karte" component={MapScreen} />
-      <Tabs.Screen name="Kader" component={SquadScreen} />
-      <Tabs.Screen name="Liga" component={LeagueScreen} />
+      <Tabs.Screen name="Map" component={MapScreen} />
+      <Tabs.Screen name="Squad" component={SquadScreen} />
+      <Tabs.Screen name="League" component={LeagueScreen} />
       <Tabs.Screen name="Packs" component={PacksScreen} />
-      <Tabs.Screen name="Profil" component={ProfileScreen} />
+      <Tabs.Screen name="Profile" component={ProfileScreen} />
     </Tabs.Navigator>
   );
 }

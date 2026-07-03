@@ -11,11 +11,11 @@ export type RootStackParamList = {
 };
 
 export type MainTabParamList = {
-  Karte: undefined;
-  Kader: undefined;
-  Liga: undefined;
+  Map: undefined;
+  Squad: undefined;
+  League: undefined;
   Packs: undefined;
-  Profil: undefined;
+  Profile: undefined;
 };
 
 export type RootScreenProps<T extends keyof RootStackParamList> = NativeStackScreenProps<

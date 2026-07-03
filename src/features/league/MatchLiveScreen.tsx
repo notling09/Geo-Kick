@@ -4,26 +4,29 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { MatchEvent } from '../../core/domain/types';
 import { useLeagueStore } from '../../state/leagueStore';
 import { GKButton, Card } from '../../ui/components';
+import { Crest } from '../../ui/Crest';
+import {
+  IconBall, IconCard, IconFlag, IconFlash, IconPause, IconWhistle, type IconProps,
+} from '../../ui/icons';
 import { colors, font, radius, spacing } from '../../ui/theme';
 import type { RootScreenProps } from '../../navigation/types';
 
 /**
- * Live-Ansicht der Match-Simulation (Kapitel 3.4): Der Timer läuft sichtbar
- * mit, Ereignisse und Tore werden zum jeweiligen Zeitpunkt eingeblendet –
- * wie ein Live-Ticker. Das Ergebnis ist bereits berechnet und gespeichert;
- * hier wird es nur abgespielt (Abbrechen ändert nichts am Resultat).
+ * Live view of the match simulation (chapter 3.4): the timer visibly runs
+ * along and events/goals pop in at their minute - like a live ticker. The
+ * result is already computed and stored; this screen only plays it back.
  */
 
-const MS_PER_MINUTE = 350; // 90 Minuten in ~32 Sekunden
+const MS_PER_MINUTE = 350; // 90 minutes in ~32 seconds
 
-const EVENT_ICON: Record<MatchEvent['type'], string> = {
-  tor: '⚽',
-  chance: '💥',
-  ecke: '🚩',
-  foul: '🟨',
-  anpfiff: '🟢',
-  halbzeit: '⏸️',
-  abpfiff: '🏁',
+const EVENT_ICON: Record<MatchEvent['type'], React.ComponentType<IconProps>> = {
+  tor: IconBall,
+  chance: IconFlash,
+  ecke: IconFlag,
+  foul: IconCard,
+  anpfiff: IconWhistle,
+  halbzeit: IconPause,
+  abpfiff: IconWhistle,
 };
 
 export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
@@ -65,8 +68,8 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
   if (!played) {
     return (
       <SafeAreaView style={styles.safe}>
-        <Text style={styles.noMatch}>Kein Spiel verfügbar.</Text>
-        <GKButton title="Zurück" variant="ghost" onPress={() => navigation.goBack()} />
+        <Text style={styles.noMatch}>No match available.</Text>
+        <GKButton title="Back" variant="ghost" onPress={() => navigation.goBack()} />
       </SafeAreaView>
     );
   }
@@ -80,7 +83,7 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.scoreboard}>
         <View style={styles.scoreSide}>
-          <Text style={styles.crest}>{homeCrest}</Text>
+          <Crest crestId={homeCrest} size={52} />
           <Text style={styles.clubName} numberOfLines={2}>{homeName}</Text>
         </View>
         <View style={styles.scoreCenter}>
@@ -88,11 +91,11 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
             {homeGoals}:{awayGoals}
           </Text>
           <View style={styles.minuteBadge}>
-            <Text style={styles.minuteText}>{finished ? 'Ende' : `${minute}'`}</Text>
+            <Text style={styles.minuteText}>{finished ? 'FT' : `${minute}'`}</Text>
           </View>
         </View>
         <View style={styles.scoreSide}>
-          <Text style={styles.crest}>{awayCrest}</Text>
+          <Crest crestId={awayCrest} size={52} />
           <Text style={styles.clubName} numberOfLines={2}>{awayName}</Text>
         </View>
       </View>
@@ -102,24 +105,28 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
         data={visibleEvents}
         keyExtractor={(_, i) => String(i)}
         contentContainerStyle={styles.ticker}
-        renderItem={({ item }) => (
-          <Card style={[styles.eventCard, item.type === 'tor' && styles.goalCard]}>
-            <Text style={styles.eventMinute}>{item.minute}'</Text>
-            <Text style={[styles.eventText, item.type === 'tor' && styles.goalText]}>
-              {EVENT_ICON[item.type]} {item.text}
-            </Text>
-          </Card>
-        )}
+        renderItem={({ item }) => {
+          const EventIcon = EVENT_ICON[item.type];
+          return (
+            <Card style={[styles.eventCard, item.type === 'tor' && styles.goalCard]}>
+              <Text style={styles.eventMinute}>{item.minute}'</Text>
+              <EventIcon size={18} color={item.type === 'tor' ? colors.accentDark : colors.inkSoft} />
+              <Text style={[styles.eventText, item.type === 'tor' && styles.goalText]}>
+                {item.text}
+              </Text>
+            </Card>
+          );
+        }}
       />
 
       <View style={styles.footer}>
         {finished ? (
           <GKButton
-            title={`Weiter (Endstand ${match.homeGoals}:${match.awayGoals})`}
+            title={`Continue (final score ${match.homeGoals}:${match.awayGoals})`}
             onPress={() => navigation.goBack()}
           />
         ) : (
-          <GKButton title="Überspringen ⏩" variant="ghost" onPress={() => setSkipped(true)} />
+          <GKButton title="Skip" variant="ghost" onPress={() => setSkipped(true)} />
         )}
       </View>
     </SafeAreaView>
@@ -139,9 +146,6 @@ const styles = StyleSheet.create({
   scoreSide: {
     flex: 1,
     alignItems: 'center',
-  },
-  crest: {
-    fontSize: 42,
   },
   clubName: {
     color: '#fff',
@@ -179,6 +183,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: spacing.sm,
     marginBottom: spacing.xs,
+    gap: spacing.sm,
   },
   goalCard: {
     backgroundColor: '#FFF8E1',
@@ -186,7 +191,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   eventMinute: {
-    width: 36,
+    width: 30,
     fontWeight: '900',
     color: colors.pitchDark,
   },
