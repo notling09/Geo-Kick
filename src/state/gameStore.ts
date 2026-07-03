@@ -6,7 +6,7 @@ import type {
   Club, FormationId, OwnedPlayer, Pack, PoolPlayer, Tactic,
 } from '../core/domain/types';
 import { generateFillerSquad, generatePlayerPool, effectiveOverall } from '../core/engine/playerGen';
-import { STARTER_WINGERS } from '../core/engine/names';
+import { GOLD_PLAYERS, LEGENDARY_PLAYERS, STARTER_WINGERS } from '../core/engine/names';
 import { drawPackContent, packTypeFromSource } from '../core/engine/packGen';
 import * as metaRepo from '../core/db/repositories/metaRepo';
 import * as playerRepo from '../core/db/repositories/playerRepo';
@@ -120,6 +120,9 @@ export const useGameStore = create<GameState>((set, get) => ({
     } else {
       // Bestehende Installationen: Starter-Namen an die aktuelle Liste angleichen
       await playerRepo.syncStarterNames(STARTER_WINGERS.map((s) => s.name));
+      // … und Gold/Legendär auf die kuratierten Star-Identitäten migrieren
+      await playerRepo.syncCuratedRarity('gold', GOLD_PLAYERS);
+      await playerRepo.syncCuratedRarity('legendaer', LEGENDARY_PLAYERS);
     }
     const onboarded = (await metaRepo.getMeta('onboarded')) === '1';
     const pool = await playerRepo.getPool();

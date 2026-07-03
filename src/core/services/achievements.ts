@@ -10,7 +10,7 @@ import { getMetaNumber } from '../db/repositories/metaRepo';
  */
 
 export type AchievementIcon =
-  | 'ball' | 'map' | 'clock' | 'pack' | 'star' | 'trophy' | 'check' | 'flash';
+  | 'ball' | 'map' | 'clock' | 'pack' | 'star' | 'trophy' | 'check' | 'flash' | 'coin';
 
 export interface Achievement {
   id: string;
@@ -62,6 +62,13 @@ export async function computeAchievements(input: AchievementInput): Promise<Achi
       description: 'Spend 90 minutes on pitches in total',
       icon: 'clock',
       unlocked: stats.totalMinutes >= 90,
+    },
+    {
+      id: 'coin-collector',
+      title: 'Coin Collector',
+      description: 'Earn 1,000 coins at pitches in total',
+      icon: 'coin',
+      unlocked: stats.totalCoins >= 1000,
     },
     {
       id: 'first-pack',

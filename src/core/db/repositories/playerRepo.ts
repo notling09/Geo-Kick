@@ -72,6 +72,31 @@ export async function syncStarterNames(names: string[]): Promise<void> {
   );
 }
 
+/**
+ * Migration: bestehende Gold-/Legendär-Identitäten auf die kuratierten
+ * Star-Namen (mit passender Position) umbenennen. Idempotent; Besitz bleibt
+ * erhalten, da players nur die poolId referenziert.
+ */
+export async function syncCuratedRarity(
+  rarity: string,
+  curated: Array<{ name: string; position: string }>,
+): Promise<void> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<{ id: number; name: string; position: string }>(
+    `SELECT id, name, position FROM player_pool
+     WHERE rarity = ? AND isStarterChoice = 0 AND isFiller = 0 ORDER BY id`,
+    rarity,
+  );
+  for (let i = 0; i < rows.length && i < curated.length; i++) {
+    if (rows[i].name !== curated[i].name || rows[i].position !== curated[i].position) {
+      await db.runAsync(
+        'UPDATE player_pool SET name = ?, position = ? WHERE id = ?',
+        curated[i].name, curated[i].position, rows[i].id,
+      );
+    }
+  }
+}
+
 export async function getStarterChoices(): Promise<PoolPlayer[]> {
   const db = await getDb();
   const rows = await db.getAllAsync<PoolRow>(

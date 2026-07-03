@@ -1,6 +1,6 @@
 import { POSITION_WEIGHTS, RARITY_OVERALL_RANGE } from '../domain/constants';
 import type { Attributes, PoolPlayer, Position, Rarity } from '../domain/types';
-import { FIRST_NAMES, LAST_NAMES, STARTER_WINGERS } from './names';
+import { FIRST_NAMES, GOLD_PLAYERS, LAST_NAMES, LEGENDARY_PLAYERS, STARTER_WINGERS } from './names';
 import { pick, randInt, shuffle } from './random';
 
 /**
@@ -92,8 +92,30 @@ export function generatePlayerPool(): NewPoolPlayer[] {
     return name;
   };
 
+  // Bronze/Silber: zufällige Fantasienamen; Gold/Legendär: kuratierte,
+  // erkennbare Stars mit klar abgewandelten Namen (Nutzerwunsch)
+  const curated: Partial<Record<Rarity, Array<{ name: string; position: Position }>>> = {
+    gold: GOLD_PLAYERS,
+    legendaer: LEGENDARY_PLAYERS,
+  };
+
   (Object.keys(POOL_SIZE) as Rarity[]).forEach((rarity) => {
     const [min, max] = RARITY_OVERALL_RANGE[rarity];
+    const curatedList = curated[rarity];
+    if (curatedList) {
+      curatedList.forEach(({ name, position }) => {
+        usedNames.add(name);
+        players.push({
+          name,
+          position,
+          rarity,
+          isStarterChoice: false,
+          isFiller: false,
+          ...rollAttributes(position, randInt(min, max)),
+        });
+      });
+      return;
+    }
     // Positionen gleichmäßig durchmischen, damit jede Seltenheit alle Positionen abdeckt
     const positions = shuffle(
       Array.from({ length: POOL_SIZE[rarity] }, (_, i) => POSITIONS[i % POSITIONS.length]),

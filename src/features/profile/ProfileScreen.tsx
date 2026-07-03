@@ -14,8 +14,8 @@ import { useLeagueStore } from '../../state/leagueStore';
 import { Card, SectionTitle } from '../../ui/components';
 import { Crest } from '../../ui/Crest';
 import {
-  IconBall, IconCheck, IconClock, IconFlash, IconMap, IconPack, IconPin, IconStar,
-  IconTrophy, type IconProps,
+  IconBall, IconCheck, IconClock, IconCoin, IconFlash, IconMap, IconPack, IconPin,
+  IconStar, IconTrophy, type IconProps,
 } from '../../ui/icons';
 import { colors, font, radius, spacing } from '../../ui/theme';
 
@@ -33,6 +33,7 @@ const ACHIEVEMENT_ICON: Record<AchievementIcon, React.ComponentType<IconProps>> 
   trophy: IconTrophy,
   check: IconCheck,
   flash: IconFlash,
+  coin: IconCoin,
 };
 
 function formatLastVisit(ts: number): string {

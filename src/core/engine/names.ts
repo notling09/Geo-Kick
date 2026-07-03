@@ -30,6 +30,47 @@ export const STARTER_WINGERS = [
   { name: 'Notling Elmejor', flavor: 'Ice-cold finisher in the box' },
 ];
 
+/**
+ * Kuratierte Gold-/Legendär-Identitäten: erkennbare Stars mit klar
+ * abgewandelten Fantasienamen (Kapitel 9: keine echten Namen).
+ * Anzahl muss zur Pool-Größe in playerGen passen (20 Gold, 10 Legendär).
+ */
+export const LEGENDARY_PLAYERS: Array<{ name: string; position: 'TW' | 'ABW' | 'MF' | 'ST' }> = [
+  { name: 'Leo Mezzi', position: 'ST' },
+  { name: 'Cristiano Ronalgo', position: 'ST' },
+  { name: 'Kilian Mbappo', position: 'ST' },
+  { name: 'Erling Hooland', position: 'ST' },
+  { name: 'Kevin De Bruggen', position: 'MF' },
+  { name: 'Luka Modrego', position: 'MF' },
+  { name: 'Jude Bellingden', position: 'MF' },
+  { name: 'Virgil van Dike', position: 'ABW' },
+  { name: 'Achraf Hakimo', position: 'ABW' },
+  { name: 'Gigi Donnaromma', position: 'TW' },
+];
+
+export const GOLD_PLAYERS: Array<{ name: string; position: 'TW' | 'ABW' | 'MF' | 'ST' }> = [
+  { name: 'Harry Kanet', position: 'ST' },
+  { name: 'Lautaro Martinello', position: 'ST' },
+  { name: 'Victor Osimenne', position: 'ST' },
+  { name: 'Son Heungmino', position: 'ST' },
+  { name: 'Rafael Leaon', position: 'ST' },
+  { name: 'Julian Alvarest', position: 'ST' },
+  { name: 'Jamal Musialo', position: 'MF' },
+  { name: 'Phil Fodden', position: 'MF' },
+  { name: 'Pedri Gonzalvez', position: 'MF' },
+  { name: 'Rodri Hernandes', position: 'MF' },
+  { name: 'Florian Wirtzel', position: 'MF' },
+  { name: 'Declan Rike', position: 'MF' },
+  { name: 'Martin Odegoal', position: 'MF' },
+  { name: 'Ruben Diaz', position: 'ABW' },
+  { name: 'Trent Arnoldson', position: 'ABW' },
+  { name: 'Theo Hernandes', position: 'ABW' },
+  { name: 'Willy Salibar', position: 'ABW' },
+  { name: 'Josko Guardiol', position: 'ABW' },
+  { name: 'Alisson Beckert', position: 'TW' },
+  { name: 'Thibaut Courtoise', position: 'TW' },
+];
+
 /** Prefixes go before the place name ("FC Misthill"), suffixes after ("Misthill Rovers"). */
 export const NPC_CLUB_PREFIXES = ['FC', 'Athletic', 'Real', 'Sporting', 'Dynamo'];
 export const NPC_CLUB_SUFFIXES = ['United', 'Rovers', 'Wanderers', 'City', 'Town'];
