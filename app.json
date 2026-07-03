@@ -12,7 +12,7 @@
     "android": {
       "package": "com.geokick.app",
       "adaptiveIcon": {
-        "backgroundColor": "#0065CC",
+        "backgroundColor": "#0095F7",
         "foregroundImage": "./assets/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false,
@@ -37,8 +37,8 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/icon-transparent.png",
-          "backgroundColor": "#0065CC",
-          "imageWidth": 200
+          "backgroundColor": "#0095F7",
+          "imageWidth": 220
         }
       ]
     ]

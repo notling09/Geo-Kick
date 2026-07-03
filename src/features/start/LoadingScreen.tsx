@@ -25,7 +25,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     // Gleicher Blauton wie der native Splash (app.json), nahtloser Übergang
-    backgroundColor: '#0065CC',
+    backgroundColor: '#0095F7',
     alignItems: 'center',
     justifyContent: 'center',
   },
