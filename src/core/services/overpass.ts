@@ -15,8 +15,8 @@ const OVERPASS_URLS = [
   'https://overpass.private.coffee/api/interpreter',
 ];
 const SEARCH_RADIUS_M = 5000;
-// Overpass rechnet serverseitig bis zu 20 s ([timeout:20]) – plus Latenzpuffer
-const FETCH_TIMEOUT_MS = 30000;
+// Kurz genug, damit 3 Mirror-Versuche zusammen unter ~45 s bleiben
+const FETCH_TIMEOUT_MS = 15000;
 
 async function postWithTimeout(url: string, body: string): Promise<Response> {
   const controller = new AbortController();

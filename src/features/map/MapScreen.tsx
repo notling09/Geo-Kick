@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Modal,
   StyleSheet,
@@ -64,6 +65,10 @@ export function MapScreen() {
 
   const [myPos, setMyPos] = useState<{ latitude: number; longitude: number } | null>(null);
   const [selectedSpotId, setSelectedSpotId] = useState<string | null>(null);
+  const [locating, setLocating] = useState(false);
+  // Ein Tap auf einen Marker löst auch onPress der Karte aus (Deselect) –
+  // dieser Zeitstempel unterdrückt das direkt folgende Karten-Event.
+  const markerPressGuard = useRef(0);
   const [now, setNow] = useState(Date.now());
   const [newSpotCoords, setNewSpotCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [newSpotName, setNewSpotName] = useState('');
@@ -111,6 +116,18 @@ export function MapScreen() {
       if (coords) await refreshOsmSpots(coords.latitude, coords.longitude);
     })();
   }, [hydrate, locate, refreshOsmSpots]);
+
+  const onLocate = async () => {
+    setLocating(true);
+    try {
+      const coords = await locate();
+      if (!coords) {
+        Alert.alert('No location', 'Could not determine your location. Is GPS enabled?');
+      }
+    } finally {
+      setLocating(false);
+    }
+  };
 
   const onRefreshSpots = async () => {
     const coords = myPos ?? (await locate());
@@ -189,7 +206,9 @@ export function MapScreen() {
           attribution={false}
           logo={false}
           onLongPress={(e) => onLongPress(e.nativeEvent.lngLat)}
-          onPress={() => setSelectedSpotId(null)}
+          onPress={() => {
+            if (Date.now() - markerPressGuard.current > 400) setSelectedSpotId(null);
+          }}
         >
           <Camera
             ref={cameraRef}
@@ -227,7 +246,10 @@ export function MapScreen() {
                 id={spot.id}
                 lngLat={[spot.longitude, spot.latitude]}
                 anchor="bottom"
-                onPress={() => setSelectedSpotId(spot.id)}
+                onPress={() => {
+                  markerPressGuard.current = Date.now();
+                  setSelectedSpotId(spot.id);
+                }}
               >
                 <View style={styles.pinWrap}>
                   <MapPin size={selectedSpotId === spot.id ? 36 : 28} color={pinColor} />
@@ -239,11 +261,19 @@ export function MapScreen() {
         {/* ODbL attribution (chapter 9.2) */}
         <Text style={styles.attribution}>© OpenStreetMap contributors · OpenFreeMap</Text>
         <View style={styles.mapButtons}>
-          <IconCircleButton onPress={locate}>
-            <IconLocate size={24} color={colors.ink} />
+          <IconCircleButton onPress={onLocate}>
+            {locating ? (
+              <ActivityIndicator size="small" color={colors.pitch} />
+            ) : (
+              <IconLocate size={24} color={colors.ink} />
+            )}
           </IconCircleButton>
           <IconCircleButton onPress={onRefreshSpots}>
-            <IconRefresh size={24} color={osmLoading ? colors.inkSoft : colors.ink} />
+            {osmLoading ? (
+              <ActivityIndicator size="small" color={colors.pitch} />
+            ) : (
+              <IconRefresh size={24} color={colors.ink} />
+            )}
           </IconCircleButton>
         </View>
       </View>
@@ -289,10 +319,12 @@ export function MapScreen() {
         </Card>
       )}
 
-      {!activeSession && !selectedSpot && (!osmError || spots.length > 0) && (
+      {!activeSession && !selectedSpot && (osmLoading || !osmError || spots.length > 0) && (
         <Card style={styles.bottomCard}>
           <Text style={styles.spotMeta}>
-            Tap a pitch to check in. Long-press the map to add a missing pitch.
+            {osmLoading
+              ? 'Searching OpenStreetMap for pitches nearby … this can take up to a minute.'
+              : 'Tap a pitch to check in. Long-press the map to add a missing pitch.'}
           </Text>
         </Card>
       )}

@@ -78,11 +78,17 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   refreshOsmSpots: async (latitude, longitude, options) => {
     // Auto-Refresh drosseln: Overpass-Server sind gratis und rate-limitiert.
+    // Nach Erfolg 15 Min Pause, nach Fehlschlag 2 Min (sonst 429-Spirale).
     // Manuelle Refreshes (force) gehen immer durch.
     if (!options?.force) {
-      const last = await metaRepo.getMetaNumber('lastOsmFetchAt', 0);
-      if (Date.now() - last < 15 * 60 * 1000) return -1;
+      const lastSuccess = await metaRepo.getMetaNumber('lastOsmFetchAt', 0);
+      const lastAttempt = await metaRepo.getMetaNumber('lastOsmAttemptAt', 0);
+      const now = Date.now();
+      if (now - lastSuccess < 15 * 60 * 1000 || now - lastAttempt < 2 * 60 * 1000) {
+        return -1;
+      }
     }
+    await metaRepo.setMeta('lastOsmAttemptAt', String(Date.now()));
     set({ osmLoading: true, osmError: null });
     try {
       const fetched = await fetchNearbyPitches(latitude, longitude);
