@@ -1,16 +1,19 @@
 import React from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { IconBall } from '../../ui/icons';
+import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
 import { colors, font, spacing } from '../../ui/theme';
 
 /**
- * Loading screen (chapter 2.3, step 1): short splash while local data is
- * loading. Placeholder logo until the user provides the designed app icon.
+ * Loading screen (chapter 2.3, step 1): short splash with the app icon
+ * while local data is loading.
  */
 export function LoadingScreen() {
   return (
     <View style={styles.container}>
-      <IconBall color="#FFFFFF" size={84} />
+      <Image
+        source={require('../../../assets/images/icon-transparent.png')}
+        style={{ width: 140, height: 140 }}
+        resizeMode="contain"
+      />
       <Text style={styles.title}>GEO-KICK</Text>
       <ActivityIndicator size="large" color="#fff" style={{ marginTop: spacing.lg }} />
       <Text style={styles.hint}>Loading local data …</Text>

@@ -144,6 +144,11 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       else message += ` You stay in Division ${club.division}.`;
       await metaRepo.setMeta('seasonMessage', message);
       await metaRepo.setMeta('division', String(outcome.newDivision));
+      // Beste erreichte Division für Erfolge festhalten
+      const bestDivision = await metaRepo.getMetaNumber('bestDivision', 4);
+      if (outcome.newDivision < bestDivision) {
+        await metaRepo.setMeta('bestDivision', String(outcome.newDivision));
+      }
 
       updatedSeason = season + 1;
       await createSeason(updatedSeason, outcome.newDivision);

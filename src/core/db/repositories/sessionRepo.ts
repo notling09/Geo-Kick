@@ -45,6 +45,28 @@ export async function finishSession(
   );
 }
 
+export interface VisitedSpot {
+  spotId: string;
+  name: string;
+  visits: number;
+  lastVisit: number;
+  totalMinutes: number;
+}
+
+/** Übersicht besuchter Plätze (Kapitel 3.5), zuletzt besuchte zuerst. */
+export async function getVisitedSpots(): Promise<VisitedSpot[]> {
+  const db = await getDb();
+  return db.getAllAsync<VisitedSpot>(
+    `SELECT s.spotId AS spotId, sp.name AS name, COUNT(*) AS visits,
+            MAX(s.endTime) AS lastVisit,
+            CAST(ROUND(SUM(s.endTime - s.startTime) / 60000.0) AS INTEGER) AS totalMinutes
+     FROM sessions s JOIN spots sp ON sp.id = s.spotId
+     WHERE s.endTime IS NOT NULL
+     GROUP BY s.spotId
+     ORDER BY lastVisit DESC`,
+  );
+}
+
 export interface SessionStats {
   totalSessions: number;
   totalCoins: number;

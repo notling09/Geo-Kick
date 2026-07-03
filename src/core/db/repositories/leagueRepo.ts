@@ -77,6 +77,19 @@ export async function insertMatches(matches: Array<Omit<Match, 'id'>>): Promise<
   });
 }
 
+/** Anzahl gewonnener Nutzer-Spiele über alle Saisons (für Erfolge). */
+export async function countUserWins(): Promise<number> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ wins: number }>(
+    `SELECT COUNT(*) AS wins FROM matches
+     WHERE played = 1 AND (
+       (homeId = 'user' AND homeGoals > awayGoals) OR
+       (awayId = 'user' AND awayGoals > homeGoals)
+     )`,
+  );
+  return row?.wins ?? 0;
+}
+
 export async function saveMatchResult(
   matchId: number,
   homeGoals: number,

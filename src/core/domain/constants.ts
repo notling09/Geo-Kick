@@ -98,6 +98,12 @@ export const MATCH_SIM = {
   foulPerMinute: 0.05,
   /** Zufalls-Faktor auf die Tor-Wahrscheinlichkeit (±) */
   goalNoise: 0.1,
+  /**
+   * Konversionsfaktor auf die Tor-Wahrscheinlichkeit pro Chance.
+   * Die reine Doku-Formel A/(A+B) ergibt ~3,8 Tore/Spiel; mit 0,75
+   * landen wir bei realistischeren ~2,9 (Feinjustierung, Kapitel 8/10).
+   */
+  goalConversion: 0.75,
   /** Offensive Taktik: eigener Angriff +10 %, eigene Abwehr −10 % (defensiv umgekehrt) */
   tacticModifier: 0.1,
   /** Offensive Taktik erhöht die eigene Chancenhäufigkeit um diesen Anteil */

@@ -38,6 +38,7 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
   const [tactic, setTactic] = useState<Tactic>(club?.tactic ?? 'ausgewogen');
   const [starting, setStarting] = useState(false);
   const [, forceTick] = useState(0);
+  const [fixtureRound, setFixtureRound] = useState<number | null>(null);
 
   useEffect(() => {
     if (isFocused) hydrate();
@@ -66,6 +67,13 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
         .filter((m) => m.played && (m.homeId === USER_CLUB_ID || m.awayId === USER_CLUB_ID))
         .sort((a, b) => b.round - a.round),
     [matches],
+  );
+
+  // Spielplan: angezeigte Runde (Default = aktueller Spieltag)
+  const displayedRound = fixtureRound ?? Math.min(round, LEAGUE.roundsPerSeason);
+  const roundFixtures = useMemo(
+    () => matches.filter((m) => m.round === displayedRound),
+    [matches, displayedRound],
   );
 
   const onKickoff = async () => {
@@ -185,6 +193,48 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
           <Text style={styles.legend}>
             Top {LEAGUE.promotionSpots}: promotion · bottom {LEAGUE.relegationSpots}: relegation
           </Text>
+        </Card>
+
+        <SectionTitle>Fixtures</SectionTitle>
+        <Card>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.roundPicker}>
+            {Array.from({ length: LEAGUE.roundsPerSeason }, (_, i) => i + 1).map((r) => {
+              const active = r === displayedRound;
+              return (
+                <Pressable
+                  key={r}
+                  onPress={() => setFixtureRound(r)}
+                  style={[styles.roundChip, active && styles.roundChipActive]}
+                >
+                  <Text style={[styles.roundChipText, active && styles.roundChipTextActive]}>
+                    {r}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+          {roundFixtures.map((m) => {
+            const involvesUser = m.homeId === USER_CLUB_ID || m.awayId === USER_CLUB_ID;
+            return (
+              <View key={m.id} style={[styles.fixtureRow, involvesUser && styles.fixtureUserRow]}>
+                <Text
+                  style={[styles.fixtureName, styles.fixtureHome, involvesUser && styles.userText]}
+                  numberOfLines={1}
+                >
+                  {clubName(m.homeId)}
+                </Text>
+                <Text style={styles.fixtureScore}>
+                  {m.played ? `${m.homeGoals}:${m.awayGoals}` : '–:–'}
+                </Text>
+                <Text
+                  style={[styles.fixtureName, involvesUser && styles.userText]}
+                  numberOfLines={1}
+                >
+                  {clubName(m.awayId)}
+                </Text>
+              </View>
+            );
+          })}
         </Card>
 
         <SectionTitle>Your results</SectionTitle>
@@ -371,6 +421,56 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: colors.inkSoft,
     marginTop: spacing.sm,
+  },
+  roundPicker: {
+    marginBottom: spacing.sm,
+  },
+  roundChip: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.round,
+    borderWidth: 2,
+    borderColor: colors.line,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 6,
+  },
+  roundChipActive: {
+    backgroundColor: colors.pitch,
+    borderColor: colors.pitch,
+  },
+  roundChipText: {
+    fontWeight: '800',
+    color: colors.inkSoft,
+    fontSize: font.small,
+  },
+  roundChipTextActive: {
+    color: '#fff',
+  },
+  fixtureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+  },
+  fixtureUserRow: {
+    backgroundColor: colors.grass,
+    borderRadius: radius.sm,
+  },
+  fixtureName: {
+    flex: 1,
+    fontSize: font.small,
+    color: colors.ink,
+  },
+  fixtureHome: {
+    textAlign: 'right',
+  },
+  fixtureScore: {
+    width: 44,
+    textAlign: 'center',
+    fontWeight: '900',
+    color: colors.pitchDark,
+    fontSize: font.small,
   },
   resultCard: {
     padding: spacing.sm,

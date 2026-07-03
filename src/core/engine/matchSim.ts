@@ -99,7 +99,10 @@ export function simulateMatch(home: SimTeam, away: SimTeam): SimResult {
       const atkStrength = tacticAttack(atk.strength, atk.tactic);
       const defStrength = tacticDefense(def.strength, def.tactic);
       const noise = (Math.random() * 2 - 1) * MATCH_SIM.goalNoise;
-      const goalProb = atkStrength / (atkStrength + defStrength) + noise;
+      // Konversionsfaktor drückt den Schnitt von ~3,8 auf ~2,9 Tore/Spiel
+      // (Feinjustierung nach ersten Tests, Kapitel 8)
+      const goalProb =
+        (atkStrength / (atkStrength + defStrength) + noise) * MATCH_SIM.goalConversion;
 
       if (Math.random() < goalProb) {
         if (attackerSide === 'home') homeGoals++;
