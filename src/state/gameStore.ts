@@ -39,6 +39,7 @@ interface GameState {
   openPack: (packId: number) => Promise<PackEntry[]>;
   buyPack: (typeId: PackTypeId) => Promise<boolean>;
   sellDrawnPlayer: (poolPlayer: PoolPlayer) => Promise<void>;
+  trainWithDuplicate: (poolPlayer: PoolPlayer) => Promise<number | null>;
   keepDrawnPlayer: (poolPlayer: PoolPlayer, sellOwnedId: number) => Promise<boolean>;
   sellPlayer: (ownedId: number) => Promise<boolean>;
   lineupPlayers: () => Array<OwnedPlayer | null>;
@@ -47,7 +48,10 @@ interface GameState {
 /** Ergebnis eines Pack-Zugs pro gezogenem Spieler. */
 export interface PackEntry {
   pool: PoolPlayer;
-  /** added = aufgenommen, duplicate = automatisch verkauft, pending = Kader voll */
+  /**
+   * added = aufgenommen · duplicate = Wahl Training/Verkauf offen ·
+   * pending = Kader voll (behalten oder verkaufen)
+   */
   outcome: 'added' | 'duplicate' | 'pending';
   coins?: number;
 }
@@ -244,16 +248,15 @@ export const useGameStore = create<GameState>((set, get) => ({
     const drawn = drawPackContent(pool, packType);
     await packRepo.markPackOpened(packId, drawn.map((p) => p.id));
 
-    // Duplikate werden automatisch verkauft, neue Spieler bis zum Kader-Limit
-    // aufgenommen; darüber hinaus entscheidet der Nutzer (pending).
+    // Duplikate: Nutzer wählt Training oder Verkauf (duplicate). Neue Spieler
+    // kommen bis zum Kader-Limit in den Klub; darüber entscheidet der Nutzer
+    // zwischen Verkaufen und Behalten (pending).
     const entries: PackEntry[] = [];
-    let coinsGained = 0;
     for (const p of drawn) {
       const players = await playerRepo.getOwnedPlayers();
       const isDuplicate =
         players.some((o) => o.poolId === p.id) || entries.some((e) => e.pool.id === p.id);
       if (isDuplicate) {
-        coinsGained += SELL_VALUE[p.rarity];
         entries.push({ pool: p, outcome: 'duplicate', coins: SELL_VALUE[p.rarity] });
       } else if (players.length < BALANCING.maxSquadSize) {
         await playerRepo.addOwnedPlayer(p.id);
@@ -262,12 +265,24 @@ export const useGameStore = create<GameState>((set, get) => ({
         entries.push({ pool: p, outcome: 'pending' });
       }
     }
-    if (coinsGained > 0) await get().addCoins(coinsGained);
     set({
       packs: await packRepo.getPacks(),
       players: await playerRepo.getOwnedPlayers(),
     });
     return entries;
+  },
+
+  /**
+   * Duplikat als Training einsetzen: der bereits besessene Spieler mit
+   * dieser Pool-Identität bekommt +1 Level. Liefert das neue Level,
+   * oder null wenn das Maximallevel erreicht ist.
+   */
+  trainWithDuplicate: async (poolPlayer) => {
+    const owned = get().players.find((p) => p.poolId === poolPlayer.id);
+    if (!owned || owned.level >= BALANCING.maxPlayerLevel) return null;
+    await playerRepo.setPlayerLevel(owned.id, owned.level + 1);
+    set({ players: await playerRepo.getOwnedPlayers() });
+    return owned.level + 1;
   },
 
   buyPack: async (typeId) => {

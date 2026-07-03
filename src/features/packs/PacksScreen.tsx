@@ -31,16 +31,21 @@ function oddsLine(typeId: keyof typeof PACK_TYPES): string {
 
 export function PacksScreen() {
   const {
-    club, packs, players, lineup, openPack, buyPack, sellDrawnPlayer, keepDrawnPlayer,
+    club, packs, players, lineup, openPack, buyPack, sellDrawnPlayer, trainWithDuplicate,
+    keepDrawnPlayer,
   } = useGameStore();
   const insets = useSafeAreaInsets();
   const [opening, setOpening] = useState(false);
   const [revealed, setRevealed] = useState<RevealEntry[] | null>(null);
-  const [pickerFor, setPickerFor] = useState<PoolPlayer | null>(null);
+  const [pickerFor, setPickerFor] = useState<{ pool: PoolPlayer; index: number } | null>(null);
 
   const unopened = useMemo(() => packs.filter((p) => p.openedAt === null), [packs]);
   const openedCount = packs.length - unopened.length;
-  const pendingCount = revealed?.filter((e) => e.outcome === 'pending').length ?? 0;
+  // Offene Entscheidungen: Kader-voll-Fälle und noch nicht gewählte Duplikate
+  const pendingCount =
+    revealed?.filter(
+      (e) => (e.outcome === 'pending' || e.outcome === 'duplicate') && !e.note,
+    ).length ?? 0;
 
   // Verkaufbare eigene Spieler (nicht aufgestellt), günstigste zuerst
   const sellCandidates = useMemo(
@@ -71,18 +76,30 @@ export function PacksScreen() {
     }
   };
 
-  const resolveSell = async (entry: RevealEntry) => {
-    await sellDrawnPlayer(entry.pool);
-    setRevealed((prev) =>
-      prev?.map((e) =>
-        e.pool.id === entry.pool.id && e.outcome === 'pending'
-          ? { ...e, outcome: 'duplicate', coins: SELL_VALUE[e.pool.rarity], note: 'sold' }
-          : e,
-      ) ?? null,
-    );
+  const patchEntry = (index: number, patch: Partial<RevealEntry>) => {
+    setRevealed((prev) => prev?.map((e, i) => (i === index ? { ...e, ...patch } : e)) ?? null);
   };
 
-  const resolveKeep = async (drawn: PoolPlayer, sellOwnedId: number) => {
+  /** Verkauf: sowohl für Duplikate als auch für Kader-voll-Fälle. */
+  const resolveSell = async (entry: RevealEntry, index: number) => {
+    await sellDrawnPlayer(entry.pool);
+    patchEntry(index, { coins: SELL_VALUE[entry.pool.rarity], note: 'sold' });
+  };
+
+  /** Duplikat als Training einsetzen: +1 Level für den vorhandenen Spieler. */
+  const resolveTrain = async (entry: RevealEntry, index: number) => {
+    const newLevel = await trainWithDuplicate(entry.pool);
+    if (newLevel === null) {
+      Alert.alert(
+        'Max level reached',
+        `${entry.pool.name} is already at the maximum level - sell the duplicate instead.`,
+      );
+      return;
+    }
+    patchEntry(index, { note: `trained (level ${newLevel})` });
+  };
+
+  const resolveKeep = async (drawn: PoolPlayer, index: number, sellOwnedId: number) => {
     const victim = players.find((p) => p.id === sellOwnedId);
     const ok = await keepDrawnPlayer(drawn, sellOwnedId);
     setPickerFor(null);
@@ -90,19 +107,17 @@ export function PacksScreen() {
       Alert.alert('Not possible', 'This player cannot be sold (still in your XI?).');
       return;
     }
-    setRevealed((prev) =>
-      prev?.map((e) =>
-        e.pool.id === drawn.id && e.outcome === 'pending'
-          ? { ...e, outcome: 'added', note: `sold ${victim?.pool.name ?? 'a player'}` }
-          : e,
-      ) ?? null,
-    );
+    patchEntry(index, { outcome: 'added', note: `sold ${victim?.pool.name ?? 'a player'}` });
   };
 
   const entryStatus = (e: RevealEntry): string => {
     if (e.outcome === 'added') return e.note ? `joined the club (${e.note})` : 'joined the club';
-    if (e.outcome === 'duplicate')
-      return e.note === 'sold' ? `sold for ${e.coins} coins` : `duplicate · +${e.coins} coins`;
+    if (e.outcome === 'duplicate') {
+      if (e.note === 'sold') return `sold for ${e.coins} coins`;
+      if (e.note) return `duplicate · ${e.note}`;
+      return 'duplicate - train or sell?';
+    }
+    if (e.note === 'sold') return `sold for ${e.coins} coins`;
     return 'squad is full (30)';
   };
 
@@ -158,8 +173,8 @@ export function PacksScreen() {
           </Card>
         ))}
         <Text style={styles.statsText}>
-          Duplicates are sold automatically: Bronze {SELL_VALUE.bronze} · Silver {SELL_VALUE.silber} ·
-          Gold {SELL_VALUE.gold} · Legendary {SELL_VALUE.legendaer} coins.{'\n'}
+          Duplicates: train the player (+1 level) or sell for Bronze {SELL_VALUE.bronze} ·
+          Silver {SELL_VALUE.silber} · Gold {SELL_VALUE.gold} · Legendary {SELL_VALUE.legendaer} coins.{'\n'}
           Packs opened so far: {openedCount} · squad size: {players.length}/{BALANCING.maxSquadSize}
         </Text>
       </ScrollView>
@@ -169,7 +184,7 @@ export function PacksScreen() {
           <View style={[styles.modalSheet, { paddingBottom: insets.bottom + spacing.md }]}>
             {pickerFor ? (
               <>
-                <Text style={styles.revealTitle}>Sell a player to keep {pickerFor.name}</Text>
+                <Text style={styles.revealTitle}>Sell a player to keep {pickerFor.pool.name}</Text>
                 <FlatList
                   data={sellCandidates}
                   keyExtractor={(p) => String(p.id)}
@@ -188,7 +203,7 @@ export function PacksScreen() {
                         title={`Sell +${SELL_VALUE[item.pool.rarity]}`}
                         variant="danger"
                         style={styles.smallBtn}
-                        onPress={() => resolveKeep(pickerFor, item.id)}
+                        onPress={() => resolveKeep(pickerFor.pool, pickerFor.index, item.id)}
                       />
                     </View>
                   )}
@@ -215,18 +230,33 @@ export function PacksScreen() {
                         {POSITION_LABEL[e.pool.position]} · {RARITY_LABEL[e.pool.rarity]} ·{' '}
                         {entryStatus(e)}
                       </Text>
-                      {e.outcome === 'pending' && (
+                      {e.outcome === 'pending' && !e.note && (
                         <View style={styles.pendingRow}>
                           <GKButton
                             title={`Sell +${SELL_VALUE[e.pool.rarity]}`}
                             variant="danger"
                             style={styles.smallBtn}
-                            onPress={() => resolveSell(e)}
+                            onPress={() => resolveSell(e, i)}
                           />
                           <GKButton
                             title="Keep"
                             style={styles.smallBtn}
-                            onPress={() => setPickerFor(e.pool)}
+                            onPress={() => setPickerFor({ pool: e.pool, index: i })}
+                          />
+                        </View>
+                      )}
+                      {e.outcome === 'duplicate' && !e.note && (
+                        <View style={styles.pendingRow}>
+                          <GKButton
+                            title="Train +1 lvl"
+                            style={styles.smallBtn}
+                            onPress={() => resolveTrain(e, i)}
+                          />
+                          <GKButton
+                            title={`Sell +${SELL_VALUE[e.pool.rarity]}`}
+                            variant="danger"
+                            style={styles.smallBtn}
+                            onPress={() => resolveSell(e, i)}
                           />
                         </View>
                       )}

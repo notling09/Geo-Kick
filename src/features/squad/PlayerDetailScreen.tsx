@@ -10,8 +10,8 @@ import { colors, font, radius, spacing } from '../../ui/theme';
 import type { RootScreenProps } from '../../navigation/types';
 
 /**
- * Player detail: attributes plus selling for coins (duplicates from packs
- * are auto-sold, so selling replaces the old duplicate training).
+ * Player detail: attributes plus selling for coins. Training happens at
+ * pack opening: a drawn duplicate can be used for +1 level or sold.
  */
 
 const ATTR_LABELS: Array<[keyof ReturnType<typeof effectiveAttributes>, string]> = [

@@ -1,4 +1,4 @@
-# ⚽ Geo-Kick
+# Geo-Kick
 
 Standortbasiertes Fußball-Sammel- und Managementspiel für Android (MVP, Version 1).
 
@@ -8,18 +8,20 @@ aufsteigst. Komplett offline, kein Backend, kein Echtgeld.
 
 ## Features (MVP-Scope, Kapitel 7 des Konzeptdokuments)
 
-- 🗺️ **Karte** mit Fußball-/Bolzplätzen in der Nähe (OpenStreetMap/Overpass, lokal gecacht);
+- **Karte** mit Fußball-/Bolzplätzen in der Nähe (OpenStreetMap/Overpass, lokal gecacht);
   eigene Plätze per Long-Press auf die Karte hinzufügen
-- 📍 **GPS-Check-in/Check-out** mit Coin-Belohnung: ab 5 Min. 50 Coins, linear bis
+- **GPS-Check-in/Check-out** mit Coin-Belohnung: ab 5 Min. 50 Coins, linear bis
   150 Coins bei 15 Min., plus genau 1 Pack pro Session
-- 🛡️ **Anti-Cheat**: Geofencing (75-m-Radius), Mock-Location-Erkennung, Pflicht-Check-out,
+- **Anti-Cheat**: Geofencing (75-m-Radius), Mock-Location-Erkennung, Pflicht-Check-out,
   2,5 h Cooldown pro Platz
-- 🎁 **Packs** mit fiktiven Spielern (Bronze 60 % / Silber 28 % / Gold 10 % / Legendär 2 %);
-  Duplikate trainieren Spieler (+1 Level)
-- 👥 **Kadermanagement**: Formationen 4-4-2 / 4-3-3 / 5-3-2, Slot-Editor, Auto-Aufstellung
-- 🏆 **Liga**: 4 Divisionen, 8 Klubs, Doppelrunde (14 Spieltage), 1 Spiel alle 30 Min.,
-  Taktikwahl vor Anpfiff, Minuten-Live-Ticker, Auf-/Abstieg am Saisonende
-- 💾 **Lokale Speicherung** aller Daten in SQLite (expo-sqlite)
+- **Packs** mit fiktiven Spielern (Session-Pack: Bronze 60 % / Silber 28 % / Gold 10 % /
+  Legendär 2 %; Shop mit Standard-, Rare- und Ultimate-Packs mit besseren Quoten);
+  Duplikate trainieren Spieler (+1 Level) oder werden verkauft
+- **Kadermanagement**: Formationen 4-4-2 / 4-3-3 / 5-3-2, Slot-Editor, Best-XI-Button,
+  Kader-Limit 30 mit Verkaufssystem
+- **Liga**: 4 Divisionen, 8 Klubs, Doppelrunde (14 Spieltage), 1 Spiel alle 30 Min.,
+  Taktikwahl vor Anpfiff, Minuten-Live-Ticker mit Torschützen, Auf-/Abstieg am Saisonende
+- **Lokale Speicherung** aller Daten in SQLite (expo-sqlite)
 
 ## Technischer Stack
 
@@ -96,5 +98,4 @@ liegen gebündelt in [src/core/domain/constants.ts](src/core/domain/constants.ts
 
 ## Noch offen (bewusst außerhalb des MVP)
 
-- App-Icon & Logo (werden separat gestaltet; Platzhalter: ⚽-Emoji)
 - Multiplayer/Freunde, Pokalmodus, Monetarisierung, Sensor-Anti-Cheat, iOS
