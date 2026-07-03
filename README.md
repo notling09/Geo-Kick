@@ -17,7 +17,7 @@ aufsteigst. Komplett offline, kein Backend, kein Echtgeld.
 - 🎁 **Packs** mit fiktiven Spielern (Bronze 60 % / Silber 28 % / Gold 10 % / Legendär 2 %);
   Duplikate trainieren Spieler (+1 Level)
 - 👥 **Kadermanagement**: Formationen 4-4-2 / 4-3-3 / 5-3-2, Slot-Editor, Auto-Aufstellung
-- 🏆 **Liga**: 4 Divisionen, 8 Klubs, Doppelrunde (14 Spieltage), 1 Spiel pro Stunde,
+- 🏆 **Liga**: 4 Divisionen, 8 Klubs, Doppelrunde (14 Spieltage), 1 Spiel alle 30 Min.,
   Taktikwahl vor Anpfiff, Minuten-Live-Ticker, Auf-/Abstieg am Saisonende
 - 💾 **Lokale Speicherung** aller Daten in SQLite (expo-sqlite)
 

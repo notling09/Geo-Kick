@@ -14,7 +14,7 @@ import type { TabScreenProps } from '../../navigation/types';
 
 /**
  * League (chapter 3.4): table, fixtures, tactic choice before each match
- * and the live simulation. One match per hour, 14 rounds, promotion and
+ * and the live simulation. One match every 30 minutes, 14 rounds, promotion and
  * relegation at the end of the season.
  */
 

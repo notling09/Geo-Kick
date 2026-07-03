@@ -11,7 +11,7 @@ import { useGameStore } from './gameStore';
 import { pick } from '../core/engine/random';
 
 /**
- * Liga-Zustand: Spielplan, Tabelle, Spieltakt (1 Spiel / Stunde) und
+ * Liga-Zustand: Spielplan, Tabelle, Spieltakt (1 Spiel / 30 Min) und
  * Saisonwechsel mit Auf-/Abstieg (Kapitel 3.4).
  */
 
@@ -138,7 +138,7 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       }
     }
 
-    // Spieltakt fortschreiben (1 Spiel pro Stunde, siehe BALANCING)
+    // Spieltakt fortschreiben (siehe BALANCING.matchIntervalMs)
     const newRound = round + 1;
     await metaRepo.setMeta('round', String(newRound));
     await metaRepo.setMeta('nextMatchAt', String(Date.now() + BALANCING.matchIntervalMs));

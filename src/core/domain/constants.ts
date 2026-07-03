@@ -19,8 +19,8 @@ export const BALANCING = {
   spotCooldownMs: 150 * 60 * 1000,
   /** Default-Check-in-Radius um einen Platz (m) */
   defaultSpotRadius: 75,
-  /** 1 simuliertes Ligaspiel pro Stunde (nach Nutzertest von 24 h gesenkt) */
-  matchIntervalMs: 60 * 60 * 1000,
+  /** 1 simuliertes Ligaspiel alle 30 Min (nach Nutzertest von 24 h gesenkt) */
+  matchIntervalMs: 30 * 60 * 1000,
   /** Spieler pro Pack */
   playersPerPack: 3,
   /** Maximales Trainingslevel */
