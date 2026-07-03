@@ -65,6 +65,15 @@ PC müssen dafür im selben WLAN sein, oder weiterhin per USB mit `npx expo run:
 > **Hinweis Expo Go:** Die App läuft **nicht** in Expo Go, da react-native-maps einen
 > Development Build benötigt – deshalb `expo run:android` statt QR-Code.
 
+### Troubleshooting Build
+
+- **„Gradle requires JVM 17 or later"**: `JAVA_HOME` auf das von Android Studio
+  mitgelieferte JDK zeigen lassen (Benutzer-Umgebungsvariable):
+  `C:\Program Files\Android\Android Studio\jbr` – danach ein neues Terminal öffnen.
+- **„SDK location not found"**: Umgebungsvariable `ANDROID_HOME` auf
+  `%LOCALAPPDATA%\Android\Sdk` setzen (macht Expo sonst über
+  `android/local.properties` selbst).
+
 > **Hinweis Karte:** Die Basiskarte wird komplett über OpenStreetMap-Tiles gerendert
 > (`mapType="none"` + UrlTile), es ist kein Google-Maps-API-Key nötig. Sollte die Karte
 > auf einem Gerät leer bleiben, kann in `app.json` unter
