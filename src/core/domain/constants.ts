@@ -21,21 +21,85 @@ export const BALANCING = {
   defaultSpotRadius: 75,
   /** 1 simuliertes Ligaspiel pro Stunde (nach Nutzertest von 24 h gesenkt) */
   matchIntervalMs: 60 * 60 * 1000,
-  /** Preis eines Packs im Shop (Coin-Senke, Game Loop Schritt 5) */
-  packShopPrice: 500,
   /** Spieler pro Pack */
   playersPerPack: 3,
   /** Maximales Trainingslevel */
   maxPlayerLevel: 10,
+  /** Maximale Klubgröße; darüber muss verkauft werden */
+  maxSquadSize: 30,
 } as const;
 
-/** Pack-Wahrscheinlichkeiten (Kapitel 8.1) */
-export const PACK_ODDS: Array<{ rarity: Rarity; weight: number }> = [
-  { rarity: 'bronze', weight: 60 },
-  { rarity: 'silber', weight: 28 },
-  { rarity: 'gold', weight: 10 },
-  { rarity: 'legendaer', weight: 2 },
-];
+/** Verkaufswert je Seltenheit (auch für automatisch verkaufte Duplikate) */
+export const SELL_VALUE: Record<Rarity, number> = {
+  bronze: 25,
+  silber: 50,
+  gold: 100,
+  legendaer: 200,
+};
+
+export type PackTypeId = 'session' | 'standard' | 'rare' | 'ultimate';
+
+export interface PackType {
+  id: PackTypeId;
+  label: string;
+  /** Shop-Preis in Coins; null = nicht kaufbar (Session-Belohnung) */
+  price: number | null;
+  /** Ziehungs-Gewichte je Seltenheit; Quoten steigen von Session → Ultimate */
+  odds: Array<{ rarity: Rarity; weight: number }>;
+}
+
+/**
+ * Pack-Typen: Session-Pack mit den Doc-Quoten (Kapitel 8.1: 60/28/10/2),
+ * Shop-Packs mit steigenden Quoten und Preisen (Coin-Senke, Loop Schritt 5).
+ */
+export const PACK_TYPES: Record<PackTypeId, PackType> = {
+  session: {
+    id: 'session',
+    label: 'Session pack',
+    price: null,
+    odds: [
+      { rarity: 'bronze', weight: 60 },
+      { rarity: 'silber', weight: 28 },
+      { rarity: 'gold', weight: 10 },
+      { rarity: 'legendaer', weight: 2 },
+    ],
+  },
+  standard: {
+    id: 'standard',
+    label: 'Standard pack',
+    price: 250,
+    odds: [
+      { rarity: 'bronze', weight: 50 },
+      { rarity: 'silber', weight: 32 },
+      { rarity: 'gold', weight: 14 },
+      { rarity: 'legendaer', weight: 4 },
+    ],
+  },
+  rare: {
+    id: 'rare',
+    label: 'Rare pack',
+    price: 500,
+    odds: [
+      { rarity: 'bronze', weight: 30 },
+      { rarity: 'silber', weight: 40 },
+      { rarity: 'gold', weight: 22 },
+      { rarity: 'legendaer', weight: 8 },
+    ],
+  },
+  ultimate: {
+    id: 'ultimate',
+    label: 'Ultimate pack',
+    price: 1000,
+    odds: [
+      { rarity: 'bronze', weight: 10 },
+      { rarity: 'silber', weight: 40 },
+      { rarity: 'gold', weight: 35 },
+      { rarity: 'legendaer', weight: 15 },
+    ],
+  },
+};
+
+export const SHOP_PACK_IDS: PackTypeId[] = ['standard', 'rare', 'ultimate'];
 
 /** Basis-Overall-Spannen je Seltenheit (vor Level-Boni) */
 export const RARITY_OVERALL_RANGE: Record<Rarity, [number, number]> = {

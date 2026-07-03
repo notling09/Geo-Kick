@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BALANCING, POSITION_LABEL, RARITY_COLOR, RARITY_LABEL } from '../../core/domain/constants';
+import { POSITION_LABEL, RARITY_COLOR, RARITY_LABEL, SELL_VALUE } from '../../core/domain/constants';
 import { effectiveAttributes, effectiveOverall } from '../../core/engine/playerGen';
 import { useGameStore } from '../../state/gameStore';
 import { GKButton, Card, SectionTitle } from '../../ui/components';
@@ -10,8 +10,8 @@ import { colors, font, radius, spacing } from '../../ui/theme';
 import type { RootScreenProps } from '../../navigation/types';
 
 /**
- * Player detail: attributes, level and training via duplicates
- * (same player identity drawn from packs, chapter 3.3).
+ * Player detail: attributes plus selling for coins (duplicates from packs
+ * are auto-sold, so selling replaces the old duplicate training).
  */
 
 const ATTR_LABELS: Array<[keyof ReturnType<typeof effectiveAttributes>, string]> = [
@@ -24,13 +24,10 @@ const ATTR_LABELS: Array<[keyof ReturnType<typeof effectiveAttributes>, string]>
 
 export function PlayerDetailScreen({ route, navigation }: RootScreenProps<'PlayerDetail'>) {
   const { playerId } = route.params;
-  const { players, trainPlayer } = useGameStore();
+  const { players, lineup, sellPlayer } = useGameStore();
 
   const player = players.find((p) => p.id === playerId);
-  const duplicates = useMemo(
-    () => players.filter((p) => p.poolId === player?.poolId && p.id !== playerId),
-    [players, player, playerId],
-  );
+  const inLineup = lineup.includes(playerId);
 
   if (!player) {
     return (
@@ -44,15 +41,24 @@ export function PlayerDetailScreen({ route, navigation }: RootScreenProps<'Playe
   const attrs = effectiveAttributes(player.pool, player.level);
   const overall = effectiveOverall(player.pool, player.level);
   const rarityColor = RARITY_COLOR[player.pool.rarity];
-  const maxed = player.level >= BALANCING.maxPlayerLevel;
+  const sellValue = SELL_VALUE[player.pool.rarity];
 
-  const onTrain = async () => {
-    const dup = duplicates[0];
-    if (!dup) return;
-    const ok = await trainPlayer(player.id, dup.id);
-    if (ok) {
-      Alert.alert('Training complete', `${player.pool.name} is now level ${player.level + 1}.`);
-    }
+  const onSell = () => {
+    Alert.alert(
+      `Sell ${player.pool.name}?`,
+      `You will receive ${sellValue} coins. This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: `Sell for ${sellValue}`,
+          style: 'destructive',
+          onPress: async () => {
+            const ok = await sellPlayer(player.id);
+            if (ok) navigation.goBack();
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -86,19 +92,18 @@ export function PlayerDetailScreen({ route, navigation }: RootScreenProps<'Playe
           ))}
         </Card>
 
-        <SectionTitle>Training</SectionTitle>
+        <SectionTitle>Sell</SectionTitle>
         <Card>
           <Text style={styles.trainText}>
-            {maxed
-              ? 'Maximum level reached!'
-              : duplicates.length > 0
-                ? `${duplicates.length} duplicate${duplicates.length > 1 ? 's' : ''} available. Consume one duplicate for +1 level (all attributes +1).`
-                : 'No duplicates in your squad. Pull the same player from a pack to train him.'}
+            {inLineup
+              ? 'This player is in your starting XI. Remove him from the lineup first to sell him.'
+              : `Selling gives you ${sellValue} coins (${RARITY_LABEL[player.pool.rarity]}).`}
           </Text>
           <GKButton
-            title="Use duplicate (+1 level)"
-            onPress={onTrain}
-            disabled={duplicates.length === 0 || maxed}
+            title={`Sell for ${sellValue} coins`}
+            variant="danger"
+            onPress={onSell}
+            disabled={inLineup}
           />
         </Card>
 

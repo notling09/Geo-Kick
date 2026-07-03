@@ -69,7 +69,8 @@ export interface Pack {
   id: number;
   createdAt: number;
   openedAt: number | null;
-  source: 'session' | 'shop' | 'starter';
+  /** 'session' oder 'shop-<packTypeId>' (bestimmt die Ziehungs-Quoten) */
+  source: string;
   /** poolIds der gezogenen Spieler, erst nach dem Öffnen gefüllt */
   content: number[];
 }

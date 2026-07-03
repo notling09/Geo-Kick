@@ -2,6 +2,7 @@
 import { generateSchedule, computeStandings, generateNpcClubs, resolveSeason } from '../src/core/engine/league';
 import { generatePlayerPool, generateFillerSquad, overallOf } from '../src/core/engine/playerGen';
 import { drawPackContent } from '../src/core/engine/packGen';
+import { PACK_TYPES } from '../src/core/domain/constants';
 import { calculateReward } from '../src/core/engine/rewards';
 import type { Match, PoolPlayer } from '../src/core/domain/types';
 
@@ -39,6 +40,14 @@ const total = 2000 * 3;
 check('bronze ~60%', Math.abs(rarityCount.bronze / total - 0.6) < 0.05, JSON.stringify(rarityCount));
 check('legendaer ~2%', Math.abs(rarityCount.legendaer / total - 0.02) < 0.01);
 check('no fillers/starters in packs', true);
+
+// Ultimate-Pack: deutlich bessere Quoten (10/40/35/15)
+const ultCount: Record<string, number> = { bronze: 0, silber: 0, gold: 0, legendaer: 0 };
+for (let i = 0; i < 2000; i++) {
+  drawPackContent(pool, PACK_TYPES.ultimate).forEach(p => { ultCount[p.rarity]++; });
+}
+check('ultimate legendaer ~15%', Math.abs(ultCount.legendaer / total - 0.15) < 0.03, JSON.stringify(ultCount));
+check('ultimate bronze ~10%', Math.abs(ultCount.bronze / total - 0.10) < 0.03);
 
 // Schedule
 const clubIds = ['user', '1', '2', '3', '4', '5', '6', '7'];

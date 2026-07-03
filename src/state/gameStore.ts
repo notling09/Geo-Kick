@@ -1,11 +1,13 @@
 import { create } from 'zustand';
-import { BALANCING, FORMATIONS, USER_CLUB_ID } from '../core/domain/constants';
+import {
+  BALANCING, FORMATIONS, PACK_TYPES, SELL_VALUE, USER_CLUB_ID, type PackTypeId,
+} from '../core/domain/constants';
 import type {
   Club, FormationId, OwnedPlayer, Pack, PoolPlayer, Tactic,
 } from '../core/domain/types';
 import { generateFillerSquad, generatePlayerPool, effectiveOverall } from '../core/engine/playerGen';
 import { STARTER_WINGERS } from '../core/engine/names';
-import { drawPackContent } from '../core/engine/packGen';
+import { drawPackContent, packTypeFromSource } from '../core/engine/packGen';
 import * as metaRepo from '../core/db/repositories/metaRepo';
 import * as playerRepo from '../core/db/repositories/playerRepo';
 import * as packRepo from '../core/db/repositories/packRepo';
@@ -34,10 +36,20 @@ interface GameState {
   autoLineup: () => Promise<void>;
   addCoins: (amount: number) => Promise<void>;
   grantPack: (source: Pack['source']) => Promise<void>;
-  openPack: (packId: number) => Promise<PoolPlayer[]>;
-  buyPack: () => Promise<boolean>;
-  trainPlayer: (targetId: number, duplicateId: number) => Promise<boolean>;
+  openPack: (packId: number) => Promise<PackEntry[]>;
+  buyPack: (typeId: PackTypeId) => Promise<boolean>;
+  sellDrawnPlayer: (poolPlayer: PoolPlayer) => Promise<void>;
+  keepDrawnPlayer: (poolPlayer: PoolPlayer, sellOwnedId: number) => Promise<boolean>;
+  sellPlayer: (ownedId: number) => Promise<boolean>;
   lineupPlayers: () => Array<OwnedPlayer | null>;
+}
+
+/** Ergebnis eines Pack-Zugs pro gezogenem Spieler. */
+export interface PackEntry {
+  pool: PoolPlayer;
+  /** added = aufgenommen, duplicate = automatisch verkauft, pending = Kader voll */
+  outcome: 'added' | 'duplicate' | 'pending';
+  coins?: number;
 }
 
 async function loadClub(): Promise<Club> {
@@ -223,42 +235,75 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   openPack: async (packId) => {
-    const { pool } = get();
-    const drawn = drawPackContent(pool);
+    const { pool, packs } = get();
+    const pack = packs.find((p) => p.id === packId);
+    const packType = packTypeFromSource(pack?.source ?? 'session');
+    const drawn = drawPackContent(pool, packType);
     await packRepo.markPackOpened(packId, drawn.map((p) => p.id));
+
+    // Duplikate werden automatisch verkauft, neue Spieler bis zum Kader-Limit
+    // aufgenommen; darüber hinaus entscheidet der Nutzer (pending).
+    const entries: PackEntry[] = [];
+    let coinsGained = 0;
     for (const p of drawn) {
-      await playerRepo.addOwnedPlayer(p.id);
+      const players = await playerRepo.getOwnedPlayers();
+      const isDuplicate =
+        players.some((o) => o.poolId === p.id) || entries.some((e) => e.pool.id === p.id);
+      if (isDuplicate) {
+        coinsGained += SELL_VALUE[p.rarity];
+        entries.push({ pool: p, outcome: 'duplicate', coins: SELL_VALUE[p.rarity] });
+      } else if (players.length < BALANCING.maxSquadSize) {
+        await playerRepo.addOwnedPlayer(p.id);
+        entries.push({ pool: p, outcome: 'added' });
+      } else {
+        entries.push({ pool: p, outcome: 'pending' });
+      }
     }
+    if (coinsGained > 0) await get().addCoins(coinsGained);
     set({
       packs: await packRepo.getPacks(),
       players: await playerRepo.getOwnedPlayers(),
     });
-    return drawn;
+    return entries;
   },
 
-  buyPack: async () => {
+  buyPack: async (typeId) => {
     const club = get().club;
-    if (!club || club.coins < BALANCING.packShopPrice) return false;
-    await get().addCoins(-BALANCING.packShopPrice);
-    await get().grantPack('shop');
+    const packType = PACK_TYPES[typeId];
+    if (!club || packType.price === null || club.coins < packType.price) return false;
+    await get().addCoins(-packType.price);
+    await get().grantPack(`shop-${typeId}`);
     return true;
   },
 
-  trainPlayer: async (targetId, duplicateId) => {
-    const { players, lineup } = get();
-    const target = players.find((p) => p.id === targetId);
-    const duplicate = players.find((p) => p.id === duplicateId);
-    if (!target || !duplicate) return false;
-    if (target.poolId !== duplicate.poolId) return false;
-    if (target.level >= BALANCING.maxPlayerLevel) return false;
+  /** Gezogenen Spieler ohne Platz verkaufen (Kader-Limit erreicht). */
+  sellDrawnPlayer: async (poolPlayer) => {
+    await get().addCoins(SELL_VALUE[poolPlayer.rarity]);
+  },
 
-    await playerRepo.setPlayerLevel(targetId, target.level + 1);
-    await playerRepo.deleteOwnedPlayer(duplicateId);
-    const updatedLineup = lineup.map((id) => (id === duplicateId ? null : id));
-    set({
-      players: await playerRepo.getOwnedPlayers(),
-      lineup: updatedLineup,
-    });
+  /**
+   * Gezogenen Spieler behalten: dafür einen eigenen (nicht aufgestellten)
+   * Spieler verkaufen und den neuen aufnehmen.
+   */
+  keepDrawnPlayer: async (poolPlayer, sellOwnedId) => {
+    const { players, lineup } = get();
+    const victim = players.find((p) => p.id === sellOwnedId);
+    if (!victim || lineup.includes(sellOwnedId)) return false;
+    await playerRepo.deleteOwnedPlayer(sellOwnedId);
+    await get().addCoins(SELL_VALUE[victim.pool.rarity]);
+    await playerRepo.addOwnedPlayer(poolPlayer.id);
+    set({ players: await playerRepo.getOwnedPlayers() });
+    return true;
+  },
+
+  /** Eigenen Spieler verkaufen (nicht möglich, solange er aufgestellt ist). */
+  sellPlayer: async (ownedId) => {
+    const { players, lineup } = get();
+    const player = players.find((p) => p.id === ownedId);
+    if (!player || lineup.includes(ownedId)) return false;
+    await playerRepo.deleteOwnedPlayer(ownedId);
+    await get().addCoins(SELL_VALUE[player.pool.rarity]);
+    set({ players: await playerRepo.getOwnedPlayers() });
     return true;
   },
 

@@ -1,51 +1,110 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { BALANCING, RARITY_COLOR, RARITY_LABEL, POSITION_LABEL } from '../../core/domain/constants';
+import { Alert, FlatList, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  BALANCING, PACK_TYPES, RARITY_COLOR, RARITY_LABEL, POSITION_LABEL, SELL_VALUE,
+  SHOP_PACK_IDS,
+} from '../../core/domain/constants';
 import type { PoolPlayer } from '../../core/domain/types';
-import { useGameStore } from '../../state/gameStore';
+import { packTypeFromSource } from '../../core/engine/packGen';
+import { effectiveOverall } from '../../core/engine/playerGen';
+import { useGameStore, type PackEntry } from '../../state/gameStore';
 import { GKButton, Card, CoinBadge, SectionTitle } from '../../ui/components';
 import { IconPack, IconStar } from '../../ui/icons';
 import { PlayerAvatar } from '../../ui/PlayerAvatar';
 import { colors, font, radius, spacing } from '../../ui/theme';
 
 /**
- * Pack opening (chapter 3.2): open packs earned from sessions, present the
- * pulls with rarity colors. Coins can be exchanged for extra packs in the
- * shop (game loop step 5) - no real money.
+ * Packs (Kapitel 3.2): Session-Packs öffnen, Shop mit drei Pack-Stufen
+ * (steigende Quoten), Duplikate werden automatisch zu Coins. Bei vollem
+ * Kader (30) entscheidet der Nutzer pro gezogenem Spieler: verkaufen oder
+ * behalten und dafür einen eigenen Spieler verkaufen.
  */
+
+type RevealEntry = PackEntry & { note?: string };
+
+function oddsLine(typeId: keyof typeof PACK_TYPES): string {
+  return PACK_TYPES[typeId].odds
+    .map((o) => `${RARITY_LABEL[o.rarity]} ${o.weight}%`)
+    .join(' · ');
+}
+
 export function PacksScreen() {
-  const { club, packs, players, openPack, buyPack } = useGameStore();
+  const {
+    club, packs, players, lineup, openPack, buyPack, sellDrawnPlayer, keepDrawnPlayer,
+  } = useGameStore();
+  const insets = useSafeAreaInsets();
   const [opening, setOpening] = useState(false);
-  const [revealed, setRevealed] = useState<PoolPlayer[] | null>(null);
+  const [revealed, setRevealed] = useState<RevealEntry[] | null>(null);
+  const [pickerFor, setPickerFor] = useState<PoolPlayer | null>(null);
 
   const unopened = useMemo(() => packs.filter((p) => p.openedAt === null), [packs]);
   const openedCount = packs.length - unopened.length;
+  const pendingCount = revealed?.filter((e) => e.outcome === 'pending').length ?? 0;
 
-  const onOpen = async () => {
-    const pack = unopened[0];
-    if (!pack) return;
+  // Verkaufbare eigene Spieler (nicht aufgestellt), günstigste zuerst
+  const sellCandidates = useMemo(
+    () =>
+      players
+        .filter((p) => !lineup.includes(p.id))
+        .sort((a, b) => effectiveOverall(a.pool, a.level) - effectiveOverall(b.pool, b.level)),
+    [players, lineup],
+  );
+
+  const onOpen = async (packId: number) => {
     setOpening(true);
     try {
-      const drawn = await openPack(pack.id);
-      setRevealed(drawn);
+      const entries = await openPack(packId);
+      setRevealed(entries);
     } finally {
       setOpening(false);
     }
   };
 
-  const onBuy = async () => {
-    const ok = await buyPack();
+  const onBuy = async (typeId: (typeof SHOP_PACK_IDS)[number]) => {
+    const ok = await buyPack(typeId);
     if (!ok) {
       Alert.alert(
         'Not enough coins',
-        `A pack costs ${BALANCING.packShopPrice} coins. Earn coins with real sessions at a pitch!`,
+        `The ${PACK_TYPES[typeId].label} costs ${PACK_TYPES[typeId].price} coins. Earn coins with real sessions or by selling players!`,
       );
     }
   };
 
-  const ownedCountFor = (poolId: number) =>
-    players.filter((p) => p.poolId === poolId).length;
+  const resolveSell = async (entry: RevealEntry) => {
+    await sellDrawnPlayer(entry.pool);
+    setRevealed((prev) =>
+      prev?.map((e) =>
+        e.pool.id === entry.pool.id && e.outcome === 'pending'
+          ? { ...e, outcome: 'duplicate', coins: SELL_VALUE[e.pool.rarity], note: 'sold' }
+          : e,
+      ) ?? null,
+    );
+  };
+
+  const resolveKeep = async (drawn: PoolPlayer, sellOwnedId: number) => {
+    const victim = players.find((p) => p.id === sellOwnedId);
+    const ok = await keepDrawnPlayer(drawn, sellOwnedId);
+    setPickerFor(null);
+    if (!ok) {
+      Alert.alert('Not possible', 'This player cannot be sold (still in your XI?).');
+      return;
+    }
+    setRevealed((prev) =>
+      prev?.map((e) =>
+        e.pool.id === drawn.id && e.outcome === 'pending'
+          ? { ...e, outcome: 'added', note: `sold ${victim?.pool.name ?? 'a player'}` }
+          : e,
+      ) ?? null,
+    );
+  };
+
+  const entryStatus = (e: RevealEntry): string => {
+    if (e.outcome === 'added') return e.note ? `joined the club (${e.note})` : 'joined the club';
+    if (e.outcome === 'duplicate')
+      return e.note === 'sold' ? `sold for ${e.coins} coins` : `duplicate · +${e.coins} coins`;
+    return 'squad is full (30)';
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -55,58 +114,133 @@ export function PacksScreen() {
           <CoinBadge coins={club?.coins ?? 0} />
         </View>
 
-        <Card style={styles.packCard}>
-          <IconPack size={64} color={colors.accentDark} />
-          <Text style={styles.packCount}>
-            {unopened.length} unopened pack{unopened.length === 1 ? '' : 's'}
-          </Text>
-          <Text style={styles.packHint}>
-            Every pack contains {BALANCING.playersPerPack} players.
-            Rarity odds: Bronze 60% · Silver 28% · Gold 10% · Legendary 2%
-          </Text>
-          <GKButton
-            title="Open pack!"
-            onPress={onOpen}
-            disabled={unopened.length === 0}
-            loading={opening}
-          />
-        </Card>
+        <SectionTitle>Your packs ({unopened.length})</SectionTitle>
+        {unopened.length === 0 ? (
+          <Card>
+            <Text style={styles.packHint}>
+              No unopened packs. Check in at a pitch for a session pack or buy one below.
+            </Text>
+          </Card>
+        ) : (
+          unopened.map((pack) => (
+            <Card key={pack.id} style={styles.packRow}>
+              <IconPack size={34} color={colors.accentDark} />
+              <View style={styles.packInfo}>
+                <Text style={styles.packLabel}>{packTypeFromSource(pack.source).label}</Text>
+                <Text style={styles.packMeta}>
+                  {BALANCING.playersPerPack} players · {oddsLine(packTypeFromSource(pack.source).id)}
+                </Text>
+              </View>
+              <GKButton
+                title="Open"
+                onPress={() => onOpen(pack.id)}
+                loading={opening}
+                style={styles.openBtn}
+              />
+            </Card>
+          ))
+        )}
 
         <SectionTitle>Shop</SectionTitle>
-        <Card>
-          <Text style={styles.shopText}>Standard pack - {BALANCING.packShopPrice} coins</Text>
-          <Text style={styles.packHint}>
-            Coins are earned exclusively through real sessions at pitches. No real money.
-          </Text>
-          <GKButton title="Buy pack" variant="secondary" onPress={onBuy} />
-        </Card>
-
+        {SHOP_PACK_IDS.map((typeId) => (
+          <Card key={typeId} style={styles.packRow}>
+            <IconPack size={34} color={typeId === 'ultimate' ? colors.gold : typeId === 'rare' ? colors.sky : colors.inkSoft} />
+            <View style={styles.packInfo}>
+              <Text style={styles.packLabel}>{PACK_TYPES[typeId].label}</Text>
+              <Text style={styles.packMeta}>{oddsLine(typeId)}</Text>
+            </View>
+            <GKButton
+              title={`${PACK_TYPES[typeId].price}`}
+              variant="secondary"
+              onPress={() => onBuy(typeId)}
+              style={styles.openBtn}
+            />
+          </Card>
+        ))}
         <Text style={styles.statsText}>
-          Packs opened so far: {openedCount} · squad size: {players.length} players
+          Duplicates are sold automatically: Bronze {SELL_VALUE.bronze} · Silver {SELL_VALUE.silber} ·
+          Gold {SELL_VALUE.gold} · Legendary {SELL_VALUE.legendaer} coins.{'\n'}
+          Packs opened so far: {openedCount} · squad size: {players.length}/{BALANCING.maxSquadSize}
         </Text>
       </ScrollView>
 
       <Modal visible={revealed !== null} transparent animationType="slide">
         <View style={styles.modalBackdrop}>
-          <View style={styles.modalSheet}>
-            <Text style={styles.revealTitle}>Your new players!</Text>
-            {(revealed ?? []).map((p, i) => (
-              <View
-                key={`${p.id}-${i}`}
-                style={[styles.revealCard, { borderColor: RARITY_COLOR[p.rarity] }]}
-              >
-                <PlayerAvatar player={p} size={46} />
-                <View style={{ flex: 1, marginLeft: spacing.sm }}>
-                  <Text style={styles.revealName}>{p.name}</Text>
-                  <Text style={styles.revealMeta}>
-                    {POSITION_LABEL[p.position]} · {RARITY_LABEL[p.rarity]}
-                    {ownedCountFor(p.id) > 1 ? ' · duplicate (training!)' : ''}
-                  </Text>
-                </View>
-                {p.rarity === 'legendaer' && <IconStar size={26} />}
-              </View>
-            ))}
-            <GKButton title="Nice!" onPress={() => setRevealed(null)} />
+          <View style={[styles.modalSheet, { paddingBottom: insets.bottom + spacing.md }]}>
+            {pickerFor ? (
+              <>
+                <Text style={styles.revealTitle}>Sell a player to keep {pickerFor.name}</Text>
+                <FlatList
+                  data={sellCandidates}
+                  keyExtractor={(p) => String(p.id)}
+                  style={styles.pickerList}
+                  renderItem={({ item }) => (
+                    <View style={[styles.revealCard, { borderColor: RARITY_COLOR[item.pool.rarity] }]}>
+                      <PlayerAvatar player={item.pool} size={40} />
+                      <View style={styles.revealInfo}>
+                        <Text style={styles.revealName}>{item.pool.name}</Text>
+                        <Text style={styles.revealMeta}>
+                          {POSITION_LABEL[item.pool.position]} · {RARITY_LABEL[item.pool.rarity]} ·{' '}
+                          {effectiveOverall(item.pool, item.level)}
+                        </Text>
+                      </View>
+                      <GKButton
+                        title={`Sell +${SELL_VALUE[item.pool.rarity]}`}
+                        variant="danger"
+                        style={styles.smallBtn}
+                        onPress={() => resolveKeep(pickerFor, item.id)}
+                      />
+                    </View>
+                  )}
+                  ListEmptyComponent={
+                    <Text style={styles.packHint}>
+                      No sellable players - everyone is in your XI.
+                    </Text>
+                  }
+                />
+                <GKButton title="Back" variant="ghost" onPress={() => setPickerFor(null)} />
+              </>
+            ) : (
+              <>
+                <Text style={styles.revealTitle}>Your pull!</Text>
+                {(revealed ?? []).map((e, i) => (
+                  <View
+                    key={`${e.pool.id}-${i}`}
+                    style={[styles.revealCard, { borderColor: RARITY_COLOR[e.pool.rarity] }]}
+                  >
+                    <PlayerAvatar player={e.pool} size={44} />
+                    <View style={styles.revealInfo}>
+                      <Text style={styles.revealName}>{e.pool.name}</Text>
+                      <Text style={styles.revealMeta}>
+                        {POSITION_LABEL[e.pool.position]} · {RARITY_LABEL[e.pool.rarity]} ·{' '}
+                        {entryStatus(e)}
+                      </Text>
+                      {e.outcome === 'pending' && (
+                        <View style={styles.pendingRow}>
+                          <GKButton
+                            title={`Sell +${SELL_VALUE[e.pool.rarity]}`}
+                            variant="danger"
+                            style={styles.smallBtn}
+                            onPress={() => resolveSell(e)}
+                          />
+                          <GKButton
+                            title="Keep"
+                            style={styles.smallBtn}
+                            onPress={() => setPickerFor(e.pool)}
+                          />
+                        </View>
+                      )}
+                    </View>
+                    {e.pool.rarity === 'legendaer' && <IconStar size={24} />}
+                  </View>
+                ))}
+                <GKButton
+                  title={pendingCount > 0 ? `Decide for ${pendingCount} player${pendingCount > 1 ? 's' : ''} first` : 'Nice!'}
+                  disabled={pendingCount > 0}
+                  onPress={() => setRevealed(null)}
+                />
+              </>
+            )}
           </View>
         </View>
       </Modal>
@@ -134,33 +268,40 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: colors.pitchDark,
   },
-  packCard: {
+  packRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.md,
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+    padding: spacing.sm,
   },
-  packCount: {
-    fontSize: font.h2,
+  packInfo: {
+    flex: 1,
+  },
+  packLabel: {
+    fontSize: font.body,
     fontWeight: '800',
     color: colors.ink,
-    marginVertical: spacing.sm,
+  },
+  packMeta: {
+    fontSize: 11,
+    color: colors.inkSoft,
+    marginTop: 2,
+  },
+  openBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: spacing.md,
   },
   packHint: {
     fontSize: font.small,
     color: colors.inkSoft,
-    textAlign: 'center',
-    marginBottom: spacing.md,
-  },
-  shopText: {
-    fontSize: font.h2,
-    fontWeight: '800',
-    color: colors.ink,
-    marginBottom: 4,
   },
   statsText: {
     marginTop: spacing.md,
     color: colors.inkSoft,
     fontSize: font.small,
     textAlign: 'center',
+    lineHeight: 18,
   },
   modalBackdrop: {
     flex: 1,
@@ -172,7 +313,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: radius.lg,
     borderTopRightRadius: radius.lg,
     padding: spacing.md,
-    paddingBottom: spacing.xl,
+    maxHeight: '85%',
   },
   revealTitle: {
     fontSize: font.h1,
@@ -190,6 +331,10 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
     marginBottom: spacing.sm,
   },
+  revealInfo: {
+    flex: 1,
+    marginLeft: spacing.sm,
+  },
   revealName: {
     fontWeight: '800',
     color: colors.ink,
@@ -197,5 +342,18 @@ const styles = StyleSheet.create({
   revealMeta: {
     fontSize: font.small,
     color: colors.inkSoft,
+    marginTop: 2,
+  },
+  pendingRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  smallBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: spacing.sm,
+  },
+  pickerList: {
+    maxHeight: 380,
   },
 });
