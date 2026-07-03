@@ -41,12 +41,16 @@ interface GameState {
 }
 
 async function loadClub(): Promise<Club> {
+  // Gespeicherte Formation validieren (z. B. entferntes 3-5-2 aus alten Ständen)
+  const storedFormation = (await metaRepo.getMeta('formation')) ?? '4-4-2';
+  const formation: FormationId =
+    storedFormation in FORMATIONS ? (storedFormation as FormationId) : '4-4-2';
   return {
     name: (await metaRepo.getMeta('clubName')) ?? 'My Club',
     crest: (await metaRepo.getMeta('crest')) ?? 'crest-0',
     division: await metaRepo.getMetaNumber('division', 4),
     coins: await metaRepo.getMetaNumber('coins', 0),
-    formation: ((await metaRepo.getMeta('formation')) ?? '4-4-2') as FormationId,
+    formation,
     tactic: ((await metaRepo.getMeta('tactic')) ?? 'ausgewogen') as Tactic,
   };
 }
@@ -165,11 +169,17 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   setFormation: async (formation) => {
+    // Formationswechsel behält die aktuelle Elf: dieselben Spieler werden nur
+    // auf die neuen Slots verteilt (Positions-Treffer zuerst). Tauschen macht
+    // der Nutzer selbst bzw. über den Best-XI-Button.
     await metaRepo.setMeta('formation', formation);
-    const { players } = get();
-    const lineup = buildAutoLineup(players, formation);
-    await playerRepo.replaceLineup(lineup.map((id, slot) => [slot, id]));
-    set((s) => ({ club: s.club ? { ...s.club, formation } : s.club, lineup }));
+    const { players, lineup } = get();
+    const currentXI = lineup
+      .map((id) => players.find((p) => p.id === id))
+      .filter((p): p is OwnedPlayer => p !== undefined);
+    const remapped = buildAutoLineup(currentXI, formation);
+    await playerRepo.replaceLineup(remapped.map((id, slot) => [slot, id]));
+    set((s) => ({ club: s.club ? { ...s.club, formation } : s.club, lineup: remapped }));
   },
 
   setTactic: async (tactic) => {

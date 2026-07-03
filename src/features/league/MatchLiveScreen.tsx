@@ -80,7 +80,7 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
   const finished = minute >= 90;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.scoreboard}>
         <View style={styles.scoreSide}>
           <Crest crestId={homeCrest} size={52} />

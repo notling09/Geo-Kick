@@ -4,7 +4,7 @@ export type Position = 'TW' | 'ABW' | 'MF' | 'ST';
 
 export type Rarity = 'bronze' | 'silber' | 'gold' | 'legendaer';
 
-export type FormationId = '4-4-2' | '4-3-3' | '3-5-2';
+export type FormationId = '4-4-2' | '4-3-3' | '5-3-2';
 
 export type Tactic = 'offensiv' | 'ausgewogen' | 'defensiv';
 

@@ -11,7 +11,7 @@ import { useGameStore } from './gameStore';
 import { pick } from '../core/engine/random';
 
 /**
- * Liga-Zustand: Spielplan, Tabelle, Spieltakt (1 Spiel / 24 h) und
+ * Liga-Zustand: Spielplan, Tabelle, Spieltakt (1 Spiel / Stunde) und
  * Saisonwechsel mit Auf-/Abstieg (Kapitel 3.4).
  */
 
@@ -70,10 +70,18 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
   hydrate: async () => {
     const data = await loadLeagueData();
     const seasonMessage = await metaRepo.getMeta('seasonMessage');
+    // Migration: falls ein alter Spielstand noch einen längeren Takt (24 h)
+    // gespeichert hat, auf das aktuelle Intervall abklemmen
+    let nextMatchAt = data.nextMatchAt;
+    const maxNext = Date.now() + BALANCING.matchIntervalMs;
+    if (nextMatchAt > maxNext) {
+      nextMatchAt = maxNext;
+      await metaRepo.setMeta('nextMatchAt', String(nextMatchAt));
+    }
     set({
       season: data.season,
       round: data.round,
-      nextMatchAt: data.nextMatchAt,
+      nextMatchAt,
       npcs: data.npcs,
       matches: data.matches,
       standings: recomputeStandings(data.matches, data.npcs),
@@ -101,13 +109,19 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
     const nameOf = (id: string) => (id === USER_CLUB_ID ? club.name : npcById.get(id)?.name ?? '?');
     const crestOf = (id: string) => (id === USER_CLUB_ID ? club.crest : npcById.get(id)?.crest ?? 'crest-0');
 
-    const userStrength = teamStrength(game.lineupPlayers(), club.formation);
+    const lineupPlayers = game.lineupPlayers();
+    const userStrength = teamStrength(lineupPlayers, club.formation);
+    // Aufgestellte Spieler für namentliche Ticker-Events (Torschütze usw.)
+    const userRoster = lineupPlayers
+      .filter((p): p is NonNullable<typeof p> => p !== null)
+      .map((p) => ({ name: p.pool.name, position: p.pool.position }));
     const npcTactics: Tactic[] = ['offensiv', 'ausgewogen', 'defensiv'];
 
     const simTeamFor = (clubId: string, teamTactic: Tactic): SimTeam => ({
       name: nameOf(clubId),
       strength: clubId === USER_CLUB_ID ? userStrength : npcById.get(clubId)?.strength ?? 400,
       tactic: teamTactic,
+      roster: clubId === USER_CLUB_ID ? userRoster : undefined,
     });
 
     // Alle Spiele der Runde simulieren und speichern (Nutzer-Match zuerst gemerkt)
@@ -124,7 +138,7 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       }
     }
 
-    // Spieltakt fortschreiben (Kapitel 8: 1 Spiel pro 24 h)
+    // Spieltakt fortschreiben (1 Spiel pro Stunde, siehe BALANCING)
     const newRound = round + 1;
     await metaRepo.setMeta('round', String(newRound));
     await metaRepo.setMeta('nextMatchAt', String(Date.now() + BALANCING.matchIntervalMs));

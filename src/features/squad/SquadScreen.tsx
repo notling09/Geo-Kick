@@ -8,7 +8,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FORMATIONS, FORMATION_IDS, POSITION_LABEL } from '../../core/domain/constants';
 import type { FormationId } from '../../core/domain/types';
 import { effectiveOverall } from '../../core/engine/playerGen';
@@ -28,6 +28,7 @@ export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
   const { club, players, lineup, setFormation, setLineupSlot, autoLineup, lineupPlayers } =
     useGameStore();
   const [pickSlot, setPickSlot] = useState<number | null>(null);
+  const insets = useSafeAreaInsets();
 
   const formation: FormationId = club?.formation ?? '4-4-2';
   const slots = FORMATIONS[formation];
@@ -77,7 +78,7 @@ export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
             </Pressable>
           ))}
           <View style={{ flex: 1 }} />
-          <GKButton title="Auto pick" variant="ghost" style={styles.autoBtn} onPress={autoLineup} />
+          <GKButton title="Best XI" variant="ghost" style={styles.autoBtn} onPress={autoLineup} />
         </View>
 
         <FormationPitch
@@ -86,12 +87,6 @@ export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
           onPlayerPress={(playerId) => navigation.navigate('PlayerDetail', { playerId })}
           onSwapPress={(slot) => setPickSlot(slot)}
         />
-        <Text style={styles.pitchHint}>
-          Tap a player to see his attributes - just like on the bench. Use the blue
-          swap button on a player to change that slot; an orange mark means he is
-          playing out of position.
-        </Text>
-
         <Text style={styles.benchTitle}>Bench ({bench.length})</Text>
         {bench.map((p) => (
           <PlayerCard
@@ -107,7 +102,7 @@ export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
 
       <Modal visible={pickSlot !== null} animationType="slide" transparent>
         <View style={styles.modalBackdrop}>
-          <View style={styles.modalSheet}>
+          <View style={[styles.modalSheet, { paddingBottom: insets.bottom + spacing.md }]}>
             <Text style={styles.modalTitle}>
               Fill slot: {pickSlot !== null ? POSITION_LABEL[slots[pickSlot]] : ''}
             </Text>
@@ -191,13 +186,8 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: spacing.md,
   },
-  pitchHint: {
-    fontSize: font.small,
-    color: colors.inkSoft,
-    marginTop: spacing.sm,
-    marginBottom: spacing.md,
-  },
   benchTitle: {
+    marginTop: spacing.md,
     fontSize: font.h2,
     fontWeight: '800',
     color: colors.ink,

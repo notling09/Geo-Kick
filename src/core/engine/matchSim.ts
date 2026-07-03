@@ -1,6 +1,7 @@
 import { MATCH_SIM } from '../domain/constants';
-import type { MatchEvent, Tactic } from '../domain/types';
-import { pickWeighted } from './random';
+import type { MatchEvent, Position, Tactic } from '../domain/types';
+import { FIRST_NAMES, LAST_NAMES } from './names';
+import { pick, pickWeighted } from './random';
 
 /**
  * Minuten-für-Minute-Simulation (Kapitel 3.4 / 8.2).
@@ -17,6 +18,11 @@ export interface SimTeam {
   /** Gesamtstärke: Summe der positionsgewichteten Overalls der Aufstellung */
   strength: number;
   tactic: Tactic;
+  /**
+   * Aufgestellte Spieler für namentliche Ticker-Events (Torschütze usw.).
+   * NPC-Teams ohne Kader bekommen zufällige fiktive Namen.
+   */
+  roster?: Array<{ name: string; position: Position }>;
 }
 
 export interface SimResult {
@@ -45,26 +51,43 @@ function tacticChanceRate(tactic: Tactic): number {
 }
 
 const CHANCE_TEXTS = [
-  'Big chance! The shot whistles just past the post.',
-  'Dangerous strike from distance - the keeper tips it over the bar.',
-  'Counter-attack! But the final pass is overhit.',
-  'Header from the cross - inches over the crossbar.',
-  'The striker is through one-on-one but the keeper stands tall.',
+  'fires just past the post - big chance!',
+  'strikes from distance, the keeper tips it over the bar.',
+  'leads the counter-attack, but the final pass is overhit.',
+  'heads the cross inches over the crossbar.',
+  'is through one-on-one but the keeper stands tall.',
 ];
 
 const GOAL_TEXTS = [
-  'GOAL! A dry finish into the far corner!',
-  'GOAL! Towering header from the corner - unstoppable!',
-  'GOAL! Dream combination through the middle, finished ice-cold!',
-  'GOAL! Deflected shot - the keeper had no chance!',
-  'GOAL! A textbook counter-attack!',
+  'with a dry finish into the far corner!',
+  'rises highest and heads it in - unstoppable!',
+  'finishes a dream combination ice-cold!',
+  'sees his deflected shot beat the keeper!',
+  'caps off a textbook counter-attack!',
 ];
 
 const CORNER_TEXTS = ['Corner kick - the delivery is cleared.', 'Corner from the left, the keeper claims it safely.'];
-const FOUL_TEXTS = ['Crunching tackle in midfield - free kick.', 'Tactical foul, the referee has a word.'];
+const FOUL_TEXTS = [
+  'goes in hard in midfield - free kick.',
+  'stops the attack with a tactical foul, the referee has a word.',
+];
 
 function pickText(texts: readonly string[]): string {
   return texts[Math.floor(Math.random() * texts.length)];
+}
+
+/** Positions-Gewichte: wer erzielt Tore/hat Chancen (Stürmer am ehesten). */
+const SCORER_WEIGHTS: Record<Position, number> = { ST: 5, MF: 3, ABW: 1.2, TW: 0.1 };
+
+function pickPlayerName(team: SimTeam, weights?: Record<Position, number>): string {
+  if (team.roster && team.roster.length > 0) {
+    if (!weights) return pick(team.roster).name;
+    return pickWeighted(
+      team.roster.map((p) => ({ value: p.name, weight: weights[p.position] ?? 1 })),
+    );
+  }
+  // NPC ohne Kader: fiktiver Name (Kapitel 9: frei erfundene Namen)
+  return `${pick(FIRST_NAMES)} ${pick(LAST_NAMES)}`;
 }
 
 export function simulateMatch(home: SimTeam, away: SimTeam): SimResult {
@@ -107,21 +130,34 @@ export function simulateMatch(home: SimTeam, away: SimTeam): SimResult {
       if (Math.random() < goalProb) {
         if (attackerSide === 'home') homeGoals++;
         else awayGoals++;
+        const scorer = pickPlayerName(atk, SCORER_WEIGHTS);
         events.push({
           minute,
           type: 'tor',
           team: attackerSide,
-          text: `${pickText(GOAL_TEXTS)} (${atk.name}) – ${homeGoals}:${awayGoals}`,
+          text: `GOAL! ${scorer} (${atk.name}) ${pickText(GOAL_TEXTS)} ${homeGoals}:${awayGoals}`,
         });
       } else {
-        events.push({ minute, type: 'chance', team: attackerSide, text: `${atk.name}: ${pickText(CHANCE_TEXTS)}` });
+        const player = pickPlayerName(atk, SCORER_WEIGHTS);
+        events.push({
+          minute,
+          type: 'chance',
+          team: attackerSide,
+          text: `${player} (${atk.name}) ${pickText(CHANCE_TEXTS)}`,
+        });
       }
     } else if (roll < homeChanceRate + awayChanceRate + MATCH_SIM.cornerPerMinute) {
       const side = Math.random() < home.strength / (home.strength + away.strength) ? 'home' : 'away';
       events.push({ minute, type: 'ecke', team: side, text: `${side === 'home' ? home.name : away.name}: ${pickText(CORNER_TEXTS)}` });
     } else if (roll < homeChanceRate + awayChanceRate + MATCH_SIM.cornerPerMinute + MATCH_SIM.foulPerMinute) {
       const side = Math.random() < 0.5 ? 'home' : 'away';
-      events.push({ minute, type: 'foul', team: side, text: pickText(FOUL_TEXTS) });
+      const team = side === 'home' ? home : away;
+      events.push({
+        minute,
+        type: 'foul',
+        team: side,
+        text: `${pickPlayerName(team)} (${team.name}) ${pickText(FOUL_TEXTS)}`,
+      });
     }
   }
 

@@ -56,7 +56,7 @@ export function PlayerDetailScreen({ route, navigation }: RootScreenProps<'Playe
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.container}>
         <View style={[styles.hero, { backgroundColor: rarityColor }]}>
           <PlayerAvatar player={player.pool} size={96} />

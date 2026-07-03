@@ -13,11 +13,11 @@ aufsteigst. Komplett offline, kein Backend, kein Echtgeld.
 - 📍 **GPS-Check-in/Check-out** mit Coin-Belohnung: ab 5 Min. 50 Coins, linear bis
   150 Coins bei 15 Min., plus genau 1 Pack pro Session
 - 🛡️ **Anti-Cheat**: Geofencing (75-m-Radius), Mock-Location-Erkennung, Pflicht-Check-out,
-  5 h Cooldown pro Platz
+  2,5 h Cooldown pro Platz
 - 🎁 **Packs** mit fiktiven Spielern (Bronze 60 % / Silber 28 % / Gold 10 % / Legendär 2 %);
   Duplikate trainieren Spieler (+1 Level)
-- 👥 **Kadermanagement**: Formationen 4-4-2 / 4-3-3 / 3-5-2, Slot-Editor, Auto-Aufstellung
-- 🏆 **Liga**: 4 Divisionen, 8 Klubs, Doppelrunde (14 Spieltage), 1 Spiel pro 24 h,
+- 👥 **Kadermanagement**: Formationen 4-4-2 / 4-3-3 / 5-3-2, Slot-Editor, Auto-Aufstellung
+- 🏆 **Liga**: 4 Divisionen, 8 Klubs, Doppelrunde (14 Spieltage), 1 Spiel pro Stunde,
   Taktikwahl vor Anpfiff, Minuten-Live-Ticker, Auf-/Abstieg am Saisonende
 - 💾 **Lokale Speicherung** aller Daten in SQLite (expo-sqlite)
 
