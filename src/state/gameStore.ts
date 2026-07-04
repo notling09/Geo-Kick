@@ -5,7 +5,10 @@ import {
 import type {
   Club, FormationId, OwnedPlayer, Pack, PoolPlayer, Tactic,
 } from '../core/domain/types';
-import { generateFillerSquad, generatePlayerPool, effectiveOverall } from '../core/engine/playerGen';
+import {
+  POOL_SIZE, createCuratedPoolPlayer, effectiveOverall, generateFillerSquad,
+  generatePlayerPool, generateRandomPoolPlayers, type NewPoolPlayer,
+} from '../core/engine/playerGen';
 import { GOLD_PLAYERS, LEGENDARY_PLAYERS, STARTER_WINGERS } from '../core/engine/names';
 import { drawPackContent, packTypeFromSource } from '../core/engine/packGen';
 import * as metaRepo from '../core/db/repositories/metaRepo';
@@ -71,6 +74,43 @@ async function loadClub(): Promise<Club> {
   };
 }
 
+/**
+ * Migration: Pool bestehender Spielstände auf die aktuellen Zielgrößen
+ * auffüllen (2026-07-04 verdoppelt). Kuratierte Gold/Legendär-Stars werden
+ * namentlich ergänzt, Bronze/Silber mit frischen Fantasienamen aufgefüllt.
+ */
+async function topUpPool(): Promise<void> {
+  const pool = await playerRepo.getPool();
+  const names = new Set(pool.map((p) => p.name));
+  const toInsert: NewPoolPlayer[] = [];
+
+  ([
+    ['gold', GOLD_PLAYERS],
+    ['legendaer', LEGENDARY_PLAYERS],
+  ] as const).forEach(([rarity, curated]) => {
+    curated.forEach((entry) => {
+      if (!names.has(entry.name)) {
+        toInsert.push(createCuratedPoolPlayer(rarity, entry));
+        names.add(entry.name);
+      }
+    });
+  });
+
+  (['bronze', 'silber'] as const).forEach((rarity) => {
+    const existing = pool.filter(
+      (p) => p.rarity === rarity && !p.isFiller && !p.isStarterChoice,
+    ).length;
+    const missing = POOL_SIZE[rarity] - existing;
+    if (missing > 0) {
+      toInsert.push(...generateRandomPoolPlayers(rarity, missing, names));
+    }
+  });
+
+  if (toInsert.length > 0) {
+    await playerRepo.insertPoolPlayers(toInsert);
+  }
+}
+
 function lineupArray(map: Map<number, number>): Array<number | null> {
   return Array.from({ length: 11 }, (_, slot) => map.get(slot) ?? null);
 }
@@ -127,6 +167,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       // … und Gold/Legendär auf die kuratierten Star-Identitäten migrieren
       await playerRepo.syncCuratedRarity('gold', GOLD_PLAYERS);
       await playerRepo.syncCuratedRarity('legendaer', LEGENDARY_PLAYERS);
+      // Pool auf die aktuellen Zielgrößen auffüllen (Verdopplung)
+      await topUpPool();
     }
     const onboarded = (await metaRepo.getMeta('onboarded')) === '1';
     const pool = await playerRepo.getPool();

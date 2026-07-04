@@ -26,6 +26,10 @@ const attrsInRange = pool.every(p => [p.tempo, p.technik, p.abschluss, p.verteid
 check('attributes 1..99', attrsInRange);
 const legendaries = pool.filter(p => p.rarity === 'legendaer' && !p.isStarterChoice);
 check('legendary overall >= 80', legendaries.every(p => overallOf(p, p.position) >= 80));
+check('gold pool = 40', pool.filter(p => p.rarity === 'gold' && !p.isStarterChoice).length === 40);
+check('legendary pool = 20', legendaries.length === 20);
+check('bronze pool = 88', pool.filter(p => p.rarity === 'bronze').length === 88);
+check('silver pool = 64', pool.filter(p => p.rarity === 'silber').length === 64);
 
 const fillers = generateFillerSquad();
 check('fillers = 15', fillers.length === 15, String(fillers.length));

@@ -31,10 +31,10 @@ export const BALANCING = {
 
 /**
  * Session-Objectives: kleine Fußball-Aufgaben gegen Langeweile am Platz.
- * Pro Session werden 3 zufällige angezeigt; Abhaken ist Ehrensache
- * (nicht prüfbar) und bringt einen kleinen Coin-Bonus.
+ * Pro Session: 2 Skill-Aufgaben (Ehrensystem) + 1 Fitness-Aufgabe, die der
+ * Bewegungssensor automatisch verifiziert (höherer Bonus).
  */
-export const SESSION_OBJECTIVES: string[] = [
+export const SKILL_OBJECTIVES: string[] = [
   'Score a goal with your weak foot',
   'Hit the crossbar from the penalty spot',
   'Do 20 keepy-uppies without dropping the ball',
@@ -57,10 +57,29 @@ export const SESSION_OBJECTIVES: string[] = [
   'Keep possession for 30 seconds against a defender',
 ];
 
-/** Coin-Bonus je abgehakter Session-Aufgabe */
+export interface FitnessObjective {
+  text: string;
+  /** activeMs = Bewegungsminuten, sprints = erkannte Sprint-Bursts */
+  kind: 'activeMs' | 'sprints';
+  target: number;
+}
+
+/** Sensorgeprüfte Fitness-Aufgaben (Accelerometer, App im Vordergrund) */
+export const FITNESS_OBJECTIVES: FitnessObjective[] = [
+  { text: 'Be in motion for at least 3 minutes', kind: 'activeMs', target: 3 * 60 * 1000 },
+  { text: 'Be in motion for at least 5 minutes', kind: 'activeMs', target: 5 * 60 * 1000 },
+  { text: 'Be in motion for at least 8 minutes', kind: 'activeMs', target: 8 * 60 * 1000 },
+  { text: 'Do 3 sprint bursts', kind: 'sprints', target: 3 },
+  { text: 'Do 5 sprint bursts', kind: 'sprints', target: 5 },
+  { text: 'Do 8 sprint bursts', kind: 'sprints', target: 8 },
+];
+
+/** Coin-Bonus je abgehakter Skill-Aufgabe (Ehrensystem) */
 export const OBJECTIVE_BONUS_COINS = 10;
-/** Aufgaben pro Session */
-export const OBJECTIVES_PER_SESSION = 3;
+/** Coin-Bonus für die sensorverifizierte Fitness-Aufgabe */
+export const FITNESS_BONUS_COINS = 20;
+/** Skill-Aufgaben pro Session (dazu kommt 1 Fitness-Aufgabe) */
+export const SKILL_OBJECTIVES_PER_SESSION = 2;
 
 /** Anti-Cheat-Parameter (Kapitel 6) */
 export const ANTI_CHEAT = {

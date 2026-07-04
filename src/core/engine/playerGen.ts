@@ -9,11 +9,12 @@ import { pick, randInt, shuffle } from './random';
  * (Duplikate → Training, Kapitel 3.3).
  */
 
-const POOL_SIZE: Record<Rarity, number> = {
-  bronze: 44,
-  silber: 32,
-  gold: 20,
-  legendaer: 10,
+/** Zielgrößen des Pools (2026-07-04 verdoppelt, weniger Duplikate). */
+export const POOL_SIZE: Record<Rarity, number> = {
+  bronze: 88,
+  silber: 64,
+  gold: GOLD_PLAYERS.length,
+  legendaer: LEGENDARY_PLAYERS.length,
 };
 
 const POSITIONS: Position[] = ['TW', 'ABW', 'MF', 'ST'];
@@ -72,7 +73,50 @@ export function effectiveOverall(pool: PoolPlayer, level: number): number {
   return overallOf(effectiveAttributes(pool, level), pool.position);
 }
 
-type NewPoolPlayer = Omit<PoolPlayer, 'id'>;
+export type NewPoolPlayer = Omit<PoolPlayer, 'id'>;
+
+/** Kuratierten Star (Gold/Legendär) als Pool-Eintrag erzeugen (für Migrationen). */
+export function createCuratedPoolPlayer(
+  rarity: Rarity,
+  entry: { name: string; position: Position },
+): NewPoolPlayer {
+  const [min, max] = RARITY_OVERALL_RANGE[rarity];
+  return {
+    name: entry.name,
+    position: entry.position,
+    rarity,
+    isStarterChoice: false,
+    isFiller: false,
+    ...rollAttributes(entry.position, randInt(min, max)),
+  };
+}
+
+/** Zufällige Fantasie-Spieler nachgenerieren (für Pool-Vergrößerungen). */
+export function generateRandomPoolPlayers(
+  rarity: Rarity,
+  count: number,
+  existingNames: Set<string>,
+): NewPoolPlayer[] {
+  const [min, max] = RARITY_OVERALL_RANGE[rarity];
+  const players: NewPoolPlayer[] = [];
+  for (let i = 0; i < count; i++) {
+    let name = `${pick(FIRST_NAMES)} ${pick(LAST_NAMES)}`;
+    for (let tries = 0; existingNames.has(name) && tries < 200; tries++) {
+      name = `${pick(FIRST_NAMES)} ${pick(LAST_NAMES)}`;
+    }
+    existingNames.add(name);
+    const position = POSITIONS[randInt(0, POSITIONS.length - 1)];
+    players.push({
+      name,
+      position,
+      rarity,
+      isStarterChoice: false,
+      isFiller: false,
+      ...rollAttributes(position, randInt(min, max)),
+    });
+  }
+  return players;
+}
 
 export function generatePlayerPool(): NewPoolPlayer[] {
   const players: NewPoolPlayer[] = [];

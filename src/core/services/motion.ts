@@ -17,27 +17,58 @@ import * as metaRepo from '../db/repositories/metaRepo';
 const SAMPLE_INTERVAL_MS = 500;
 /** Abweichung der Gesamtbeschleunigung von 1 g, ab der ein Sample als "bewegt" gilt */
 const MOVEMENT_THRESHOLD_G = 0.06;
+/** Deutlich höhere Schwelle für Sprint-Erkennung (harte Schritte/Antritte) */
+const SPRINT_THRESHOLD_G = 0.45;
+/** So viele intensive Samples in Folge zählen als Sprint-Burst (~2 s) */
+const SPRINT_STREAK_SAMPLES = 4;
+/** So viele ruhige Samples beenden einen Burst (~2 s Pause) */
+const SPRINT_COOLDOWN_SAMPLES = 4;
 
 const META_MOVED = 'sessionMovedMs';
 const META_SAMPLED = 'sessionSampledMs';
+const META_SPRINTS = 'sessionSprints';
 
 let subscription: EventSubscription | null = null;
 let movedMs = 0;
 let sampledMs = 0;
+let sprints = 0;
+let highStreak = 0;
+let calmStreak = 0;
+let inBurst = false;
 let lastPersist = 0;
 
 function onSample({ x, y, z }: AccelerometerMeasurement): void {
   // Betrag der Beschleunigung in g; in Ruhe ~1 (Erdanziehung)
   const magnitude = Math.sqrt(x * x + y * y + z * z);
+  const deviation = Math.abs(magnitude - 1);
   sampledMs += SAMPLE_INTERVAL_MS;
-  if (Math.abs(magnitude - 1) > MOVEMENT_THRESHOLD_G) {
+  if (deviation > MOVEMENT_THRESHOLD_G) {
     movedMs += SAMPLE_INTERVAL_MS;
   }
+
+  // Sprint-Bursts: mehrere intensive Samples in Folge = 1 Sprint;
+  // erst nach einer ruhigen Phase kann der nächste gezählt werden
+  if (deviation > SPRINT_THRESHOLD_G) {
+    highStreak++;
+    calmStreak = 0;
+    if (!inBurst && highStreak >= SPRINT_STREAK_SAMPLES) {
+      inBurst = true;
+      sprints++;
+    }
+  } else {
+    highStreak = 0;
+    calmStreak++;
+    if (inBurst && calmStreak >= SPRINT_COOLDOWN_SAMPLES) {
+      inBurst = false;
+    }
+  }
+
   // Zwischenstände sichern, damit App-Neustarts die Messung nicht verlieren
   if (Date.now() - lastPersist > 10000) {
     lastPersist = Date.now();
     void metaRepo.setMeta(META_MOVED, String(movedMs));
     void metaRepo.setMeta(META_SAMPLED, String(sampledMs));
+    void metaRepo.setMeta(META_SPRINTS, String(sprints));
   }
 }
 
@@ -46,13 +77,19 @@ export async function startMotionTracking(reset: boolean): Promise<void> {
   if (reset) {
     movedMs = 0;
     sampledMs = 0;
+    sprints = 0;
     await metaRepo.setMeta(META_MOVED, '0');
     await metaRepo.setMeta(META_SAMPLED, '0');
+    await metaRepo.setMeta(META_SPRINTS, '0');
   } else {
     // App-Neustart während laufender Session: gespeicherte Werte übernehmen
     movedMs = await metaRepo.getMetaNumber(META_MOVED, 0);
     sampledMs = await metaRepo.getMetaNumber(META_SAMPLED, 0);
+    sprints = await metaRepo.getMetaNumber(META_SPRINTS, 0);
   }
+  highStreak = 0;
+  calmStreak = 0;
+  inBurst = false;
   if (subscription) return;
   const available = await Accelerometer.isAvailableAsync().catch(() => false);
   if (!available) return; // kein Sensor -> Anti-Cheat-Stufe entfällt
@@ -63,16 +100,24 @@ export async function startMotionTracking(reset: boolean): Promise<void> {
 export interface MotionSummary {
   movedMs: number;
   sampledMs: number;
+  sprints: number;
+}
+
+/** Aktuelle Zwischenwerte (für Live-Fortschritt der Fitness-Aufgabe). */
+export function getMotionStats(): MotionSummary {
+  return { movedMs, sampledMs, sprints };
 }
 
 /** Beim Check-out aufrufen: Messung stoppen und Ergebnis liefern. */
 export async function stopMotionTracking(): Promise<MotionSummary> {
   subscription?.remove();
   subscription = null;
-  const summary = { movedMs, sampledMs };
+  const summary = { movedMs, sampledMs, sprints };
   await metaRepo.setMeta(META_MOVED, '0');
   await metaRepo.setMeta(META_SAMPLED, '0');
+  await metaRepo.setMeta(META_SPRINTS, '0');
   movedMs = 0;
   sampledMs = 0;
+  sprints = 0;
   return summary;
 }

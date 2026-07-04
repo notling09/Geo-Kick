@@ -1,7 +1,8 @@
 import * as Location from 'expo-location';
 import { create } from 'zustand';
 import {
-  ANTI_CHEAT, BALANCING, OBJECTIVES_PER_SESSION, OBJECTIVE_BONUS_COINS, SESSION_OBJECTIVES,
+  ANTI_CHEAT, BALANCING, FITNESS_BONUS_COINS, FITNESS_OBJECTIVES, OBJECTIVE_BONUS_COINS,
+  SKILL_OBJECTIVES, SKILL_OBJECTIVES_PER_SESSION,
 } from '../core/domain/constants';
 import type { Session, Spot } from '../core/domain/types';
 import { shuffle } from '../core/engine/random';
@@ -46,6 +47,11 @@ export type CheckOutResult =
 export interface SessionObjective {
   text: string;
   done: boolean;
+  /** skill = Ehrensystem (abhakbar), sonst sensorverifizierte Fitness-Aufgabe */
+  kind: 'skill' | 'activeMs' | 'sprints';
+  /** Zielwert der Fitness-Aufgabe (ms bzw. Sprint-Anzahl) */
+  target: number;
+  bonus: number;
 }
 
 interface SessionState {
@@ -91,7 +97,15 @@ async function loadObjectives(): Promise<SessionObjective[]> {
   const raw = await metaRepo.getMeta('sessionObjectives');
   if (!raw) return [];
   try {
-    return JSON.parse(raw) as SessionObjective[];
+    const parsed = JSON.parse(raw) as Array<Partial<SessionObjective>>;
+    // Ältere Spielstände kennen kind/target/bonus noch nicht
+    return parsed.map((o) => ({
+      text: o.text ?? '',
+      done: o.done ?? false,
+      kind: o.kind ?? 'skill',
+      target: o.target ?? 0,
+      bonus: o.bonus ?? OBJECTIVE_BONUS_COINS,
+    }));
   } catch {
     return [];
   }
@@ -119,7 +133,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   toggleObjective: async (index) => {
     const objectives = get().objectives.map((o, i) =>
-      i === index ? { ...o, done: !o.done } : o,
+      // Fitness-Aufgaben werden vom Sensor bewertet, nicht per Hand
+      i === index && o.kind === 'skill' ? { ...o, done: !o.done } : o,
     );
     await metaRepo.setMeta('sessionObjectives', JSON.stringify(objectives));
     set({ objectives });
@@ -185,10 +200,26 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const id = await sessionRepo.startSession(spot.id, Date.now());
     // Bewegungssensor-Messung für diese Session starten (Kapitel 6.2)
     await startMotionTracking(true);
-    // 3 zufällige Mini-Aufgaben für diese Session auslosen
-    const objectives: SessionObjective[] = shuffle(SESSION_OBJECTIVES)
-      .slice(0, OBJECTIVES_PER_SESSION)
-      .map((text) => ({ text, done: false }));
+    // 2 Skill-Aufgaben (Ehrensystem) + 1 sensorverifizierte Fitness-Aufgabe
+    const fitness = shuffle(FITNESS_OBJECTIVES)[0];
+    const objectives: SessionObjective[] = [
+      ...shuffle(SKILL_OBJECTIVES)
+        .slice(0, SKILL_OBJECTIVES_PER_SESSION)
+        .map((text) => ({
+          text,
+          done: false,
+          kind: 'skill' as const,
+          target: 0,
+          bonus: OBJECTIVE_BONUS_COINS,
+        })),
+      {
+        text: fitness.text,
+        done: false,
+        kind: fitness.kind,
+        target: fitness.target,
+        bonus: FITNESS_BONUS_COINS,
+      },
+    ];
     await metaRepo.setMeta('sessionObjectives', JSON.stringify(objectives));
     set({
       activeSession: {
@@ -253,9 +284,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       return { ok: false, reason: 'no_movement', durationMinutes };
     }
 
-    // Bonus aus abgehakten Session-Aufgaben (Ehrensystem)
-    const objectiveBonus =
-      get().objectives.filter((o) => o.done).length * OBJECTIVE_BONUS_COINS;
+    // Bonus: abgehakte Skill-Aufgaben (Ehrensystem) + Fitness-Aufgabe,
+    // die der Bewegungssensor automatisch bewertet
+    const objectiveBonus = get().objectives.reduce((sum, o) => {
+      if (o.kind === 'skill') return o.done ? sum + o.bonus : sum;
+      const achieved =
+        o.kind === 'activeMs' ? motion.movedMs >= o.target : motion.sprints >= o.target;
+      return achieved ? sum + o.bonus : sum;
+    }, 0);
     const totalCoins = reward.coins + objectiveBonus;
 
     await sessionRepo.finishSession(session.id, now, totalCoins, reward.pack);

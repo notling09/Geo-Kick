@@ -33,7 +33,7 @@ export const STARTER_WINGERS = [
 /**
  * Kuratierte Gold-/Legendär-Identitäten: erkennbare Stars mit klar
  * abgewandelten Fantasienamen (Kapitel 9: keine echten Namen).
- * Anzahl muss zur Pool-Größe in playerGen passen (20 Gold, 10 Legendär).
+ * Anzahl muss zur Pool-Größe in playerGen passen (40 Gold, 20 Legendär).
  */
 export const LEGENDARY_PLAYERS: Array<{ name: string; position: 'TW' | 'ABW' | 'MF' | 'ST' }> = [
   { name: 'Leo Mezzi', position: 'ST' },
@@ -46,6 +46,16 @@ export const LEGENDARY_PLAYERS: Array<{ name: string; position: 'TW' | 'ABW' | '
   { name: 'Virgil van Dike', position: 'ABW' },
   { name: 'Achraf Hakimo', position: 'ABW' },
   { name: 'Gigi Donnaromma', position: 'TW' },
+  { name: 'Neymar Junius', position: 'ST' },
+  { name: 'Zlatan Ibrakadabra', position: 'ST' },
+  { name: 'Wayne Roonie', position: 'ST' },
+  { name: 'Karim Benzemo', position: 'ST' },
+  { name: 'Toni Kroon', position: 'MF' },
+  { name: 'Andres Inietor', position: 'MF' },
+  { name: 'Ronaldinho Gauchito', position: 'MF' },
+  { name: 'Sergio Ramoz', position: 'ABW' },
+  { name: 'Paolo Maldino', position: 'ABW' },
+  { name: 'Manuel Neuwer', position: 'TW' },
 ];
 
 export const GOLD_PLAYERS: Array<{ name: string; position: 'TW' | 'ABW' | 'MF' | 'ST' }> = [
@@ -69,6 +79,26 @@ export const GOLD_PLAYERS: Array<{ name: string; position: 'TW' | 'ABW' | 'MF' |
   { name: 'Josko Guardiol', position: 'ABW' },
   { name: 'Alisson Beckert', position: 'TW' },
   { name: 'Thibaut Courtoise', position: 'TW' },
+  { name: 'Darwin Nunezz', position: 'ST' },
+  { name: 'Ousmane Dembelo', position: 'ST' },
+  { name: 'Marcus Rushford', position: 'ST' },
+  { name: 'Cody Gakpoo', position: 'ST' },
+  { name: 'Khvicha Kvaradona', position: 'ST' },
+  { name: 'Alexander Isaak', position: 'ST' },
+  { name: 'Bruno Fernandez', position: 'MF' },
+  { name: 'Bernardo Silvano', position: 'MF' },
+  { name: 'Frenkie de Jongen', position: 'MF' },
+  { name: 'Enzo Fernandel', position: 'MF' },
+  { name: 'Dominik Szoboszlave', position: 'MF' },
+  { name: 'Aurelien Tchouamando', position: 'MF' },
+  { name: 'Ilkay Gundowin', position: 'MF' },
+  { name: 'Antonio Rudige', position: 'ABW' },
+  { name: 'Alphonso Davios', position: 'ABW' },
+  { name: 'Kyle Walkman', position: 'ABW' },
+  { name: 'Matthijs de Ligth', position: 'ABW' },
+  { name: 'Dayot Upamecanoe', position: 'ABW' },
+  { name: 'Ederson Moralez', position: 'TW' },
+  { name: 'Mike Maignano', position: 'TW' },
 ];
 
 /** Prefixes go before the place name ("FC Misthill"), suffixes after ("Misthill Rovers"). */

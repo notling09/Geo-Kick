@@ -20,9 +20,10 @@ import {
 } from '@maplibre/maplibre-react-native';
 import * as Location from 'expo-location';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BALANCING, OBJECTIVE_BONUS_COINS } from '../../core/domain/constants';
+import { BALANCING, FITNESS_BONUS_COINS, OBJECTIVE_BONUS_COINS } from '../../core/domain/constants';
 import type { Spot } from '../../core/domain/types';
 import { circlePolygon, distanceMeters } from '../../core/services/geo';
+import { getMotionStats } from '../../core/services/motion';
 import { useSessionStore, type CheckInResult } from '../../state/sessionStore';
 import { useGameStore } from '../../state/gameStore';
 import { GKButton, Card, CoinBadge, IconCircleButton } from '../../ui/components';
@@ -321,22 +322,48 @@ export function MapScreen() {
           {objectives.length > 0 && (
             <View style={styles.objectivesBox}>
               <Text style={styles.objectivesTitle}>
-                Session objectives (+{OBJECTIVE_BONUS_COINS} coins each - honor system!)
+                Session objectives (skill +{OBJECTIVE_BONUS_COINS} on your honor · fitness +
+                {FITNESS_BONUS_COINS} auto-verified)
               </Text>
-              {objectives.map((o, i) => (
-                <Pressable
-                  key={o.text}
-                  style={styles.objectiveRow}
-                  onPress={() => toggleObjective(i)}
-                >
-                  <View style={[styles.objectiveBox, o.done && styles.objectiveBoxDone]}>
-                    {o.done && <IconCheck size={13} color="#fff" />}
+              {objectives.map((o, i) => {
+                if (o.kind === 'skill') {
+                  return (
+                    <Pressable
+                      key={o.text}
+                      style={styles.objectiveRow}
+                      onPress={() => toggleObjective(i)}
+                    >
+                      <View style={[styles.objectiveBox, o.done && styles.objectiveBoxDone]}>
+                        {o.done && <IconCheck size={13} color="#fff" />}
+                      </View>
+                      <Text style={[styles.objectiveText, o.done && styles.objectiveTextDone]}>
+                        {o.text}
+                      </Text>
+                    </Pressable>
+                  );
+                }
+                // Fitness-Aufgabe: Live-Fortschritt vom Bewegungssensor
+                const stats = getMotionStats();
+                const achieved =
+                  o.kind === 'activeMs' ? stats.movedMs >= o.target : stats.sprints >= o.target;
+                const progress =
+                  o.kind === 'activeMs'
+                    ? `${Math.min(Math.floor(stats.movedMs / 60000), Math.ceil(o.target / 60000))}:${String(
+                        Math.floor((Math.min(stats.movedMs, o.target) % 60000) / 1000),
+                      ).padStart(2, '0')} / ${o.target / 60000}:00 min`
+                    : `${Math.min(stats.sprints, o.target)}/${o.target} sprints`;
+                return (
+                  <View key={o.text} style={styles.objectiveRow}>
+                    <View style={[styles.objectiveBox, achieved && styles.objectiveBoxDone]}>
+                      {achieved && <IconCheck size={13} color="#fff" />}
+                    </View>
+                    <Text style={[styles.objectiveText, achieved && styles.objectiveTextDone]}>
+                      {o.text}
+                    </Text>
+                    <Text style={styles.objectiveProgress}>{progress}</Text>
                   </View>
-                  <Text style={[styles.objectiveText, o.done && styles.objectiveTextDone]}>
-                    {o.text}
-                  </Text>
-                </Pressable>
-              ))}
+                );
+              })}
             </View>
           )}
           <GKButton title="Check out" variant="secondary" onPress={onCheckOut} />
@@ -511,6 +538,12 @@ const styles = StyleSheet.create({
   objectiveTextDone: {
     textDecorationLine: 'line-through',
     color: colors.inkSoft,
+  },
+  objectiveProgress: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.pitchDark,
+    marginLeft: spacing.sm,
   },
   errorText: {
     color: colors.danger,
