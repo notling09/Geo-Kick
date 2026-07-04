@@ -1,6 +1,9 @@
 import React from 'react';
-import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
-import { colors, font, spacing } from '../../ui/theme';
+import {
+  ActivityIndicator, Image, StyleSheet, Text, View, useWindowDimensions,
+} from 'react-native';
+import { PitchBackground } from '../../ui/PitchBackground';
+import { font, spacing } from '../../ui/theme';
 
 /**
  * Loading screen (chapter 2.3, step 1): short splash with the app icon
@@ -8,8 +11,12 @@ import { colors, font, spacing } from '../../ui/theme';
  * error screen (instead of hanging forever).
  */
 export function LoadingScreen({ errorText }: { errorText?: string }) {
+  const { width, height } = useWindowDimensions();
   return (
     <View style={styles.container}>
+      <View style={StyleSheet.absoluteFill}>
+        <PitchBackground width={width} height={height} />
+      </View>
       <Image
         source={require('../../../assets/images/icon-transparent.png')}
         style={{ width: 140, height: 140 }}
@@ -31,8 +38,9 @@ export function LoadingScreen({ errorText }: { errorText?: string }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    // Gleicher Blauton wie der native Splash (app.json), nahtloser Übergang
-    backgroundColor: '#0095F7',
+    // Gleiches Rasen-Grün wie der native Splash (app.json), nahtloser
+    // Übergang; darüber die gezeichneten Feldlinien (PitchBackground)
+    backgroundColor: '#2E7D32',
     alignItems: 'center',
     justifyContent: 'center',
   },
