@@ -135,16 +135,42 @@ public static class FgTool {
     return new Rectangle(minX, minY, maxX - minX + 1, maxY - minY + 1);
   }
 
-  // Wie Canvas, aber zentriert auf die StrongBounds-Mitte und skaliert
-  // relativ zur StrongBounds-Groesse (Ball/Outline bleiben erhalten).
+  // Box der blauen Pixel = der Globus selbst. Der Globus ist das visuelle
+  // Zentrum; Ball/Bein duerfen asymmetrisch herausragen.
+  public static Rectangle GlobeBounds(Bitmap src) {
+    var rect = new Rectangle(0, 0, src.Width, src.Height);
+    var data = src.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+    int stride = data.Stride;
+    var px = new byte[Math.Abs(stride) * src.Height];
+    Marshal.Copy(data.Scan0, px, 0, px.Length);
+    src.UnlockBits(data);
+    int w = src.Width, h = src.Height;
+    int minX = w, minY = h, maxX = -1, maxY = -1;
+    for (int y = 0; y < h; y++)
+      for (int x = 0; x < w; x++) {
+        int idx = y * stride + x * 4;
+        if (px[idx + 3] <= 8) continue;
+        int b = px[idx], g2 = px[idx + 1], r = px[idx + 2];
+        if (b >= 120 && b > g2 + 10 && b > r + 30) {
+          if (x < minX) minX = x; if (x > maxX) maxX = x;
+          if (y < minY) minY = y; if (y > maxY) maxY = y;
+        }
+      }
+    if (maxX < 0) return StrongBounds(src);
+    return new Rectangle(minX, minY, maxX - minX + 1, maxY - minY + 1);
+  }
+
+  // Zentriert auf die GLOBUS-Mitte; Skalierung relativ zur StrongBounds-
+  // Groesse, damit das gesamte Motiv (inkl. Ball) sichtbar bleibt.
   public static Bitmap CanvasCentered(Bitmap src, int size, double contentScale) {
     var strong = StrongBounds(src);
+    var globe = GlobeBounds(src);
     var bmp = new Bitmap(size, size, PixelFormat.Format32bppArgb);
     using (var g = Graphics.FromImage(bmp)) {
       g.InterpolationMode = InterpolationMode.HighQualityBicubic;
       double target = size * contentScale;
       double scale = Math.Min(target / strong.Width, target / strong.Height);
-      double cx = strong.X + strong.Width / 2.0, cy = strong.Y + strong.Height / 2.0;
+      double cx = globe.X + globe.Width / 2.0, cy = globe.Y + globe.Height / 2.0;
       int dw = (int)(src.Width * scale), dh = (int)(src.Height * scale);
       int ox = (int)(size / 2.0 - cx * scale), oy = (int)(size / 2.0 - cy * scale);
       g.DrawImage(src, ox, oy, dw, dh);
