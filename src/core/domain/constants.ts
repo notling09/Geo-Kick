@@ -19,8 +19,8 @@ export const BALANCING = {
   spotCooldownMs: 150 * 60 * 1000,
   /** Default-Check-in-Radius um einen Platz (m) */
   defaultSpotRadius: 75,
-  /** 1 simuliertes Ligaspiel alle 30 Min (nach Nutzertest von 24 h gesenkt) */
-  matchIntervalMs: 30 * 60 * 1000,
+  /** 1 simuliertes Ligaspiel alle 15 Min (nach Nutzertests von 24 h gesenkt) */
+  matchIntervalMs: 15 * 60 * 1000,
   /** Spieler pro Pack */
   playersPerPack: 3,
   /** Maximales Trainingslevel */
@@ -28,6 +28,39 @@ export const BALANCING = {
   /** Maximale Klubgröße; darüber muss verkauft werden */
   maxSquadSize: 30,
 } as const;
+
+/**
+ * Session-Objectives: kleine Fußball-Aufgaben gegen Langeweile am Platz.
+ * Pro Session werden 3 zufällige angezeigt; Abhaken ist Ehrensache
+ * (nicht prüfbar) und bringt einen kleinen Coin-Bonus.
+ */
+export const SESSION_OBJECTIVES: string[] = [
+  'Score a goal with your weak foot',
+  'Hit the crossbar from the penalty spot',
+  'Do 20 keepy-uppies without dropping the ball',
+  'Nutmeg someone (or pass through two cones)',
+  'Score a volley',
+  'Hit the post from 20 meters',
+  'Play 10 one-touch passes against a wall or partner',
+  'Dribble through 4 obstacles without losing the ball',
+  'Score from outside the box',
+  'Save three shots as the keeper',
+  'Score a header',
+  'Sprint from box to box 5 times',
+  'Juggle foot - knee - head without dropping',
+  'Score directly from a corner kick',
+  'Chip the keeper (or the empty goal) from the edge of the box',
+  'Try a rainbow flick',
+  'Score with your first touch after a pass',
+  'Win a 1-on-1 duel',
+  'Curl a free kick around an imaginary wall',
+  'Keep possession for 30 seconds against a defender',
+];
+
+/** Coin-Bonus je abgehakter Session-Aufgabe */
+export const OBJECTIVE_BONUS_COINS = 10;
+/** Aufgaben pro Session */
+export const OBJECTIVES_PER_SESSION = 3;
 
 /** Anti-Cheat-Parameter (Kapitel 6) */
 export const ANTI_CHEAT = {

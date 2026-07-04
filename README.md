@@ -11,7 +11,8 @@ aufsteigst. Komplett offline, kein Backend, kein Echtgeld.
 - **Karte** mit Fußball-/Bolzplätzen in der Nähe (OpenStreetMap/Overpass, lokal gecacht);
   eigene Plätze per Long-Press auf die Karte hinzufügen
 - **GPS-Check-in/Check-out** mit Coin-Belohnung: ab 5 Min. 50 Coins, linear bis
-  150 Coins bei 15 Min., plus genau 1 Pack pro Session
+  150 Coins bei 15 Min., plus genau 1 Pack pro Session; dazu 3 zufällige
+  Session-Objectives (Mini-Aufgaben, Ehrensystem, Bonus-Coins)
 - **Anti-Cheat**: Geofencing bei Check-in und Check-out (75-m-Radius),
   Mock-Location-Erkennung, Pflicht-Check-out, 2,5 h Cooldown pro Platz,
   Bewegungssensor-Prüfung (Kapitel 6.2: ein komplett regungsloses Gerät
@@ -21,7 +22,7 @@ aufsteigst. Komplett offline, kein Backend, kein Echtgeld.
   Duplikate trainieren Spieler (+1 Level) oder werden verkauft
 - **Kadermanagement**: Formationen 4-4-2 / 4-3-3 / 5-3-2, Slot-Editor, Best-XI-Button,
   Kader-Limit 30 mit Verkaufssystem
-- **Liga**: 4 Divisionen, 8 Klubs, Doppelrunde (14 Spieltage), 1 Spiel alle 30 Min.,
+- **Liga**: 4 Divisionen, 8 Klubs, Doppelrunde (14 Spieltage), 1 Spiel alle 15 Min.,
   Taktikwahl vor Anpfiff, Minuten-Live-Ticker mit Torschützen, Auf-/Abstieg am Saisonende
 - **Lokale Speicherung** aller Daten in SQLite (expo-sqlite)
 

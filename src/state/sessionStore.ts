@@ -1,7 +1,10 @@
 import * as Location from 'expo-location';
 import { create } from 'zustand';
-import { ANTI_CHEAT, BALANCING } from '../core/domain/constants';
+import {
+  ANTI_CHEAT, BALANCING, OBJECTIVES_PER_SESSION, OBJECTIVE_BONUS_COINS, SESSION_OBJECTIVES,
+} from '../core/domain/constants';
 import type { Session, Spot } from '../core/domain/types';
+import { shuffle } from '../core/engine/random';
 import { calculateReward } from '../core/engine/rewards';
 import { distanceMeters } from '../core/services/geo';
 import { startMotionTracking, stopMotionTracking } from '../core/services/motion';
@@ -26,20 +29,35 @@ export type CheckInResult =
     };
 
 export type CheckOutResult =
-  | { ok: true; coins: number; packGranted: boolean; durationMinutes: number }
+  | {
+      ok: true;
+      coins: number;
+      /** darin enthaltener Bonus aus abgehakten Session-Aufgaben */
+      objectiveBonus: number;
+      packGranted: boolean;
+      durationMinutes: number;
+    }
   | {
       ok: false;
       reason: 'too_short' | 'no_session' | 'mocked' | 'left_pitch' | 'no_movement';
       durationMinutes?: number;
     };
 
+export interface SessionObjective {
+  text: string;
+  done: boolean;
+}
+
 interface SessionState {
   spots: Spot[];
   activeSession: Session | null;
+  /** 3 zufällige Mini-Aufgaben der laufenden Session (Ehrensystem) */
+  objectives: SessionObjective[];
   osmLoading: boolean;
   osmError: string | null;
 
   hydrate: () => Promise<void>;
+  toggleObjective: (index: number) => Promise<void>;
   /** Liefert Anzahl geladener Plätze, -1 wenn wegen Drosselung übersprungen. */
   refreshOsmSpots: (
     latitude: number,
@@ -69,9 +87,20 @@ async function getVerifiedPosition(): Promise<
   }
 }
 
+async function loadObjectives(): Promise<SessionObjective[]> {
+  const raw = await metaRepo.getMeta('sessionObjectives');
+  if (!raw) return [];
+  try {
+    return JSON.parse(raw) as SessionObjective[];
+  } catch {
+    return [];
+  }
+}
+
 export const useSessionStore = create<SessionState>((set, get) => ({
   spots: [],
   activeSession: null,
+  objectives: [],
   osmLoading: false,
   osmError: null,
 
@@ -84,7 +113,16 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set({
       spots: await spotRepo.getSpots(),
       activeSession,
+      objectives: activeSession ? await loadObjectives() : [],
     });
+  },
+
+  toggleObjective: async (index) => {
+    const objectives = get().objectives.map((o, i) =>
+      i === index ? { ...o, done: !o.done } : o,
+    );
+    await metaRepo.setMeta('sessionObjectives', JSON.stringify(objectives));
+    set({ objectives });
   },
 
   refreshOsmSpots: async (latitude, longitude, options) => {
@@ -147,6 +185,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const id = await sessionRepo.startSession(spot.id, Date.now());
     // Bewegungssensor-Messung für diese Session starten (Kapitel 6.2)
     await startMotionTracking(true);
+    // 3 zufällige Mini-Aufgaben für diese Session auslosen
+    const objectives: SessionObjective[] = shuffle(SESSION_OBJECTIVES)
+      .slice(0, OBJECTIVES_PER_SESSION)
+      .map((text) => ({ text, done: false }));
+    await metaRepo.setMeta('sessionObjectives', JSON.stringify(objectives));
     set({
       activeSession: {
         id,
@@ -156,6 +199,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         coins: 0,
         packGranted: false,
       },
+      objectives,
     });
     return { ok: true };
   },
@@ -174,7 +218,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const closeWithoutReward = async (): Promise<void> => {
       await sessionRepo.finishSession(session.id, now, 0, false);
       await sessionRepo.voidOrphanOpenSessions();
-      set({ activeSession: null });
+      await metaRepo.setMeta('sessionObjectives', '');
+      set({ activeSession: null, objectives: [] });
     };
 
     if (reward.coins === 0) {
@@ -208,17 +253,23 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       return { ok: false, reason: 'no_movement', durationMinutes };
     }
 
-    await sessionRepo.finishSession(session.id, now, reward.coins, reward.pack);
+    // Bonus aus abgehakten Session-Aufgaben (Ehrensystem)
+    const objectiveBonus =
+      get().objectives.filter((o) => o.done).length * OBJECTIVE_BONUS_COINS;
+    const totalCoins = reward.coins + objectiveBonus;
+
+    await sessionRepo.finishSession(session.id, now, totalCoins, reward.pack);
     await sessionRepo.voidOrphanOpenSessions();
-    set({ activeSession: null });
+    await metaRepo.setMeta('sessionObjectives', '');
+    set({ activeSession: null, objectives: [] });
 
     // Cooldown erst nach belohnter Session starten (Kapitel 6.1)
     await spotRepo.setSpotCooldown(session.spotId, now + BALANCING.spotCooldownMs);
     const game = useGameStore.getState();
-    await game.addCoins(reward.coins);
+    await game.addCoins(totalCoins);
     if (reward.pack) await game.grantPack('session');
     set({ spots: await spotRepo.getSpots() });
 
-    return { ok: true, coins: reward.coins, packGranted: reward.pack, durationMinutes };
+    return { ok: true, coins: totalCoins, objectiveBonus, packGranted: reward.pack, durationMinutes };
   },
 }));

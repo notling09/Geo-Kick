@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -19,13 +20,13 @@ import {
 } from '@maplibre/maplibre-react-native';
 import * as Location from 'expo-location';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BALANCING } from '../../core/domain/constants';
+import { BALANCING, OBJECTIVE_BONUS_COINS } from '../../core/domain/constants';
 import type { Spot } from '../../core/domain/types';
 import { circlePolygon, distanceMeters } from '../../core/services/geo';
 import { useSessionStore, type CheckInResult } from '../../state/sessionStore';
 import { useGameStore } from '../../state/gameStore';
 import { GKButton, Card, CoinBadge, IconCircleButton } from '../../ui/components';
-import { IconLocate, IconRefresh, MapPin } from '../../ui/icons';
+import { IconCheck, IconLocate, IconRefresh, MapPin } from '../../ui/icons';
 import { colors, font, radius, spacing } from '../../ui/theme';
 
 /**
@@ -59,8 +60,10 @@ function formatDuration(ms: number): string {
 
 export function MapScreen() {
   const cameraRef = useRef<CameraRef>(null);
-  const { spots, activeSession, osmLoading, osmError, hydrate, refreshOsmSpots, addUserSpot, checkIn, checkOut } =
-    useSessionStore();
+  const {
+    spots, activeSession, objectives, osmLoading, osmError,
+    hydrate, refreshOsmSpots, addUserSpot, checkIn, checkOut, toggleObjective,
+  } = useSessionStore();
   const coins = useGameStore((s) => s.club?.coins ?? 0);
 
   const [myPos, setMyPos] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -157,9 +160,13 @@ export function MapScreen() {
   const onCheckOut = async () => {
     const result = await checkOut();
     if (result.ok) {
+      const bonusLine =
+        result.objectiveBonus > 0
+          ? `\n(includes +${result.objectiveBonus} objective bonus)`
+          : '';
       Alert.alert(
         'Session complete!',
-        `${result.durationMinutes} minutes at the pitch.\nYou earned ${result.coins} coins and 1 pack!`,
+        `${result.durationMinutes} minutes at the pitch.\nYou earned ${result.coins} coins and 1 pack!${bonusLine}`,
       );
     } else if (result.reason === 'too_short') {
       Alert.alert(
@@ -311,6 +318,27 @@ export function MapScreen() {
                 ? `Reward secured - full reward at ${BALANCING.fullSessionMs / 60000} min.`
                 : `Stay at least ${BALANCING.minSessionMs / 60000} min. to earn a reward.`}
           </Text>
+          {objectives.length > 0 && (
+            <View style={styles.objectivesBox}>
+              <Text style={styles.objectivesTitle}>
+                Session objectives (+{OBJECTIVE_BONUS_COINS} coins each - honor system!)
+              </Text>
+              {objectives.map((o, i) => (
+                <Pressable
+                  key={o.text}
+                  style={styles.objectiveRow}
+                  onPress={() => toggleObjective(i)}
+                >
+                  <View style={[styles.objectiveBox, o.done && styles.objectiveBoxDone]}>
+                    {o.done && <IconCheck size={13} color="#fff" />}
+                  </View>
+                  <Text style={[styles.objectiveText, o.done && styles.objectiveTextDone]}>
+                    {o.text}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
           <GKButton title="Check out" variant="secondary" onPress={onCheckOut} />
         </Card>
       )}
@@ -443,6 +471,46 @@ const styles = StyleSheet.create({
     color: colors.inkSoft,
     textAlign: 'center',
     marginBottom: spacing.sm,
+  },
+  objectivesBox: {
+    backgroundColor: colors.grass,
+    borderRadius: radius.sm,
+    padding: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  objectivesTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.pitchDark,
+    marginBottom: 6,
+  },
+  objectiveRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  objectiveBox: {
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    borderWidth: 2,
+    borderColor: colors.pitch,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.sm,
+  },
+  objectiveBoxDone: {
+    backgroundColor: colors.pitch,
+  },
+  objectiveText: {
+    flex: 1,
+    fontSize: font.small,
+    color: colors.ink,
+  },
+  objectiveTextDone: {
+    textDecorationLine: 'line-through',
+    color: colors.inkSoft,
   },
   errorText: {
     color: colors.danger,
