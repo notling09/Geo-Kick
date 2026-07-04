@@ -110,6 +110,47 @@ public static class FgTool {
     }
     return bmp;
   }
+
+  // Box der "kraeftigen" Pixel (nicht fast-weiss): blasse Geisterreste
+  // verschieben sonst das sichtbare Motiv aus der Mitte.
+  public static Rectangle StrongBounds(Bitmap src) {
+    var rect = new Rectangle(0, 0, src.Width, src.Height);
+    var data = src.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+    int stride = data.Stride;
+    var px = new byte[Math.Abs(stride) * src.Height];
+    Marshal.Copy(data.Scan0, px, 0, px.Length);
+    src.UnlockBits(data);
+    int w = src.Width, h = src.Height;
+    int minX = w, minY = h, maxX = -1, maxY = -1;
+    for (int y = 0; y < h; y++)
+      for (int x = 0; x < w; x++) {
+        int idx = y * stride + x * 4;
+        if (px[idx + 3] <= 8) continue;
+        int m = Math.Min(px[idx], Math.Min(px[idx + 1], px[idx + 2]));
+        if (m >= 190) continue; // fast-weisse Pixel ignorieren
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
+      }
+    if (maxX < 0) return new Rectangle(0, 0, w, h);
+    return new Rectangle(minX, minY, maxX - minX + 1, maxY - minY + 1);
+  }
+
+  // Wie Canvas, aber zentriert auf die StrongBounds-Mitte und skaliert
+  // relativ zur StrongBounds-Groesse (Ball/Outline bleiben erhalten).
+  public static Bitmap CanvasCentered(Bitmap src, int size, double contentScale) {
+    var strong = StrongBounds(src);
+    var bmp = new Bitmap(size, size, PixelFormat.Format32bppArgb);
+    using (var g = Graphics.FromImage(bmp)) {
+      g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+      double target = size * contentScale;
+      double scale = Math.Min(target / strong.Width, target / strong.Height);
+      double cx = strong.X + strong.Width / 2.0, cy = strong.Y + strong.Height / 2.0;
+      int dw = (int)(src.Width * scale), dh = (int)(src.Height * scale);
+      int ox = (int)(size / 2.0 - cx * scale), oy = (int)(size / 2.0 - cy * scale);
+      g.DrawImage(src, ox, oy, dw, dh);
+    }
+    return bmp;
+  }
 }
 '@
 Add-Type -TypeDefinition $code -ReferencedAssemblies System.Drawing
@@ -117,7 +158,7 @@ Add-Type -TypeDefinition $code -ReferencedAssemblies System.Drawing
 $src = [System.Drawing.Bitmap]::FromFile($IconSrc)
 $transparent = [FgTool]::OuterWhiteToTransparent($src, 240)
 $cropped = [FgTool]::CropToContent($transparent, 0.02)
-$fg = [FgTool]::Canvas($cropped, 1024, $Scale)
+$fg = [FgTool]::CanvasCentered($cropped, 1024, $Scale)
 $fg.Save($OutPath, [System.Drawing.Imaging.ImageFormat]::Png)
 "written: $OutPath (scale $Scale)"
 $src.Dispose(); $transparent.Dispose(); $cropped.Dispose(); $fg.Dispose()
