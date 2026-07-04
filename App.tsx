@@ -5,6 +5,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { LoadingScreen } from './src/features/start/LoadingScreen';
+import { useCloudStore } from './src/state/cloudStore';
 import { useGameStore } from './src/state/gameStore';
 import { useLeagueStore } from './src/state/leagueStore';
 import { useSessionStore } from './src/state/sessionStore';
@@ -36,6 +37,8 @@ export default function App() {
             useLeagueStore.getState().hydrate(),
             useSessionStore.getState().hydrate(),
           ]);
+          // Cloud-Login läuft im Hintergrund und blockiert den Start nie
+          void useCloudStore.getState().init();
         }
       } catch (e) {
         // Nie auf dem Loading-Screen hängen bleiben: Fehler sichtbar machen

@@ -13,6 +13,7 @@ import { CREST_IDS, RARITY_COLOR } from '../../core/domain/constants';
 import type { PoolPlayer } from '../../core/domain/types';
 import { STARTER_WINGERS } from '../../core/engine/names';
 import * as playerRepo from '../../core/db/repositories/playerRepo';
+import { useCloudStore } from '../../state/cloudStore';
 import { useGameStore } from '../../state/gameStore';
 import { useLeagueStore } from '../../state/leagueStore';
 import { GKButton, Card, SectionTitle } from '../../ui/components';
@@ -55,6 +56,8 @@ export function OnboardingScreen({ navigation }: RootScreenProps<'Onboarding'>) 
     setSaving(true);
     await completeOnboarding(clubName.trim(), crest, chosen);
     await hydrateLeague();
+    // Cloud-Login im Hintergrund starten (falls konfiguriert)
+    void useCloudStore.getState().init();
     navigation.replace('Main');
   };
 

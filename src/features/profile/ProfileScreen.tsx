@@ -9,6 +9,7 @@ import {
 import {
   computeAchievements, type Achievement, type AchievementIcon,
 } from '../../core/services/achievements';
+import { useCloudStore } from '../../state/cloudStore';
 import { useGameStore } from '../../state/gameStore';
 import { useLeagueStore } from '../../state/leagueStore';
 import { Card, SectionTitle } from '../../ui/components';
@@ -72,6 +73,17 @@ export function ProfileScreen() {
 
   const legendaries = players.filter((p) => p.pool.rarity === 'legendaer').length;
   const unlockedCount = achievements.filter((a) => a.unlocked).length;
+  const cloudStatus = useCloudStore((s) => s.status);
+  const friendCode = useCloudStore((s) => s.friendCode);
+
+  const cloudLine =
+    cloudStatus === 'online'
+      ? `Your friend code: ${friendCode ?? '…'}`
+      : cloudStatus === 'connecting'
+        ? 'Connecting to the cloud …'
+        : cloudStatus === 'error'
+          ? 'Cloud connection failed - playing offline. Will retry on next app start.'
+          : 'Friendlies are not set up yet (offline mode).';
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -150,6 +162,17 @@ export function ProfileScreen() {
             </Card>
           ))
         )}
+
+        <SectionTitle>Friendlies</SectionTitle>
+        <Card>
+          <Text style={styles.infoRow}>{cloudLine}</Text>
+          {cloudStatus === 'online' && (
+            <Text style={styles.aboutText}>
+              Share this code with friends so they can add your club and play
+              friendlies against your latest XI.
+            </Text>
+          )}
+        </Card>
 
         <SectionTitle>Club</SectionTitle>
         <Card>
