@@ -29,6 +29,18 @@ export const BALANCING = {
   maxSquadSize: 30,
 } as const;
 
+/** Anti-Cheat-Parameter (Kapitel 6) */
+export const ANTI_CHEAT = {
+  /** Check-out muss innerhalb Radius × Faktor erfolgen (GPS-Toleranz) */
+  checkoutRadiusFactor: 1.5,
+  /**
+   * Bewegungssensor: bestraft wird nur bei ausreichend Messzeit UND
+   * praktisch null Bewegung (Handy lag die ganze Zeit regungslos).
+   */
+  motionMinSampledMs: 2 * 60 * 1000,
+  motionMinMovedMs: 10 * 1000,
+} as const;
+
 /** Verkaufswert je Seltenheit (auch für automatisch verkaufte Duplikate) */
 export const SELL_VALUE: Record<Rarity, number> = {
   bronze: 25,

@@ -23,20 +23,28 @@ LogBox.ignoreLogs([/MapLibre Native/, /\[overpass\]/]);
  */
 export default function App() {
   const [ready, setReady] = useState(false);
+  const [initError, setInitError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
       // Mindestanzeigedauer, damit der Loading-Screen sichtbar bleibt (Kapitel 2.3)
       const minSplash = new Promise((resolve) => setTimeout(resolve, 1800));
-      await useGameStore.getState().init();
-      if (useGameStore.getState().onboarded) {
-        await Promise.all([
-          useLeagueStore.getState().hydrate(),
-          useSessionStore.getState().hydrate(),
-        ]);
+      try {
+        await useGameStore.getState().init();
+        if (useGameStore.getState().onboarded) {
+          await Promise.all([
+            useLeagueStore.getState().hydrate(),
+            useSessionStore.getState().hydrate(),
+          ]);
+        }
+      } catch (e) {
+        // Nie auf dem Loading-Screen hängen bleiben: Fehler sichtbar machen
+        console.error('[startup] init failed:', e);
+        setInitError(String(e));
+      } finally {
+        await minSplash;
+        setReady(true);
       }
-      await minSplash;
-      setReady(true);
     })();
   }, []);
 
@@ -44,9 +52,13 @@ export default function App() {
     <SafeAreaProvider>
       <StatusBar style="light" />
       {ready ? (
-        <NavigationContainer>
-          <RootNavigator />
-        </NavigationContainer>
+        initError ? (
+          <LoadingScreen errorText={`Startup failed: ${initError}`} />
+        ) : (
+          <NavigationContainer>
+            <RootNavigator />
+          </NavigationContainer>
+        )
       ) : (
         <LoadingScreen />
       )}

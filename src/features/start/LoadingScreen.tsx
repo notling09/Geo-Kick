@@ -4,9 +4,10 @@ import { colors, font, spacing } from '../../ui/theme';
 
 /**
  * Loading screen (chapter 2.3, step 1): short splash with the app icon
- * while local data is loading.
+ * while local data is loading. With errorText it doubles as the startup
+ * error screen (instead of hanging forever).
  */
-export function LoadingScreen() {
+export function LoadingScreen({ errorText }: { errorText?: string }) {
   return (
     <View style={styles.container}>
       <Image
@@ -15,8 +16,14 @@ export function LoadingScreen() {
         resizeMode="contain"
       />
       <Text style={styles.title}>GEO-KICK</Text>
-      <ActivityIndicator size="large" color="#fff" style={{ marginTop: spacing.lg }} />
-      <Text style={styles.hint}>Loading local data …</Text>
+      {errorText ? (
+        <Text style={styles.error}>{errorText}</Text>
+      ) : (
+        <>
+          <ActivityIndicator size="large" color="#fff" style={{ marginTop: spacing.lg }} />
+          <Text style={styles.hint}>Loading local data …</Text>
+        </>
+      )}
     </View>
   );
 }
@@ -40,5 +47,12 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.85)',
     marginTop: spacing.md,
     fontSize: font.body,
+  },
+  error: {
+    color: '#FFE082',
+    marginTop: spacing.md,
+    fontSize: font.small,
+    textAlign: 'center',
+    paddingHorizontal: spacing.lg,
   },
 });

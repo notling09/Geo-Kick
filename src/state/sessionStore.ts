@@ -1,9 +1,10 @@
 import * as Location from 'expo-location';
 import { create } from 'zustand';
-import { BALANCING } from '../core/domain/constants';
+import { ANTI_CHEAT, BALANCING } from '../core/domain/constants';
 import type { Session, Spot } from '../core/domain/types';
 import { calculateReward } from '../core/engine/rewards';
 import { distanceMeters } from '../core/services/geo';
+import { startMotionTracking, stopMotionTracking } from '../core/services/motion';
 import { fetchNearbyPitches } from '../core/services/overpass';
 import * as metaRepo from '../core/db/repositories/metaRepo';
 import * as sessionRepo from '../core/db/repositories/sessionRepo';
@@ -12,7 +13,8 @@ import { useGameStore } from './gameStore';
 
 /**
  * Check-in/Check-out mit Anti-Cheat (Kapitel 6):
- * Geofencing, Mock-Location-Erkennung, Mindest-Verweildauer, Cooldown.
+ * Geofencing (Check-in UND Check-out), Mock-Location-Erkennung,
+ * Mindest-Verweildauer, Cooldown, Bewegungssensor (Kapitel 6.2).
  */
 
 export type CheckInResult =
@@ -25,7 +27,11 @@ export type CheckInResult =
 
 export type CheckOutResult =
   | { ok: true; coins: number; packGranted: boolean; durationMinutes: number }
-  | { ok: false; reason: 'too_short' | 'no_session'; durationMinutes?: number };
+  | {
+      ok: false;
+      reason: 'too_short' | 'no_session' | 'mocked' | 'left_pitch' | 'no_movement';
+      durationMinutes?: number;
+    };
 
 interface SessionState {
   spots: Spot[];
@@ -73,6 +79,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const activeSession = await sessionRepo.getActiveSession();
     // Alle anderen offenen Sessions sind verwaist (App-Kill/Reload) → schließen
     await sessionRepo.voidOrphanOpenSessions(activeSession?.id);
+    // Läuft noch eine Session, Bewegungsmessung mit gespeicherten Werten fortsetzen
+    if (activeSession) await startMotionTracking(false);
     set({
       spots: await spotRepo.getSpots(),
       activeSession,
@@ -137,6 +145,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       return { ok: false, reason: 'too_far', detail: `${Math.round(dist)} m entfernt` };
     }
     const id = await sessionRepo.startSession(spot.id, Date.now());
+    // Bewegungssensor-Messung für diese Session starten (Kapitel 6.2)
+    await startMotionTracking(true);
     set({
       activeSession: {
         id,
@@ -157,14 +167,50 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const duration = now - session.startTime;
     const reward = calculateReward(duration);
     const durationMinutes = Math.floor(duration / 60000);
+    const motion = await stopMotionTracking();
+
+    // Session in jedem Fall schließen – aber die Belohnung gibt es nur,
+    // wenn alle Anti-Cheat-Prüfungen bestehen.
+    const closeWithoutReward = async (): Promise<void> => {
+      await sessionRepo.finishSession(session.id, now, 0, false);
+      await sessionRepo.voidOrphanOpenSessions();
+      set({ activeSession: null });
+    };
+
+    if (reward.coins === 0) {
+      await closeWithoutReward();
+      return { ok: false, reason: 'too_short', durationMinutes };
+    }
+
+    // Geofencing auch beim Check-out: Position muss noch am Platz sein
+    const spot = get().spots.find((s) => s.id === session.spotId);
+    const pos = await getVerifiedPosition();
+    if (!pos.ok && pos.reason === 'mocked') {
+      await closeWithoutReward();
+      return { ok: false, reason: 'mocked', durationMinutes };
+    }
+    if (pos.ok && spot) {
+      const dist = distanceMeters(pos.latitude, pos.longitude, spot.latitude, spot.longitude);
+      if (dist > spot.radius * ANTI_CHEAT.checkoutRadiusFactor) {
+        await closeWithoutReward();
+        return { ok: false, reason: 'left_pitch', durationMinutes };
+      }
+    }
+    // (kein GPS-Fix / keine Berechtigung: nicht bestrafen – Check-in war ja gültig)
+
+    // Bewegungssensor (Kapitel 6.2): nur bestrafen, wenn genug Messzeit
+    // vorliegt und sich das Gerät dabei praktisch nie bewegt hat
+    if (
+      motion.sampledMs >= ANTI_CHEAT.motionMinSampledMs &&
+      motion.movedMs < ANTI_CHEAT.motionMinMovedMs
+    ) {
+      await closeWithoutReward();
+      return { ok: false, reason: 'no_movement', durationMinutes };
+    }
 
     await sessionRepo.finishSession(session.id, now, reward.coins, reward.pack);
     await sessionRepo.voidOrphanOpenSessions();
     set({ activeSession: null });
-
-    if (reward.coins === 0) {
-      return { ok: false, reason: 'too_short', durationMinutes };
-    }
 
     // Cooldown erst nach belohnter Session starten (Kapitel 6.1)
     await spotRepo.setSpotCooldown(session.spotId, now + BALANCING.spotCooldownMs);

@@ -166,6 +166,21 @@ export function MapScreen() {
         'Too short',
         `Only ${result.durationMinutes ?? 0} minutes - you need at least ${BALANCING.minSessionMs / 60000} minutes for a reward. Nothing this time.`,
       );
+    } else if (result.reason === 'left_pitch') {
+      Alert.alert(
+        'No reward',
+        'You are no longer at the pitch. Check out while you are still there - session closed without a reward.',
+      );
+    } else if (result.reason === 'mocked') {
+      Alert.alert(
+        'No reward',
+        'Simulated GPS position detected at check-out - session closed without a reward.',
+      );
+    } else if (result.reason === 'no_movement') {
+      Alert.alert(
+        'No reward',
+        'The motion sensor detected no movement at all during this session - session closed without a reward.',
+      );
     }
   };
 

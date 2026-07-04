@@ -12,8 +12,10 @@ aufsteigst. Komplett offline, kein Backend, kein Echtgeld.
   eigene Plätze per Long-Press auf die Karte hinzufügen
 - **GPS-Check-in/Check-out** mit Coin-Belohnung: ab 5 Min. 50 Coins, linear bis
   150 Coins bei 15 Min., plus genau 1 Pack pro Session
-- **Anti-Cheat**: Geofencing (75-m-Radius), Mock-Location-Erkennung, Pflicht-Check-out,
-  2,5 h Cooldown pro Platz
+- **Anti-Cheat**: Geofencing bei Check-in und Check-out (75-m-Radius),
+  Mock-Location-Erkennung, Pflicht-Check-out, 2,5 h Cooldown pro Platz,
+  Bewegungssensor-Prüfung (Kapitel 6.2: ein komplett regungsloses Gerät
+  bekommt keine Belohnung)
 - **Packs** mit fiktiven Spielern (Session-Pack: Bronze 60 % / Silber 28 % / Gold 10 % /
   Legendär 2 %; Shop mit Standard-, Rare- und Ultimate-Packs mit besseren Quoten);
   Duplikate trainieren Spieler (+1 Level) oder werden verkauft
@@ -96,6 +98,16 @@ liegen gebündelt in [src/core/domain/constants.ts](src/core/domain/constants.ts
 - Kartendaten: © OpenStreetMap-Mitwirkende (ODbL) – Attribution wird in der App angezeigt.
 - Alle Spieler-, Klub- und Liganamen sind frei erfunden bzw. klar abgewandelt.
 
+## Standalone-APK (ohne Dev-Server)
+
+Die Debug-App lädt ihren Code vom Metro-Dev-Server; ohne laufenden Server
+bleibt sie beim Start hängen. Für unterwegs die Release-Variante bauen und
+installieren (JS-Bundle eingebettet, läuft komplett eigenständig):
+
+```bash
+npx expo run:android --variant release
+```
+
 ## Noch offen (bewusst außerhalb des MVP)
 
-- Multiplayer/Freunde, Pokalmodus, Monetarisierung, Sensor-Anti-Cheat, iOS
+- Multiplayer/Freunde, Pokalmodus, Monetarisierung, iOS
