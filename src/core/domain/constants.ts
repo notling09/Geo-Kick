@@ -71,7 +71,7 @@ export const ANTI_CHEAT = {
    * praktisch null Bewegung (Handy lag die ganze Zeit regungslos).
    */
   motionMinSampledMs: 2 * 60 * 1000,
-  motionMinMovedMs: 10 * 1000,
+  motionMinMovedMs: 20 * 1000,
 } as const;
 
 /** Verkaufswert je Seltenheit (auch für automatisch verkaufte Duplikate) */
