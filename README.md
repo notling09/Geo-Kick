@@ -25,6 +25,10 @@ aufsteigst. Komplett offline, kein Backend, kein Echtgeld.
 - **Liga**: 4 Divisionen, 8 Klubs, Doppelrunde (14 Spieltage), 1 Spiel alle 15 Min.,
   Taktikwahl vor Anpfiff, Minuten-Live-Ticker mit Torschützen, Auf-/Abstieg am Saisonende
 - **Lokale Speicherung** aller Daten in SQLite (expo-sqlite)
+- **Friendlies** (optional, via Supabase): anonymes Konto, Freunde per
+  6-stelligem Code, Freundschaftsspiele gegen die zuletzt synchronisierte
+  Start-Elf der Freunde (kein Coin-Reward, lokale Siegbilanz); ohne
+  Konfiguration/Internet laeuft die App unveraendert rein lokal
 
 ## Technischer Stack
 
@@ -109,6 +113,15 @@ installieren (JS-Bundle eingebettet, läuft komplett eigenständig):
 npx expo run:android --variant release
 ```
 
+## Friendlies-Backend (Supabase)
+
+Konfiguration in [src/core/config/backend.ts](src/core/config/backend.ts)
+(Project-URL + anon-Key; der anon-Key ist bewusst oeffentlich, die Sicherheit
+kommt von Row-Level-Security). Datenbank-Schema zum Einspielen:
+[supabase/schema.sql](supabase/schema.sql). Im Dashboard muss zusaetzlich
+Authentication -> Sign In / Providers -> "Anonymous sign-ins" aktiviert sein.
+Ohne Konfiguration sind die Cloud-Funktionen deaktiviert.
+
 ## Noch offen (bewusst außerhalb des MVP)
 
-- Multiplayer/Freunde, Pokalmodus, Monetarisierung, iOS
+- Voll-Multiplayer (gemeinsame Ligen), Pokalmodus, Monetarisierung, iOS

@@ -8,6 +8,7 @@ export type RootStackParamList = {
   Main: undefined;
   MatchLive: undefined;
   PlayerDetail: { playerId: number };
+  Friendlies: undefined;
 };
 
 export type MainTabParamList = {

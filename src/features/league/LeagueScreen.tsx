@@ -187,6 +187,23 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
           </Card>
         )}
 
+        <Card style={styles.friendliesCard}>
+          <View style={styles.friendliesRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.friendliesTitle}>Friendlies</Text>
+              <Text style={styles.friendliesHint}>
+                Play against your friends’ latest teams
+              </Text>
+            </View>
+            <GKButton
+              title="Open"
+              variant="secondary"
+              style={styles.friendliesBtn}
+              onPress={() => navigation.navigate('Friendlies')}
+            />
+          </View>
+        </Card>
+
         <SectionTitle>Table</SectionTitle>
         <Card style={{ paddingVertical: spacing.sm }}>
           <View style={styles.tableHeader}>
@@ -421,6 +438,29 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: colors.accentDark,
     textAlign: 'center',
+  },
+  friendliesCard: {
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
+  },
+  friendliesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  friendliesTitle: {
+    fontSize: font.h2,
+    fontWeight: '800',
+    color: colors.ink,
+  },
+  friendliesHint: {
+    fontSize: font.small,
+    color: colors.inkSoft,
+    marginTop: 2,
+  },
+  friendliesBtn: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 10,
   },
   tableHeader: {
     flexDirection: 'row',

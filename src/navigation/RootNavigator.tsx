@@ -1,6 +1,7 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { FriendliesScreen } from '../features/friends/FriendliesScreen';
 import { MapScreen } from '../features/map/MapScreen';
 import { SquadScreen } from '../features/squad/SquadScreen';
 import { PlayerDetailScreen } from '../features/squad/PlayerDetailScreen';
@@ -60,6 +61,7 @@ export function RootNavigator() {
         options={{ gestureEnabled: false }}
       />
       <Stack.Screen name="PlayerDetail" component={PlayerDetailScreen} />
+      <Stack.Screen name="Friendlies" component={FriendliesScreen} />
     </Stack.Navigator>
   );
 }
