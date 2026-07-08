@@ -16,13 +16,22 @@ export async function getDb(): Promise<SQLite.SQLiteDatabase> {
   return db;
 }
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 async function migrate(database: SQLite.SQLiteDatabase): Promise<void> {
   await database.execAsync('PRAGMA journal_mode = WAL;');
   const row = await database.getFirstAsync<{ user_version: number }>('PRAGMA user_version;');
   const current = row?.user_version ?? 0;
   if (current >= SCHEMA_VERSION) return;
+
+  // V2: NPC-Klubs bekommen persistente Kader (für Torschützenlisten)
+  if (current === 1) {
+    await database.execAsync(`
+      ALTER TABLE npc_clubs ADD COLUMN rosterJson TEXT NOT NULL DEFAULT '[]';
+      PRAGMA user_version = ${SCHEMA_VERSION};
+    `);
+    return;
+  }
 
   await database.execAsync(`
     CREATE TABLE IF NOT EXISTS meta (
@@ -89,7 +98,8 @@ async function migrate(database: SQLite.SQLiteDatabase): Promise<void> {
       crest TEXT NOT NULL,
       strength INTEGER NOT NULL,
       division INTEGER NOT NULL,
-      season INTEGER NOT NULL
+      season INTEGER NOT NULL,
+      rosterJson TEXT NOT NULL DEFAULT '[]'
     );
 
     CREATE TABLE IF NOT EXISTS matches (

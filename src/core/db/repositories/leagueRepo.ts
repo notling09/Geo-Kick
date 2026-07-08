@@ -8,11 +8,23 @@ interface NpcRow {
   strength: number;
   division: number;
   season: number;
+  rosterJson: string;
+}
+
+function toNpcClub(row: NpcRow): NpcClub {
+  let roster: NpcClub['roster'] = [];
+  try {
+    roster = JSON.parse(row.rosterJson) as NpcClub['roster'];
+  } catch {
+    roster = [];
+  }
+  return { ...row, roster };
 }
 
 export async function getNpcClubs(season: number): Promise<NpcClub[]> {
   const db = await getDb();
-  return db.getAllAsync<NpcRow>('SELECT * FROM npc_clubs WHERE season = ?', season);
+  const rows = await db.getAllAsync<NpcRow>('SELECT * FROM npc_clubs WHERE season = ?', season);
+  return rows.map(toNpcClub);
 }
 
 export async function insertNpcClubs(clubs: Array<Omit<NpcClub, 'id'>>): Promise<void> {
@@ -20,11 +32,17 @@ export async function insertNpcClubs(clubs: Array<Omit<NpcClub, 'id'>>): Promise
   await db.withTransactionAsync(async () => {
     for (const c of clubs) {
       await db.runAsync(
-        'INSERT INTO npc_clubs (name, crest, strength, division, season) VALUES (?, ?, ?, ?, ?)',
-        c.name, c.crest, c.strength, c.division, c.season,
+        'INSERT INTO npc_clubs (name, crest, strength, division, season, rosterJson) VALUES (?, ?, ?, ?, ?, ?)',
+        c.name, c.crest, c.strength, c.division, c.season, JSON.stringify(c.roster),
       );
     }
   });
+}
+
+/** Nachträglich einen Kader setzen (Migration bestehender NPC-Klubs). */
+export async function setNpcRoster(id: number, roster: NpcClub['roster']): Promise<void> {
+  const db = await getDb();
+  await db.runAsync('UPDATE npc_clubs SET rosterJson = ? WHERE id = ?', JSON.stringify(roster), id);
 }
 
 interface MatchRow {

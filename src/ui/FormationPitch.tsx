@@ -57,12 +57,18 @@ interface Props {
   onPlayerPress: (playerId: number) => void;
   /** Tap auf den Tausch-Button (bzw. leeren Slot) → Picker für diesen Slot */
   onSwapPress: (slot: number) => void;
+  /** Captain bekommt das goldene C-Badge (V2) */
+  captainId?: number | null;
+  /** Gesperrte Spieler (rote Karte) bekommen das Rote-Karte-Badge */
+  suspendedIds?: Set<number>;
 }
 
 const CHIP_W = 72;
 const CHIP_H = 64;
 
-export function FormationPitch({ formation, lineup, onPlayerPress, onSwapPress }: Props) {
+export function FormationPitch({
+  formation, lineup, onPlayerPress, onSwapPress, captainId, suspendedIds,
+}: Props) {
   const [size, setSize] = React.useState({ w: 0, h: 0 });
   const layout = formationLayout(formation);
 
@@ -90,10 +96,19 @@ export function FormationPitch({ formation, lineup, onPlayerPress, onSwapPress }
                         {effectiveOverall(player.pool, player.level)}
                       </Text>
                     </View>
-                    {player.pool.position !== position && (
-                      <View style={styles.warnBadge}>
-                        <Text style={styles.warnText}>!</Text>
+                    {captainId === player.id && (
+                      <View style={styles.captainBadge}>
+                        <Text style={styles.captainText}>C</Text>
                       </View>
+                    )}
+                    {suspendedIds?.has(player.id) ? (
+                      <View style={styles.suspendedBadge} />
+                    ) : (
+                      player.pool.position !== position && (
+                        <View style={styles.warnBadge}>
+                          <Text style={styles.warnText}>!</Text>
+                        </View>
+                      )
                     )}
                     <Pressable
                       onPress={() => onSwapPress(slot)}
@@ -158,13 +173,43 @@ const styles = StyleSheet.create({
   warnBadge: {
     position: 'absolute',
     left: -8,
-    top: -4,
+    bottom: -4,
     backgroundColor: colors.accent,
     borderRadius: radius.round,
     width: 16,
     height: 16,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  captainBadge: {
+    position: 'absolute',
+    left: -10,
+    top: -6,
+    backgroundColor: colors.gold,
+    borderRadius: radius.round,
+    width: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#fff',
+  },
+  captainText: {
+    color: colors.ink,
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  // kleine rote Karte (Sperre fürs nächste Ligaspiel)
+  suspendedBadge: {
+    position: 'absolute',
+    left: -8,
+    bottom: -4,
+    width: 12,
+    height: 16,
+    borderRadius: 2,
+    backgroundColor: colors.danger,
+    borderWidth: 1,
+    borderColor: '#fff',
   },
   warnText: {
     color: '#fff',

@@ -14,6 +14,7 @@ import type { FormationId } from '../../core/domain/types';
 import { effectiveOverall } from '../../core/engine/playerGen';
 import { teamStrength } from '../../core/engine/strength';
 import { useGameStore } from '../../state/gameStore';
+import { useLeagueStore } from '../../state/leagueStore';
 import { GKButton } from '../../ui/components';
 import { FormationPitch } from '../../ui/FormationPitch';
 import { PlayerCard } from '../../ui/PlayerCard';
@@ -25,10 +26,27 @@ import type { TabScreenProps } from '../../navigation/types';
  * a drawn pitch per formation, bench below, player details via tap.
  */
 export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
-  const { club, players, lineup, setFormation, setLineupSlot, autoLineup, lineupPlayers } =
-    useGameStore();
+  const {
+    club, players, lineup, captainPlayerId,
+    setFormation, setLineupSlot, autoLineup, lineupPlayers, setCaptain,
+  } = useGameStore();
+  const leagueSeason = useLeagueStore((s) => s.season);
+  const leagueRound = useLeagueStore((s) => s.round);
+  const suspensions = useLeagueStore((s) => s.suspensions);
   const [pickSlot, setPickSlot] = useState<number | null>(null);
+  const [pickingCaptain, setPickingCaptain] = useState(false);
   const insets = useSafeAreaInsets();
+
+  // Für das NÄCHSTE Ligaspiel gesperrte Spieler (rote Karte)
+  const suspendedIds = useMemo(
+    () =>
+      new Set(
+        suspensions
+          .filter((s) => s.season === leagueSeason && s.round === leagueRound)
+          .map((s) => s.playerId),
+      ),
+    [suspensions, leagueSeason, leagueRound],
+  );
 
   const formation: FormationId = club?.formation ?? '4-4-2';
   const slots = FORMATIONS[formation];
@@ -81,12 +99,29 @@ export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
           <GKButton title="Best XI" variant="ghost" style={styles.autoBtn} onPress={autoLineup} />
         </View>
 
-        <FormationPitch
-          formation={formation}
-          lineup={lineupList}
-          onPlayerPress={(playerId) => navigation.navigate('PlayerDetail', { playerId })}
-          onSwapPress={(slot) => setPickSlot(slot)}
-        />
+        <View>
+          <FormationPitch
+            formation={formation}
+            lineup={lineupList}
+            onPlayerPress={(playerId) => navigation.navigate('PlayerDetail', { playerId })}
+            onSwapPress={(slot) => setPickSlot(slot)}
+            captainId={captainPlayerId}
+            suspendedIds={suspendedIds}
+          />
+          {/* Captain wechseln (V2): Button oben links über dem Feld */}
+          <Pressable style={styles.captainBtn} onPress={() => setPickingCaptain(true)}>
+            <Text style={styles.captainBtnText}>C</Text>
+          </Pressable>
+        </View>
+        {suspendedIds.size > 0 && (
+          <Text style={styles.suspendedHint}>
+            Red card: {players
+              .filter((p) => suspendedIds.has(p.id))
+              .map((p) => p.pool.name)
+              .join(', ')}{' '}
+            {suspendedIds.size === 1 ? 'is' : 'are'} suspended for the next league match.
+          </Text>
+        )}
         <Text style={styles.benchTitle}>Bench ({bench.length})</Text>
         {bench.map((p) => (
           <PlayerCard
@@ -99,6 +134,33 @@ export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
           <Text style={styles.emptyText}>No substitutes - open packs to sign new players!</Text>
         )}
       </ScrollView>
+
+      <Modal visible={pickingCaptain} animationType="slide" transparent>
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalSheet, { paddingBottom: insets.bottom + spacing.md }]}>
+            <Text style={styles.modalTitle}>Choose your captain</Text>
+            <Text style={styles.captainHint}>
+              The captain earns bonus coins for goals (+3) and assists (+2) in league matches.
+            </Text>
+            <FlatList
+              data={lineupList.filter((p): p is NonNullable<typeof p> => p !== null)}
+              keyExtractor={(p) => String(p.id)}
+              renderItem={({ item }) => (
+                <PlayerCard
+                  player={item}
+                  compact
+                  badge={item.id === captainPlayerId ? 'captain' : undefined}
+                  onPress={async () => {
+                    await setCaptain(item.id);
+                    setPickingCaptain(false);
+                  }}
+                />
+              )}
+            />
+            <GKButton title="Close" variant="ghost" onPress={() => setPickingCaptain(false)} />
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={pickSlot !== null} animationType="slide" transparent>
         <View style={styles.modalBackdrop}>
@@ -185,6 +247,36 @@ const styles = StyleSheet.create({
   autoBtn: {
     paddingVertical: 6,
     paddingHorizontal: spacing.md,
+  },
+  captainBtn: {
+    position: 'absolute',
+    top: spacing.sm,
+    left: spacing.sm,
+    width: 36,
+    height: 36,
+    borderRadius: radius.round,
+    backgroundColor: colors.gold,
+    borderWidth: 2,
+    borderColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 3,
+  },
+  captainBtnText: {
+    fontWeight: '900',
+    fontSize: font.h2,
+    color: colors.ink,
+  },
+  captainHint: {
+    fontSize: font.small,
+    color: colors.inkSoft,
+    marginBottom: spacing.sm,
+  },
+  suspendedHint: {
+    fontSize: font.small,
+    color: colors.danger,
+    fontWeight: '700',
+    marginTop: spacing.sm,
   },
   benchTitle: {
     marginTop: spacing.md,

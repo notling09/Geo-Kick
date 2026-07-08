@@ -1,7 +1,23 @@
 import { LEAGUE, USER_CLUB_ID } from '../domain/constants';
-import type { Match, NpcClub, StandingRow } from '../domain/types';
-import { NPC_CLUB_PLACES, NPC_CLUB_PREFIXES, NPC_CLUB_SUFFIXES } from './names';
+import type { Match, NpcClub, Position, StandingRow } from '../domain/types';
+import { FIRST_NAMES, LAST_NAMES, NPC_CLUB_PLACES, NPC_CLUB_PREFIXES, NPC_CLUB_SUFFIXES } from './names';
 import { pick, randInt, shuffle } from './random';
+
+/**
+ * Fester fiktiver 11er-Kader für einen NPC-Klub. Ohne festen Kader würde
+ * die Simulation bei jedem Event neue Namen würfeln – dann tauchen NPC-
+ * Spieler nie mehrfach in den Topscorer-Listen auf.
+ */
+export function generateNpcRoster(): NpcClub['roster'] {
+  const layout: Position[] = ['TW', 'ABW', 'ABW', 'ABW', 'ABW', 'MF', 'MF', 'MF', 'MF', 'ST', 'ST'];
+  const used = new Set<string>();
+  return layout.map((position) => {
+    let name = `${pick(FIRST_NAMES)} ${pick(LAST_NAMES)}`;
+    while (used.has(name)) name = `${pick(FIRST_NAMES)} ${pick(LAST_NAMES)}`;
+    used.add(name);
+    return { name, position };
+  });
+}
 
 /** Erzeugt 7 NPC-Klubs für die angegebene Division (Kapitel 3.4). */
 export function generateNpcClubs(division: number, season: number): Array<Omit<NpcClub, 'id'>> {
@@ -20,6 +36,7 @@ export function generateNpcClubs(division: number, season: number): Array<Omit<N
       strength: randInt(minS, maxS),
       division,
       season,
+      roster: generateNpcRoster(),
     });
   }
   return clubs;

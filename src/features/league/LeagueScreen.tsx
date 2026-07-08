@@ -7,6 +7,7 @@ import type { Tactic } from '../../core/domain/types';
 import { useGameStore } from '../../state/gameStore';
 import { useLeagueStore } from '../../state/leagueStore';
 import { GKButton, Card, SectionTitle } from '../../ui/components';
+import { ChampionOverlay } from '../../ui/ChampionOverlay';
 import { Crest } from '../../ui/Crest';
 import { IconCheck, IconClock, IconCross, IconMinus } from '../../ui/icons';
 import { colors, font, radius, spacing } from '../../ui/theme';
@@ -29,11 +30,17 @@ function formatCountdown(ms: number): string {
 export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
   const isFocused = useIsFocused();
   const club = useGameStore((s) => s.club);
+  const players = useGameStore((s) => s.players);
   const {
-    season, round, standings, matches, seasonMessage,
+    season, round, standings, matches, seasonMessage, championCelebration,
     hydrate, matchReady, msUntilNextMatch, playUserMatchday, acknowledgeSeasonMessage,
-    clubName, clubCrest,
+    acknowledgeCelebration, clubName, clubCrest,
   } = useLeagueStore();
+
+  const celebrationCaptain =
+    championCelebration?.captainPlayerId != null
+      ? players.find((p) => p.id === championCelebration.captainPlayerId)?.pool ?? null
+      : null;
 
   const [tactic, setTactic] = useState<Tactic>(club?.tactic ?? 'ausgewogen');
   const [starting, setStarting] = useState(false);
@@ -118,6 +125,15 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      {championCelebration && isFocused && (
+        <ChampionOverlay
+          visible
+          clubName={championCelebration.clubName}
+          division={championCelebration.division}
+          captain={celebrationCaptain}
+          onDismiss={acknowledgeCelebration}
+        />
+      )}
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.title}>League</Text>
         <Text style={styles.subtitle}>

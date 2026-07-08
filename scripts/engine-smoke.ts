@@ -92,6 +92,14 @@ for (let i = 0; i < N; i++) {
     const goalEvents = r.events.filter(e => e.type === 'tor');
     check('goal events match score', goalEvents.length === r.homeGoals + r.awayGoals);
     check('events sorted by minute', r.events.every((e, j) => j === 0 || r.events[j].minute >= r.events[j - 1].minute - 1));
+    // V2: Statistiken konsistent zu den Events
+    check('stats goals match score', r.stats.home.goals === r.homeGoals && r.stats.away.goals === r.awayGoals);
+    check('possession sums to 100', r.stats.home.possession + r.stats.away.possession === 100);
+    check('shots >= goals', r.stats.home.shots >= r.homeGoals && r.stats.away.shots >= r.awayGoals);
+    const yellowEvents = r.events.filter(e => e.type === 'gelb').length;
+    const redEvents = r.events.filter(e => e.type === 'rot').length;
+    check('card stats match events', r.stats.home.yellows + r.stats.away.yellows === yellowEvents && r.stats.home.reds + r.stats.away.reds === redEvents);
+    check('xg positive when shots exist', r.stats.home.shots === 0 || r.stats.home.xg > 0);
   }
 }
 console.log(`avg goals/match: ${(goalsTotal / N).toFixed(2)}, strong team winrate: ${(strongWins / N * 100).toFixed(1)}%`);

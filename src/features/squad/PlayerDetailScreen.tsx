@@ -24,10 +24,11 @@ const ATTR_LABELS: Array<[keyof ReturnType<typeof effectiveAttributes>, string]>
 
 export function PlayerDetailScreen({ route, navigation }: RootScreenProps<'PlayerDetail'>) {
   const { playerId } = route.params;
-  const { players, lineup, sellPlayer } = useGameStore();
+  const { players, lineup, captainPlayerId, sellPlayer } = useGameStore();
 
   const player = players.find((p) => p.id === playerId);
   const inLineup = lineup.includes(playerId);
+  const isCaptain = playerId === captainPlayerId;
 
   if (!player) {
     return (
@@ -95,15 +96,17 @@ export function PlayerDetailScreen({ route, navigation }: RootScreenProps<'Playe
         <SectionTitle>Sell</SectionTitle>
         <Card>
           <Text style={styles.trainText}>
-            {inLineup
-              ? 'This player is in your starting XI. Remove him from the lineup first to sell him.'
-              : `Selling gives you ${sellValue} coins (${RARITY_LABEL[player.pool.rarity]}).`}
+            {isCaptain
+              ? 'This player is your captain. Pick a new captain on the Squad tab first to sell him.'
+              : inLineup
+                ? 'This player is in your starting XI. Remove him from the lineup first to sell him.'
+                : `Selling gives you ${sellValue} coins (${RARITY_LABEL[player.pool.rarity]}).`}
           </Text>
           <GKButton
             title={`Sell for ${sellValue} coins`}
             variant="danger"
             onPress={onSell}
-            disabled={inLineup}
+            disabled={inLineup || isCaptain}
           />
         </Card>
 

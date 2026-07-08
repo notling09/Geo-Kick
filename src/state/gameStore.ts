@@ -30,6 +30,8 @@ interface GameState {
   lineup: Array<number | null>;
   packs: Pack[];
   pool: PoolPlayer[];
+  /** Kapitän (V2): bringt Coin-Boni bei Toren/Assists in Ligaspielen */
+  captainPlayerId: number | null;
 
   init: () => Promise<void>;
   completeOnboarding: (clubName: string, crest: string, starterPoolId: number) => Promise<void>;
@@ -45,6 +47,7 @@ interface GameState {
   trainWithDuplicate: (poolPlayer: PoolPlayer) => Promise<number | null>;
   keepDrawnPlayer: (poolPlayer: PoolPlayer, sellOwnedId: number) => Promise<boolean>;
   sellPlayer: (ownedId: number) => Promise<boolean>;
+  setCaptain: (playerId: number) => Promise<void>;
   lineupPlayers: () => Array<OwnedPlayer | null>;
 }
 
@@ -154,6 +157,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   lineup: new Array(11).fill(null),
   packs: [],
   pool: [],
+  captainPlayerId: null,
 
   init: async () => {
     // Spieler-Pool einmalig erzeugen (fiktive Identitäten, Kapitel 8/9)
@@ -179,6 +183,19 @@ export const useGameStore = create<GameState>((set, get) => ({
         playerRepo.getLineup(),
         packRepo.getPacks(),
       ]);
+      // Captain laden; Migration: alte Spielstände bekommen den gewählten
+      // Starter (bzw. den stärksten Spieler) als Standard-Captain
+      let captainPlayerId = await metaRepo.getMetaNumber('captainPlayerId', 0);
+      if (!players.some((p) => p.id === captainPlayerId)) {
+        const starter = players.find((p) => p.pool.isStarterChoice);
+        const fallback =
+          starter ??
+          [...players].sort(
+            (a, b) => effectiveOverall(b.pool, b.level) - effectiveOverall(a.pool, a.level),
+          )[0];
+        captainPlayerId = fallback?.id ?? 0;
+        if (captainPlayerId) await metaRepo.setMeta('captainPlayerId', String(captainPlayerId));
+      }
       set({
         initialized: true,
         onboarded,
@@ -187,6 +204,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         lineup: lineupArray(lineupMap),
         packs,
         pool,
+        captainPlayerId: captainPlayerId || null,
       });
     } else {
       set({ initialized: true, onboarded: false, pool });
@@ -214,6 +232,10 @@ export const useGameStore = create<GameState>((set, get) => ({
     const players = await playerRepo.getOwnedPlayers();
     const lineup = buildAutoLineup(players, '4-4-2');
     await playerRepo.replaceLineup(lineup.map((id, slot) => [slot, id]));
+
+    // Der gewählte Starter ist der erste Captain (V2)
+    const captain = players.find((p) => p.poolId === starterPoolId);
+    if (captain) await metaRepo.setMeta('captainPlayerId', String(captain.id));
 
     // Erste Saison in Division 4 anlegen
     await createSeason(1, 4);
@@ -346,9 +368,9 @@ export const useGameStore = create<GameState>((set, get) => ({
    * Spieler verkaufen und den neuen aufnehmen.
    */
   keepDrawnPlayer: async (poolPlayer, sellOwnedId) => {
-    const { players, lineup } = get();
+    const { players, lineup, captainPlayerId } = get();
     const victim = players.find((p) => p.id === sellOwnedId);
-    if (!victim || lineup.includes(sellOwnedId)) return false;
+    if (!victim || lineup.includes(sellOwnedId) || sellOwnedId === captainPlayerId) return false;
     await playerRepo.deleteOwnedPlayer(sellOwnedId);
     await get().addCoins(SELL_VALUE[victim.pool.rarity]);
     await playerRepo.addOwnedPlayer(poolPlayer.id);
@@ -356,11 +378,17 @@ export const useGameStore = create<GameState>((set, get) => ({
     return true;
   },
 
-  /** Eigenen Spieler verkaufen (nicht möglich, solange er aufgestellt ist). */
+  setCaptain: async (playerId) => {
+    if (!get().players.some((p) => p.id === playerId)) return;
+    await metaRepo.setMeta('captainPlayerId', String(playerId));
+    set({ captainPlayerId: playerId });
+  },
+
+  /** Eigenen Spieler verkaufen (nicht möglich: aufgestellt oder Captain). */
   sellPlayer: async (ownedId) => {
-    const { players, lineup } = get();
+    const { players, lineup, captainPlayerId } = get();
     const player = players.find((p) => p.id === ownedId);
-    if (!player || lineup.includes(ownedId)) return false;
+    if (!player || lineup.includes(ownedId) || ownedId === captainPlayerId) return false;
     await playerRepo.deleteOwnedPlayer(ownedId);
     await get().addCoins(SELL_VALUE[player.pool.rarity]);
     set({ players: await playerRepo.getOwnedPlayers() });

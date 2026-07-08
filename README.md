@@ -14,7 +14,7 @@ aufsteigst. Komplett offline, kein Backend, kein Echtgeld.
   150 Coins bei 15 Min., plus genau 1 Pack pro Session; dazu 3 zufällige
   Session-Objectives (Mini-Aufgaben, Ehrensystem, Bonus-Coins)
 - **Anti-Cheat**: Geofencing bei Check-in und Check-out (75-m-Radius),
-  Mock-Location-Erkennung, Pflicht-Check-out, 2,5 h Cooldown pro Platz,
+  Mock-Location-Erkennung, Pflicht-Check-out, 45 Min Cooldown pro Platz,
   Bewegungssensor-Prüfung (Kapitel 6.2: ein komplett regungsloses Gerät
   bekommt keine Belohnung)
 - **Packs** mit fiktiven Spielern (Session-Pack: Bronze 60 % / Silber 28 % / Gold 10 % /
@@ -23,7 +23,13 @@ aufsteigst. Komplett offline, kein Backend, kein Echtgeld.
 - **Kadermanagement**: Formationen 4-4-2 / 4-3-3 / 5-3-2, Slot-Editor, Best-XI-Button,
   Kader-Limit 30 mit Verkaufssystem
 - **Liga**: 4 Divisionen, 8 Klubs, Doppelrunde (14 Spieltage), 1 Spiel alle 15 Min.,
-  Taktikwahl vor Anpfiff, Minuten-Live-Ticker mit Torschützen, Auf-/Abstieg am Saisonende
+  Taktikwahl vor Anpfiff, Minuten-Live-Ticker mit Torschützen, gelben/roten Karten
+  (rote Karte = Sperre fürs nächste Spiel) und Endstatistik (xG, Schüsse,
+  Ballbesitz, Ecken, Fouls, Karten); Liga-Coins (Sieg 10 / Remis 5, Captain-Boni,
+  Saisonprämien je Division) und Pokal-Feier beim Meistertitel;
+  Auf-/Abstieg am Saisonende
+- **Captain-System**: Der gewählte Starter ist der erste Captain (wechselbar im
+  Squad); Captain-Tore (+3) und -Assists (+2) geben Bonus-Coins
 - **Lokale Speicherung** aller Daten in SQLite (expo-sqlite)
 - **Friendlies** (optional, via Supabase): anonymes Konto, Freunde per
   6-stelligem Code, Freundschaftsspiele gegen die zuletzt synchronisierte

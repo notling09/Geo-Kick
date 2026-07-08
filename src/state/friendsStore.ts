@@ -202,6 +202,7 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
       homeCrest: club.crest,
       awayCrest: friend.crest,
       userIsHome: true,
+      stats: result.stats,
     };
     // Live-Ticker-Replay über den bestehenden MatchLive-Screen
     useLeagueStore.setState({ lastPlayedMatch: played });

@@ -82,9 +82,30 @@ export interface NpcClub {
   strength: number;
   division: number;
   season: number;
+  /** Fester fiktiver Kader (für konsistente Torschützen in den Listen) */
+  roster: Array<{ name: string; position: Position }>;
 }
 
-export type MatchEventType = 'tor' | 'chance' | 'ecke' | 'foul' | 'anpfiff' | 'halbzeit' | 'abpfiff';
+export type MatchEventType =
+  | 'tor' | 'chance' | 'ecke' | 'foul' | 'gelb' | 'rot' | 'anpfiff' | 'halbzeit' | 'abpfiff';
+
+/** Team-Statistiken eines simulierten Spiels (für die Endauswertung). */
+export interface TeamStats {
+  goals: number;
+  /** Erwartete Tore: Summe der Tor-Wahrscheinlichkeiten aller Chancen */
+  xg: number;
+  shots: number;
+  possession: number;
+  corners: number;
+  fouls: number;
+  yellows: number;
+  reds: number;
+}
+
+export interface MatchStats {
+  home: TeamStats;
+  away: TeamStats;
+}
 
 export interface MatchEvent {
   minute: number;

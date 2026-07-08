@@ -15,8 +15,8 @@ export const BALANCING = {
   maxCoins: 150,
   /** Genau 1 Pack pro abgeschlossener Session */
   packsPerSession: 1,
-  /** Cooldown pro Platz (nach Nutzertest von 5 h auf 2,5 h gesenkt) */
-  spotCooldownMs: 150 * 60 * 1000,
+  /** Cooldown pro Platz (nach Nutzertests schrittweise auf 45 Min gesenkt) */
+  spotCooldownMs: 45 * 60 * 1000,
   /** Default-Check-in-Radius um einen Platz (m) */
   defaultSpotRadius: 75,
   /** 1 simuliertes Ligaspiel alle 15 Min (nach Nutzertests von 24 h gesenkt) */
@@ -236,6 +236,31 @@ export const MATCH_SIM = {
   tacticModifier: 0.1,
   /** Offensive Taktik erhöht die eigene Chancenhäufigkeit um diesen Anteil */
   tacticChanceModifier: 0.25,
+  /** Anteil der Fouls, die eine gelbe Karte geben */
+  yellowPerFoul: 0.35,
+  /** Anteil der Fouls, die eine glatte rote Karte geben */
+  straightRedPerFoul: 0.04,
+  /** Stärke-Malus nach roter Karte (Restspielzeit in Unterzahl) */
+  redCardPenalty: 0.88,
+} as const;
+
+/**
+ * Liga-Coin-Belohnungen (V2): pro Runde Sieg 10 / Remis 5 / Niederlage 0,
+ * Captain-Boni (Tor +3, Assist +2) auch bei Niederlage; Saisonprämien
+ * steigen mit der Division (Div 4 → Div 1).
+ */
+export const LEAGUE_REWARDS = {
+  win: 10,
+  draw: 5,
+  captainGoal: 3,
+  captainAssist: 2,
+  /** [Platz-1-Prämie, Platz-2-Prämie] je Division */
+  seasonByDivision: {
+    4: [100, 50],
+    3: [150, 100],
+    2: [200, 150],
+    1: [250, 200],
+  } as Record<number, [number, number]>,
 } as const;
 
 /** Liga-Aufbau */

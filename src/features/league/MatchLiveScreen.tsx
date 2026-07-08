@@ -24,10 +24,23 @@ const EVENT_ICON: Record<MatchEvent['type'], React.ComponentType<IconProps>> = {
   chance: IconFlash,
   ecke: IconFlag,
   foul: IconCard,
+  gelb: IconCard,
+  rot: IconCard,
   anpfiff: IconWhistle,
   halbzeit: IconPause,
   abpfiff: IconWhistle,
 };
+
+/** Eine Zeile der Endstatistik (Heimwert – Label – Auswärtswert). */
+function StatRow({ label, home, away }: { label: string; home: string | number; away: string | number }) {
+  return (
+    <View style={styles.statRow}>
+      <Text style={styles.statValue}>{home}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={styles.statValue}>{away}</Text>
+    </View>
+  );
+}
 
 export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
   const played = useLeagueStore((s) => s.lastPlayedMatch);
@@ -74,10 +87,19 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
     );
   }
 
-  const { match, homeName, awayName, homeCrest, awayCrest } = played;
+  const { match, homeName, awayName, homeCrest, awayCrest, userIsHome, stats, coinReward } = played;
   const homeGoals = visibleEvents.filter((e) => e.type === 'tor' && e.team === 'home').length;
   const awayGoals = visibleEvents.filter((e) => e.type === 'tor' && e.team === 'away').length;
   const finished = minute >= 90;
+  const userSide: 'home' | 'away' = userIsHome ? 'home' : 'away';
+
+  // Ticker-Farben: eigenes Tor grün, Gegentor rot; Karten gelb/rot
+  const eventColor = (e: MatchEvent): string => {
+    if (e.type === 'tor') return e.team === userSide ? colors.pitch : colors.danger;
+    if (e.type === 'gelb') return colors.gold;
+    if (e.type === 'rot') return colors.danger;
+    return colors.inkSoft;
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -100,6 +122,25 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
         </View>
       </View>
 
+      {finished && stats && (
+        <Card style={styles.statsCard}>
+          <Text style={styles.statsTitle}>Match stats</Text>
+          <StatRow label="Goals" home={stats.home.goals} away={stats.away.goals} />
+          <StatRow label="Expected goals (xG)" home={stats.home.xg.toFixed(1)} away={stats.away.xg.toFixed(1)} />
+          <StatRow label="Shots" home={stats.home.shots} away={stats.away.shots} />
+          <StatRow label="Possession" home={`${stats.home.possession}%`} away={`${stats.away.possession}%`} />
+          <StatRow label="Corners" home={stats.home.corners} away={stats.away.corners} />
+          <StatRow label="Fouls" home={stats.home.fouls} away={stats.away.fouls} />
+          <StatRow label="Yellow cards" home={stats.home.yellows} away={stats.away.yellows} />
+          <StatRow label="Red cards" home={stats.home.reds} away={stats.away.reds} />
+          {coinReward && coinReward.total > 0 && (
+            <Text style={styles.coinLine}>
+              +{coinReward.total} coins ({coinReward.breakdown.join(' · ')})
+            </Text>
+          )}
+        </Card>
+      )}
+
       <FlatList
         ref={listRef}
         data={visibleEvents}
@@ -110,7 +151,7 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
           return (
             <Card style={[styles.eventCard, item.type === 'tor' && styles.goalCard]}>
               <Text style={styles.eventMinute}>{item.minute}'</Text>
-              <EventIcon size={18} color={item.type === 'tor' ? colors.accentDark : colors.inkSoft} />
+              <EventIcon size={18} color={eventColor(item)} />
               <Text style={[styles.eventText, item.type === 'tor' && styles.goalText]}>
                 {item.text}
               </Text>
@@ -205,6 +246,43 @@ const styles = StyleSheet.create({
   },
   footer: {
     padding: spacing.md,
+  },
+  statsCard: {
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  statsTitle: {
+    fontSize: font.h2,
+    fontWeight: '900',
+    color: colors.ink,
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  statRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 3,
+  },
+  statValue: {
+    width: 64,
+    textAlign: 'center',
+    fontWeight: '900',
+    color: colors.pitchDark,
+    fontSize: font.small,
+  },
+  statLabel: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: font.small,
+    color: colors.inkSoft,
+  },
+  coinLine: {
+    marginTop: spacing.sm,
+    textAlign: 'center',
+    fontWeight: '800',
+    fontSize: font.small,
+    color: colors.accentDark,
   },
   noMatch: {
     color: '#fff',
