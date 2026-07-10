@@ -15,7 +15,7 @@ import { effectiveOverall } from '../../core/engine/playerGen';
 import { teamStrength } from '../../core/engine/strength';
 import { useGameStore } from '../../state/gameStore';
 import { useLeagueStore } from '../../state/leagueStore';
-import { GKButton } from '../../ui/components';
+import { GKButton, PointsBadge } from '../../ui/components';
 import { FormationPitch } from '../../ui/FormationPitch';
 import { PlayerCard } from '../../ui/PlayerCard';
 import { colors, font, radius, spacing } from '../../ui/theme';
@@ -27,7 +27,7 @@ import type { TabScreenProps } from '../../navigation/types';
  */
 export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
   const {
-    club, players, lineup, captainPlayerId,
+    club, players, lineup, captainPlayerId, levelPoints,
     setFormation, setLineupSlot, autoLineup, lineupPlayers, setCaptain,
   } = useGameStore();
   const leagueSeason = useLeagueStore((s) => s.season);
@@ -76,8 +76,11 @@ export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.headerRow}>
           <Text style={styles.title}>Squad</Text>
-          <View style={styles.strengthBadge}>
-            <Text style={styles.strengthText}>Strength {strength}</Text>
+          <View style={styles.headerBadges}>
+            <View style={styles.strengthBadge}>
+              <Text style={styles.strengthText}>Strength {strength}</Text>
+            </View>
+            <PointsBadge points={levelPoints} />
           </View>
         </View>
 
@@ -210,6 +213,11 @@ const styles = StyleSheet.create({
     fontSize: font.title,
     fontWeight: '900',
     color: colors.pitchDark,
+  },
+  headerBadges: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   strengthBadge: {
     backgroundColor: colors.pitch,

@@ -121,6 +121,11 @@ export interface PackType {
    * Level-up-Punkte in gleicher Höhe.
    */
   bonus: [number, number];
+  /**
+   * Nur runde Stufen sind ziehbar (min, min+step, … max), höhere Beträge
+   * sind seltener als niedrige.
+   */
+  bonusStep: number;
 }
 
 /**
@@ -142,6 +147,7 @@ export const PACK_TYPES: Record<PackTypeId, PackType> = {
       { rarity: 'geheim', weight: 0.5 },
     ],
     bonus: [10, 25],
+    bonusStep: 5,
   },
   standard: {
     id: 'standard',
@@ -155,6 +161,7 @@ export const PACK_TYPES: Record<PackTypeId, PackType> = {
       { rarity: 'geheim', weight: 1 },
     ],
     bonus: [25, 100],
+    bonusStep: 25,
   },
   rare: {
     id: 'rare',
@@ -168,6 +175,7 @@ export const PACK_TYPES: Record<PackTypeId, PackType> = {
       { rarity: 'geheim', weight: 2 },
     ],
     bonus: [100, 200],
+    bonusStep: 25,
   },
   ultimate: {
     id: 'ultimate',
@@ -181,6 +189,7 @@ export const PACK_TYPES: Record<PackTypeId, PackType> = {
       { rarity: 'geheim', weight: 5 },
     ],
     bonus: [200, 500],
+    bonusStep: 25,
   },
 };
 

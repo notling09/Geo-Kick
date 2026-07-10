@@ -81,10 +81,10 @@ export function IconProfile({ color = '#1A2E1A', size = 24 }: IconProps) {
   );
 }
 
-export function IconCoin({ color = '#8A6D00', size = 24 }: IconProps) {
+export function IconCoin({ color = '#8A6D00', size = 24, fill = '#F5C518' }: IconProps & { fill?: string }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
-      <Circle cx={12} cy={12} r={8.5} stroke={color} fill="#F5C518" strokeWidth={2} />
+      <Circle cx={12} cy={12} r={8.5} stroke={color} fill={fill} strokeWidth={2} />
       <Circle cx={12} cy={12} r={5.2} stroke={color} strokeWidth={1.4} fill="none" />
       <Path d="M 12 8.8 V 15.2 M 10 10.4 H 14 M 10 13.6 H 14" stroke={color} {...S} strokeWidth={1.6} />
     </Svg>

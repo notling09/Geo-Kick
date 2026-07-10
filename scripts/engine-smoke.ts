@@ -77,15 +77,20 @@ for (let i = 0; i < 4000; i++) {
 check('mystery replaces exactly one slot', mysterySlotOk);
 check('ultimate mystery ~14% of packs', Math.abs(mysteryPacks / 4000 - 0.1426) < 0.03, String(mysteryPacks / 4000));
 
-// V3: Pack-Bonus (Coins + Level-up-Punkte in gleicher Höhe) je Pack-Spanne
+// V3: Pack-Bonus (Coins + Level-up-Punkte in gleicher Höhe) je Pack-Spanne;
+// nur runde Stufen, und die niedrigste Stufe fällt öfter als die höchste
 (['session', 'standard', 'rare', 'ultimate'] as const).forEach(id => {
   const [min, max] = PACK_TYPES[id].bonus;
+  const step = PACK_TYPES[id].bonusStep;
+  const counts = new Map<number, number>();
   let ok = true;
-  for (let i = 0; i < 500; i++) {
+  for (let i = 0; i < 3000; i++) {
     const b = rollPackBonus(PACK_TYPES[id]);
-    if (b < min || b > max) ok = false;
+    if (b < min || b > max || (b - min) % step !== 0) ok = false;
+    counts.set(b, (counts.get(b) ?? 0) + 1);
   }
-  check(`${id} bonus in ${min}..${max}`, ok);
+  check(`${id} bonus on steps ${min}..${max} (step ${step})`, ok);
+  check(`${id} bonus: low more likely than high`, (counts.get(min) ?? 0) > (counts.get(max) ?? 0));
 });
 
 // V3: Level-up-Kosten nach aktuellem Rating (25/50/100/200, ab 90: 250, Cap 99)

@@ -46,8 +46,8 @@ export function PacksScreen({ navigation }: TabScreenProps<'Packs'>) {
         <View style={styles.headerRow}>
           <Text style={styles.title}>Packs</Text>
           <View style={styles.badgeRow}>
-            <PointsBadge points={levelPoints} />
             <CoinBadge coins={club?.coins ?? 0} />
+            <PointsBadge points={levelPoints} />
           </View>
         </View>
 

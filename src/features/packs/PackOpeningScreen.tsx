@@ -13,7 +13,7 @@ import { effectiveOverall, overallOf } from '../../core/engine/playerGen';
 import { playSound } from '../../core/services/sound';
 import { useGameStore, type PackEntry } from '../../state/gameStore';
 import { GKButton } from '../../ui/components';
-import { IconCoin, IconFlash, IconPack, IconStar } from '../../ui/icons';
+import { IconCoin, IconPack, IconStar } from '../../ui/icons';
 import { PitchBackground } from '../../ui/PitchBackground';
 import { PlayerAvatar } from '../../ui/PlayerAvatar';
 import { colors, font, radius, spacing } from '../../ui/theme';
@@ -454,7 +454,7 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
                 <Text style={styles.bonusValue}>+{bonus} coins</Text>
               </View>
               <View style={styles.bonusRow}>
-                <IconFlash size={26} color={colors.sky} />
+                <IconCoin size={26} color="#0D47A1" fill="#90CAF9" />
                 <Text style={styles.bonusValue}>+{bonus} level-up points</Text>
               </View>
               <Text style={styles.bonusHint}>

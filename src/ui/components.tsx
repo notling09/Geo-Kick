@@ -9,7 +9,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { colors, font, radius, spacing } from './theme';
-import { IconCoin, IconFlash } from './icons';
+import { IconCoin } from './icons';
 
 /** Kleine wiederverwendbare UI-Bausteine im Comic-Look. */
 
@@ -65,11 +65,11 @@ export function CoinBadge({ coins }: { coins: number }) {
   );
 }
 
-/** Level-up-Punkte (V3): gleiche Optik wie der Coin-Badge, blau mit Blitz. */
+/** Level-up-Punkte (V3): gleiche Optik wie der Coin-Badge, aber in Blau. */
 export function PointsBadge({ points }: { points: number }) {
   return (
     <View style={[styles.coinBadge, styles.pointsBadge]}>
-      <IconFlash size={16} color="#fff" />
+      <IconCoin size={16} color="#0D47A1" fill="#90CAF9" />
       <Text style={[styles.coinText, styles.pointsText]}>{points}</Text>
     </View>
   );

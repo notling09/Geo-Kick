@@ -21,8 +21,9 @@ aufsteigst. Komplett offline, kein Backend, kein Echtgeld.
   Legendär 2 % / ??? 0,5 %; Shop mit Standard-, Rare- und Ultimate-Packs mit besseren
   Quoten); Vollbild-Öffnung mit Seltenheits-Animationen und Soundeffekten, Spieler
   erscheinen vom schwächsten zum besten; nach den 3 Spielern gibt jedes Pack einen
-  Bonus in gleicher Höhe als Coins UND Level-up-Punkte (Session 10-25, Standard
-  25-100, Rare 100-200, Ultimate 200-500)
+  Bonus in gleicher Höhe als Coins UND Level-up-Punkte (Session 10-25 in 5er-,
+  sonst 25er-Stufen: Standard 25-100, Rare 100-200, Ultimate 200-500; hohe
+  Beträge fallen seltener)
 - **Level-up-Punkte**: Duplikate werden verkauft (Coins) oder in gleichwertige
   Level-up-Punkte getauscht; Punkte sind frei auf jeden Spieler ausgebbar, die
   Kosten steigen mit dessen aktuellem Rating (25/50/100/200, ab 90: 250),
