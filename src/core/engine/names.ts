@@ -27,7 +27,7 @@ export const LAST_NAMES = [
 export const STARTER_WINGERS = [
   { name: 'David Neris', flavor: 'Explosive attacker with a turbo first step' },
   { name: 'Jan Demande', flavor: 'Tricky forward with silky technique' },
-  { name: 'Notling Elmejor', flavor: 'Ice-cold finisher in the box' },
+  { name: 'John Manzamba', flavor: 'Ice-cold finisher in the box' },
 ];
 
 /**

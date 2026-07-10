@@ -2,7 +2,8 @@
 
 export type Position = 'TW' | 'ABW' | 'MF' | 'ST';
 
-export type Rarity = 'bronze' | 'silber' | 'gold' | 'legendaer';
+/** 'geheim' = die "???"-Karte: einmalig ziehbar, 99er-Spieler, Name vom Nutzer */
+export type Rarity = 'bronze' | 'silber' | 'gold' | 'legendaer' | 'geheim';
 
 export type FormationId = '4-4-2' | '4-3-3' | '5-3-2';
 

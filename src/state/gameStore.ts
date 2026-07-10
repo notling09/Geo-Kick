@@ -1,13 +1,15 @@
 import { create } from 'zustand';
 import {
-  BALANCING, FORMATIONS, PACK_TYPES, SELL_VALUE, USER_CLUB_ID, type PackTypeId,
+  BALANCING, FORMATIONS, PACK_TYPES, RARITY_OVERALL_RANGE, SELL_VALUE, STARTER_OVERALL,
+  USER_CLUB_ID, type PackTypeId,
 } from '../core/domain/constants';
 import type {
-  Club, FormationId, OwnedPlayer, Pack, PoolPlayer, Tactic,
+  Club, FormationId, OwnedPlayer, Pack, PoolPlayer, Position, Rarity, Tactic,
 } from '../core/domain/types';
 import {
-  POOL_SIZE, createCuratedPoolPlayer, effectiveOverall, generateFillerSquad,
-  generatePlayerPool, generateRandomPoolPlayers, type NewPoolPlayer,
+  POOL_SIZE, createCuratedPoolPlayer, createMysteryPoolPlayer, effectiveOverall,
+  generateFillerSquad, generatePlayerPool, generateRandomPoolPlayers, overallOf,
+  rollAttributes, rollAttributesExact, type NewPoolPlayer,
 } from '../core/engine/playerGen';
 import { GOLD_PLAYERS, LEGENDARY_PLAYERS, STARTER_WINGERS } from '../core/engine/names';
 import { drawPackContent, packTypeFromSource } from '../core/engine/packGen';
@@ -48,6 +50,7 @@ interface GameState {
   keepDrawnPlayer: (poolPlayer: PoolPlayer, sellOwnedId: number) => Promise<boolean>;
   sellPlayer: (ownedId: number) => Promise<boolean>;
   setCaptain: (playerId: number) => Promise<void>;
+  claimMysteryPlayer: (name: string, position: Position) => Promise<PoolPlayer | null>;
   lineupPlayers: () => Array<OwnedPlayer | null>;
 }
 
@@ -56,11 +59,23 @@ export interface PackEntry {
   pool: PoolPlayer;
   /**
    * added = aufgenommen · duplicate = Wahl Training/Verkauf offen ·
-   * pending = Kader voll (behalten oder verkaufen)
+   * pending = Kader voll (behalten oder verkaufen) ·
+   * mystery = die einmalige ???-Karte (Nutzer benennt den 99er beim Aufdecken)
    */
-  outcome: 'added' | 'duplicate' | 'pending';
+  outcome: 'added' | 'duplicate' | 'pending' | 'mystery';
   coins?: number;
 }
+
+/** Anzeige-Platzhalter für die ???-Karte, bis der Nutzer sie benannt hat. */
+export const MYSTERY_PLACEHOLDER: PoolPlayer = {
+  id: -1,
+  name: '???',
+  position: 'ST',
+  rarity: 'geheim',
+  tempo: 99, technik: 99, abschluss: 99, verteidigung: 99, kondition: 99,
+  isStarterChoice: false,
+  isFiller: false,
+};
 
 async function loadClub(): Promise<Club> {
   // Gespeicherte Formation validieren (z. B. entferntes 3-5-2 aus alten Ständen)
@@ -114,6 +129,39 @@ async function topUpPool(): Promise<void> {
   }
 }
 
+/**
+ * V3-Migration: alle Pool-Spieler auf die neuen Rating-Spannen umrechnen
+ * (Bronze 35-59, Silber 60-74, Gold 75-85, Legendär 86-90). Die relative
+ * Qualität innerhalb der Seltenheit bleibt erhalten (linear skaliert);
+ * Starter bekommen exakt 80. Füllspieler (38-46) passen bereits.
+ */
+const OLD_OVERALL_RANGE: Record<Rarity, [number, number]> = {
+  bronze: [45, 58],
+  silber: [59, 72],
+  gold: [73, 86],
+  legendaer: [87, 96],
+  geheim: [99, 99],
+};
+
+async function migrateRatingsV3(): Promise<void> {
+  if ((await metaRepo.getMeta('ratingsV3')) === '1') return;
+  const pool = await playerRepo.getPool();
+  for (const p of pool) {
+    if (p.isFiller || p.rarity === 'geheim') continue;
+    let attrs;
+    if (p.isStarterChoice) {
+      attrs = rollAttributesExact(p.position, STARTER_OVERALL);
+    } else {
+      const [oldMin, oldMax] = OLD_OVERALL_RANGE[p.rarity];
+      const [newMin, newMax] = RARITY_OVERALL_RANGE[p.rarity];
+      const t = Math.min(1, Math.max(0, (overallOf(p, p.position) - oldMin) / (oldMax - oldMin)));
+      attrs = rollAttributes(p.position, Math.round(newMin + t * (newMax - newMin)));
+    }
+    await playerRepo.updatePoolAttributes(p.id, attrs);
+  }
+  await metaRepo.setMeta('ratingsV3', '1');
+}
+
 function lineupArray(map: Map<number, number>): Array<number | null> {
   return Array.from({ length: 11 }, (_, slot) => map.get(slot) ?? null);
 }
@@ -165,6 +213,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (!seeded) {
       await playerRepo.insertPoolPlayers(generatePlayerPool());
       await metaRepo.setMeta('poolSeeded', '1');
+      // Frisch geseedet = bereits auf den V3-Spannen
+      await metaRepo.setMeta('ratingsV3', '1');
     } else {
       // Bestehende Installationen: Starter-Namen an die aktuelle Liste angleichen
       await playerRepo.syncStarterNames(STARTER_WINGERS.map((s) => s.name));
@@ -173,6 +223,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       await playerRepo.syncCuratedRarity('legendaer', LEGENDARY_PLAYERS);
       // Pool auf die aktuellen Zielgrößen auffüllen (Verdopplung)
       await topUpPool();
+      // V3: neue Rating-Spannen auf den Bestand anwenden
+      await migrateRatingsV3();
     }
     const onboarded = (await metaRepo.getMeta('onboarded')) === '1';
     const pool = await playerRepo.getPool();
@@ -309,14 +361,16 @@ export const useGameStore = create<GameState>((set, get) => ({
     const { pool, packs } = get();
     const pack = packs.find((p) => p.id === packId);
     const packType = packTypeFromSource(pack?.source ?? 'session');
-    const drawn = drawPackContent(pool, packType);
-    await packRepo.markPackOpened(packId, drawn.map((p) => p.id));
+    // Die ???-Karte ist nur ein einziges Mal überhaupt ziehbar
+    const mysteryAvailable = (await metaRepo.getMeta('mysteryClaimed')) !== '1';
+    const drawn = drawPackContent(pool, packType, mysteryAvailable);
+    await packRepo.markPackOpened(packId, drawn.players.map((p) => p.id));
 
     // Duplikate: Nutzer wählt Training oder Verkauf (duplicate). Neue Spieler
     // kommen bis zum Kader-Limit in den Klub; darüber entscheidet der Nutzer
     // zwischen Verkaufen und Behalten (pending).
     const entries: PackEntry[] = [];
-    for (const p of drawn) {
+    for (const p of drawn.players) {
       const players = await playerRepo.getOwnedPlayers();
       const isDuplicate =
         players.some((o) => o.poolId === p.id) || entries.some((e) => e.pool.id === p.id);
@@ -329,11 +383,37 @@ export const useGameStore = create<GameState>((set, get) => ({
         entries.push({ pool: p, outcome: 'pending' });
       }
     }
+    // Die ???-Karte kommt immer als letzter (bester) Zug dazu; benannt und
+    // aufgenommen wird sie erst beim Aufdecken (claimMysteryPlayer).
+    if (drawn.mystery) {
+      entries.push({ pool: MYSTERY_PLACEHOLDER, outcome: 'mystery' });
+    }
     set({
       packs: await packRepo.getPacks(),
       players: await playerRepo.getOwnedPlayers(),
     });
     return entries;
+  },
+
+  /**
+   * Die aufgedeckte ???-Karte benennen und aufnehmen (V3): 99er-Spieler mit
+   * Wunschname und -position. Kommt IMMER in den Klub – auch über das
+   * Kader-Limit hinaus, damit die einmalige Karte nie verloren geht.
+   */
+  claimMysteryPlayer: async (name, position) => {
+    const trimmed = name.trim();
+    if (!trimmed) return null;
+    const poolId = await playerRepo.insertPoolPlayerReturningId(
+      createMysteryPoolPlayer(trimmed, position),
+    );
+    await playerRepo.addOwnedPlayer(poolId);
+    await metaRepo.setMeta('mysteryClaimed', '1');
+    const [pool, players] = await Promise.all([
+      playerRepo.getPool(),
+      playerRepo.getOwnedPlayers(),
+    ]);
+    set({ pool, players });
+    return pool.find((p) => p.id === poolId) ?? null;
   },
 
   /**
@@ -371,6 +451,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     const { players, lineup, captainPlayerId } = get();
     const victim = players.find((p) => p.id === sellOwnedId);
     if (!victim || lineup.includes(sellOwnedId) || sellOwnedId === captainPlayerId) return false;
+    if (victim.pool.rarity === 'geheim') return false;
     await playerRepo.deleteOwnedPlayer(sellOwnedId);
     await get().addCoins(SELL_VALUE[victim.pool.rarity]);
     await playerRepo.addOwnedPlayer(poolPlayer.id);
@@ -384,11 +465,12 @@ export const useGameStore = create<GameState>((set, get) => ({
     set({ captainPlayerId: playerId });
   },
 
-  /** Eigenen Spieler verkaufen (nicht möglich: aufgestellt oder Captain). */
+  /** Eigenen Spieler verkaufen (nicht möglich: aufgestellt, Captain oder ???-Karte). */
   sellPlayer: async (ownedId) => {
     const { players, lineup, captainPlayerId } = get();
     const player = players.find((p) => p.id === ownedId);
     if (!player || lineup.includes(ownedId) || ownedId === captainPlayerId) return false;
+    if (player.pool.rarity === 'geheim') return false;
     await playerRepo.deleteOwnedPlayer(ownedId);
     await get().addCoins(SELL_VALUE[player.pool.rarity]);
     set({ players: await playerRepo.getOwnedPlayers() });

@@ -9,6 +9,7 @@ import {
   IconBall, IconCard, IconFlag, IconFlash, IconPause, IconWhistle, type IconProps,
 } from '../../ui/icons';
 import { colors, font, radius, spacing } from '../../ui/theme';
+import { playSound } from '../../core/services/sound';
 import type { RootScreenProps } from '../../navigation/types';
 
 /**
@@ -77,6 +78,24 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
       listRef.current?.scrollToEnd({ animated: true });
     }
   }, [visibleEvents.length]);
+
+  // V3-Sounds: eigenes Tor im Ticker + Abpfiff (nicht beim Skip-Sprung)
+  const prevUserGoals = useRef(0);
+  useEffect(() => {
+    if (!played) return;
+    const side = played.userIsHome ? 'home' : 'away';
+    const userGoals = visibleEvents.filter((e) => e.type === 'tor' && e.team === side).length;
+    if (userGoals > prevUserGoals.current && !skipped) playSound('goal');
+    prevUserGoals.current = userGoals;
+  }, [visibleEvents, played, skipped]);
+
+  const fulltimeSoundPlayed = useRef(false);
+  useEffect(() => {
+    if (minute >= 90 && !fulltimeSoundPlayed.current) {
+      fulltimeSoundPlayed.current = true;
+      playSound('fulltime');
+    }
+  }, [minute]);
 
   if (!played) {
     return (

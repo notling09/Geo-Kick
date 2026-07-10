@@ -46,6 +46,33 @@ export async function insertPoolPlayers(players: Array<Omit<PoolPlayer, 'id'>>):
   });
 }
 
+/** Einzelnen Pool-Spieler einfügen und die neue id zurückgeben (???-Karte). */
+export async function insertPoolPlayerReturningId(
+  p: Omit<PoolPlayer, 'id'>,
+): Promise<number> {
+  const db = await getDb();
+  const res = await db.runAsync(
+    `INSERT INTO player_pool
+       (name, position, rarity, tempo, technik, abschluss, verteidigung, kondition, isStarterChoice, isFiller)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    p.name, p.position, p.rarity, p.tempo, p.technik, p.abschluss,
+    p.verteidigung, p.kondition, p.isStarterChoice ? 1 : 0, p.isFiller ? 1 : 0,
+  );
+  return res.lastInsertRowId;
+}
+
+/** Attribute eines Pool-Spielers ersetzen (V3-Rating-Migration). */
+export async function updatePoolAttributes(
+  id: number,
+  attrs: { tempo: number; technik: number; abschluss: number; verteidigung: number; kondition: number },
+): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    'UPDATE player_pool SET tempo = ?, technik = ?, abschluss = ?, verteidigung = ?, kondition = ? WHERE id = ?',
+    attrs.tempo, attrs.technik, attrs.abschluss, attrs.verteidigung, attrs.kondition, id,
+  );
+}
+
 export async function getPool(): Promise<PoolPlayer[]> {
   const db = await getDb();
   const rows = await db.getAllAsync<PoolRow>('SELECT * FROM player_pool');

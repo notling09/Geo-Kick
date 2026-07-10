@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, Easing, Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Svg, { Ellipse, Path, Rect } from 'react-native-svg';
 import type { PoolPlayer } from '../core/domain/types';
+import { playSound } from '../core/services/sound';
 import { PlayerAvatar } from './PlayerAvatar';
 import { colors, font, spacing } from './theme';
 
@@ -90,9 +91,10 @@ interface Props {
 export function ChampionOverlay({ visible, clubName, division, captain, onDismiss }: Props) {
   const { height } = useWindowDimensions();
 
-  // Nach ~6 Sekunden automatisch schließen
+  // Nach ~6 Sekunden automatisch schließen; Fanfare beim Erscheinen (V3)
   useEffect(() => {
     if (!visible) return;
+    playSound('champion');
     const t = setTimeout(onDismiss, 6000);
     return () => clearTimeout(t);
   }, [visible, onDismiss]);

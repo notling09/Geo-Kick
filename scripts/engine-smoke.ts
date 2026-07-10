@@ -2,7 +2,7 @@
 import { generateSchedule, computeStandings, generateNpcClubs, resolveSeason } from '../src/core/engine/league';
 import { generatePlayerPool, generateFillerSquad, overallOf } from '../src/core/engine/playerGen';
 import { drawPackContent } from '../src/core/engine/packGen';
-import { PACK_TYPES } from '../src/core/domain/constants';
+import { LEAGUE_REWARDS, PACK_TYPES } from '../src/core/domain/constants';
 import { calculateReward } from '../src/core/engine/rewards';
 import type { Match, PoolPlayer } from '../src/core/domain/types';
 
@@ -25,7 +25,13 @@ check('3 starter choices', pool.filter(p => p.isStarterChoice).length === 3);
 const attrsInRange = pool.every(p => [p.tempo, p.technik, p.abschluss, p.verteidigung, p.kondition].every(v => v >= 1 && v <= 99));
 check('attributes 1..99', attrsInRange);
 const legendaries = pool.filter(p => p.rarity === 'legendaer' && !p.isStarterChoice);
-check('legendary overall >= 80', legendaries.every(p => overallOf(p, p.position) >= 80));
+// V3-Spannen: Legendär 86-90 (Roll-Toleranz ±1)
+check('legendary overall 85..91', legendaries.every(p => {
+  const o = overallOf(p, p.position);
+  return o >= 85 && o <= 91;
+}));
+// V3: Starter haben exakt 80 Overall
+check('starters exactly 80', pool.filter(p => p.isStarterChoice).every(p => overallOf(p, p.position) === 80));
 check('gold pool = 40', pool.filter(p => p.rarity === 'gold' && !p.isStarterChoice).length === 40);
 check('legendary pool = 20', legendaries.length === 20);
 check('bronze pool = 88', pool.filter(p => p.rarity === 'bronze').length === 88);
@@ -35,23 +41,48 @@ const fillers = generateFillerSquad();
 check('fillers = 15', fillers.length === 15, String(fillers.length));
 check('fillers weak', fillers.every(p => overallOf(p, p.position) <= 55));
 
-// Pack draws
-const rarityCount: Record<string, number> = { bronze: 0, silber: 0, gold: 0, legendaer: 0 };
+// Pack draws (??? nicht verfügbar: geheim-Quote verteilt sich auf den Rest)
+const rarityCount: Record<string, number> = { bronze: 0, silber: 0, gold: 0, legendaer: 0, geheim: 0 };
+let mysteryWhenUnavailable = 0;
 for (let i = 0; i < 2000; i++) {
-  drawPackContent(pool).forEach(p => { rarityCount[p.rarity]++; });
+  const draw = drawPackContent(pool);
+  if (draw.mystery) mysteryWhenUnavailable++;
+  draw.players.forEach(p => { rarityCount[p.rarity]++; });
 }
 const total = 2000 * 3;
+check('no mystery when unavailable', mysteryWhenUnavailable === 0);
 check('bronze ~60%', Math.abs(rarityCount.bronze / total - 0.6) < 0.05, JSON.stringify(rarityCount));
 check('legendaer ~2%', Math.abs(rarityCount.legendaer / total - 0.02) < 0.01);
+check('no geheim players drawn', rarityCount.geheim === 0);
 check('no fillers/starters in packs', true);
 
-// Ultimate-Pack: deutlich bessere Quoten (10/40/35/15)
-const ultCount: Record<string, number> = { bronze: 0, silber: 0, gold: 0, legendaer: 0 };
+// Ultimate-Pack: deutlich bessere Quoten (5/40/35/15/5)
+const ultCount: Record<string, number> = { bronze: 0, silber: 0, gold: 0, legendaer: 0, geheim: 0 };
 for (let i = 0; i < 2000; i++) {
-  drawPackContent(pool, PACK_TYPES.ultimate).forEach(p => { ultCount[p.rarity]++; });
+  drawPackContent(pool, PACK_TYPES.ultimate).players.forEach(p => { ultCount[p.rarity]++; });
 }
 check('ultimate legendaer ~15%', Math.abs(ultCount.legendaer / total - 0.15) < 0.03, JSON.stringify(ultCount));
-check('ultimate bronze ~10%', Math.abs(ultCount.bronze / total - 0.10) < 0.03);
+check('ultimate bronze ~5%', Math.abs(ultCount.bronze / total - 0.05) < 0.03);
+
+// ???-Karte verfügbar: ersetzt genau einen Slot; Ultimate: 1-(1-0.05)^3 = ~14 % der Packs
+let mysteryPacks = 0;
+let mysterySlotOk = true;
+for (let i = 0; i < 4000; i++) {
+  const draw = drawPackContent(pool, PACK_TYPES.ultimate, true);
+  if (draw.mystery) {
+    mysteryPacks++;
+    if (draw.players.length !== 2) mysterySlotOk = false;
+  }
+}
+check('mystery replaces exactly one slot', mysterySlotOk);
+check('ultimate mystery ~14% of packs', Math.abs(mysteryPacks / 4000 - 0.1426) < 0.03, String(mysteryPacks / 4000));
+
+// V3: Saisonprämien Platz 2 gestaffelt 50/75/100/125
+check('season 2nd place 50/75/100/125',
+  LEAGUE_REWARDS.seasonByDivision[4][1] === 50 &&
+  LEAGUE_REWARDS.seasonByDivision[3][1] === 75 &&
+  LEAGUE_REWARDS.seasonByDivision[2][1] === 100 &&
+  LEAGUE_REWARDS.seasonByDivision[1][1] === 125);
 
 // Schedule
 const clubIds = ['user', '1', '2', '3', '4', '5', '6', '7'];

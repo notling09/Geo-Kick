@@ -99,6 +99,8 @@ export const SELL_VALUE: Record<Rarity, number> = {
   silber: 50,
   gold: 100,
   legendaer: 200,
+  /** Die ???-Karte ist einmalig und unverkäuflich */
+  geheim: 0,
 };
 
 export type PackTypeId = 'session' | 'standard' | 'rare' | 'ultimate';
@@ -115,6 +117,8 @@ export interface PackType {
 /**
  * Pack-Typen: Session-Pack mit den Doc-Quoten (Kapitel 8.1: 60/28/10/2),
  * Shop-Packs mit steigenden Quoten und Preisen (Coin-Senke, Loop Schritt 5).
+ * V3: '???'-Quote (geheim) geht zulasten der Bronze-Quote; die Karte ist
+ * nur ein einziges Mal ziehbar – danach greifen wieder die normalen Quoten.
  */
 export const PACK_TYPES: Record<PackTypeId, PackType> = {
   session: {
@@ -122,10 +126,11 @@ export const PACK_TYPES: Record<PackTypeId, PackType> = {
     label: 'Session pack',
     price: null,
     odds: [
-      { rarity: 'bronze', weight: 60 },
+      { rarity: 'bronze', weight: 59.5 },
       { rarity: 'silber', weight: 28 },
       { rarity: 'gold', weight: 10 },
       { rarity: 'legendaer', weight: 2 },
+      { rarity: 'geheim', weight: 0.5 },
     ],
   },
   standard: {
@@ -133,10 +138,11 @@ export const PACK_TYPES: Record<PackTypeId, PackType> = {
     label: 'Standard pack',
     price: 250,
     odds: [
-      { rarity: 'bronze', weight: 50 },
+      { rarity: 'bronze', weight: 49 },
       { rarity: 'silber', weight: 32 },
       { rarity: 'gold', weight: 14 },
       { rarity: 'legendaer', weight: 4 },
+      { rarity: 'geheim', weight: 1 },
     ],
   },
   rare: {
@@ -144,10 +150,11 @@ export const PACK_TYPES: Record<PackTypeId, PackType> = {
     label: 'Rare pack',
     price: 500,
     odds: [
-      { rarity: 'bronze', weight: 30 },
+      { rarity: 'bronze', weight: 28 },
       { rarity: 'silber', weight: 40 },
       { rarity: 'gold', weight: 22 },
       { rarity: 'legendaer', weight: 8 },
+      { rarity: 'geheim', weight: 2 },
     ],
   },
   ultimate: {
@@ -155,29 +162,35 @@ export const PACK_TYPES: Record<PackTypeId, PackType> = {
     label: 'Ultimate pack',
     price: 1000,
     odds: [
-      { rarity: 'bronze', weight: 10 },
+      { rarity: 'bronze', weight: 5 },
       { rarity: 'silber', weight: 40 },
       { rarity: 'gold', weight: 35 },
       { rarity: 'legendaer', weight: 15 },
+      { rarity: 'geheim', weight: 5 },
     ],
   },
 };
 
 export const SHOP_PACK_IDS: PackTypeId[] = ['standard', 'rare', 'ultimate'];
 
-/** Basis-Overall-Spannen je Seltenheit (vor Level-Boni) */
+/** Basis-Overall-Spannen je Seltenheit (vor Level-Boni; V3-Rework) */
 export const RARITY_OVERALL_RANGE: Record<Rarity, [number, number]> = {
-  bronze: [45, 58],
-  silber: [59, 72],
-  gold: [73, 86],
-  legendaer: [87, 96],
+  bronze: [35, 59],
+  silber: [60, 74],
+  gold: [75, 85],
+  legendaer: [86, 90],
+  geheim: [99, 99],
 };
+
+/** Die drei wählbaren Starter haben exakt dieses Overall */
+export const STARTER_OVERALL = 80;
 
 export const RARITY_LABEL: Record<Rarity, string> = {
   bronze: 'Bronze',
   silber: 'Silver',
   gold: 'Gold',
   legendaer: 'Legendary',
+  geheim: '???',
 };
 
 export const RARITY_COLOR: Record<Rarity, string> = {
@@ -185,6 +198,7 @@ export const RARITY_COLOR: Record<Rarity, string> = {
   silber: '#9BA6B2',
   gold: '#E8B923',
   legendaer: '#8E44AD',
+  geheim: '#000000',
 };
 
 export const POSITION_LABEL: Record<Position, string> = {
@@ -254,12 +268,12 @@ export const LEAGUE_REWARDS = {
   draw: 5,
   captainGoal: 3,
   captainAssist: 2,
-  /** [Platz-1-Prämie, Platz-2-Prämie] je Division */
+  /** [Platz-1-Prämie, Platz-2-Prämie] je Division (V3: Platz 2 gestaffelt 50/75/100/125) */
   seasonByDivision: {
     4: [100, 50],
-    3: [150, 100],
-    2: [200, 150],
-    1: [250, 200],
+    3: [150, 75],
+    2: [200, 100],
+    1: [250, 125],
   } as Record<number, [number, number]>,
 } as const;
 

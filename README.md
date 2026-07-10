@@ -17,9 +17,14 @@ aufsteigst. Komplett offline, kein Backend, kein Echtgeld.
   Mock-Location-Erkennung, Pflicht-Check-out, 45 Min Cooldown pro Platz,
   Bewegungssensor-Prüfung (Kapitel 6.2: ein komplett regungsloses Gerät
   bekommt keine Belohnung)
-- **Packs** mit fiktiven Spielern (Session-Pack: Bronze 60 % / Silber 28 % / Gold 10 % /
-  Legendär 2 %; Shop mit Standard-, Rare- und Ultimate-Packs mit besseren Quoten);
-  Duplikate trainieren Spieler (+1 Level) oder werden verkauft
+- **Packs** mit fiktiven Spielern (Session-Pack: Bronze 59,5 % / Silber 28 % / Gold 10 % /
+  Legendär 2 % / ??? 0,5 %; Shop mit Standard-, Rare- und Ultimate-Packs mit besseren
+  Quoten); Vollbild-Öffnung mit Seltenheits-Animationen und Soundeffekten, Spieler
+  erscheinen vom schwächsten zum besten; Duplikate trainieren Spieler (+1 Level)
+  oder werden verkauft
+- **???-Karte**: seltener als Legendär und nur ein einziges Mal ziehbar – ein
+  99er-Spieler, den der Spieler selbst benennt und dessen Position er wählt
+  (unverkäuflich, kommt immer in den Klub)
 - **Kadermanagement**: Formationen 4-4-2 / 4-3-3 / 5-3-2, Slot-Editor, Best-XI-Button,
   Kader-Limit 30 mit Verkaufssystem
 - **Liga**: 4 Divisionen, 8 Klubs, Doppelrunde (14 Spieltage), 1 Spiel alle 15 Min.,

@@ -95,19 +95,27 @@ export function PlayerDetailScreen({ route, navigation }: RootScreenProps<'Playe
 
         <SectionTitle>Sell</SectionTitle>
         <Card>
-          <Text style={styles.trainText}>
-            {isCaptain
-              ? 'This player is your captain. Pick a new captain on the Squad tab first to sell him.'
-              : inLineup
-                ? 'This player is in your starting XI. Remove him from the lineup first to sell him.'
-                : `Selling gives you ${sellValue} coins (${RARITY_LABEL[player.pool.rarity]}).`}
-          </Text>
-          <GKButton
-            title={`Sell for ${sellValue} coins`}
-            variant="danger"
-            onPress={onSell}
-            disabled={inLineup || isCaptain}
-          />
+          {player.pool.rarity === 'geheim' ? (
+            <Text style={styles.trainText}>
+              This is the one-of-a-kind ??? card - it cannot be sold.
+            </Text>
+          ) : (
+            <>
+              <Text style={styles.trainText}>
+                {isCaptain
+                  ? 'This player is your captain. Pick a new captain on the Squad tab first to sell him.'
+                  : inLineup
+                    ? 'This player is in your starting XI. Remove him from the lineup first to sell him.'
+                    : `Selling gives you ${sellValue} coins (${RARITY_LABEL[player.pool.rarity]}).`}
+              </Text>
+              <GKButton
+                title={`Sell for ${sellValue} coins`}
+                variant="danger"
+                onPress={onSell}
+                disabled={inLineup || isCaptain}
+              />
+            </>
+          )}
         </Card>
 
         <GKButton

@@ -1,4 +1,4 @@
-import { POSITION_WEIGHTS, RARITY_OVERALL_RANGE } from '../domain/constants';
+import { POSITION_WEIGHTS, RARITY_OVERALL_RANGE, STARTER_OVERALL } from '../domain/constants';
 import type { Attributes, PoolPlayer, Position, Rarity } from '../domain/types';
 import { FIRST_NAMES, GOLD_PLAYERS, LAST_NAMES, LEGENDARY_PLAYERS, STARTER_WINGERS } from './names';
 import { pick, randInt, shuffle } from './random';
@@ -15,12 +15,14 @@ export const POOL_SIZE: Record<Rarity, number> = {
   silber: 64,
   gold: GOLD_PLAYERS.length,
   legendaer: LEGENDARY_PLAYERS.length,
+  // Die ???-Identität entsteht erst beim einmaligen Zug (Nutzer benennt sie)
+  geheim: 0,
 };
 
 const POSITIONS: Position[] = ['TW', 'ABW', 'MF', 'ST'];
 
 /** Verteilt Attribute so, dass der positionsgewichtete Overall im Zielbereich liegt. */
-function rollAttributes(position: Position, targetOverall: number): Attributes {
+export function rollAttributes(position: Position, targetOverall: number): Attributes {
   const attrs: Attributes = {
     tempo: 0,
     technik: 0,
@@ -40,6 +42,19 @@ function rollAttributes(position: Position, targetOverall: number): Attributes {
     attrs[key] = clamp(Math.round(attrs[key] + diff), 20, 99);
   });
   return attrs;
+}
+
+/** Wie rollAttributes, trifft den Ziel-Overall aber garantiert exakt (Starter = 80). */
+export function rollAttributesExact(position: Position, targetOverall: number): Attributes {
+  for (let i = 0; i < 50; i++) {
+    const attrs = rollAttributes(position, targetOverall);
+    if (overallOf(attrs, position) === targetOverall) return attrs;
+  }
+  // Fallback (praktisch nie): alle Attribute exakt auf den Zielwert
+  return {
+    tempo: targetOverall, technik: targetOverall, abschluss: targetOverall,
+    verteidigung: targetOverall, kondition: targetOverall,
+  };
 }
 
 function clamp(v: number, min: number, max: number): number {
@@ -88,6 +103,21 @@ export function createCuratedPoolPlayer(
     isStarterChoice: false,
     isFiller: false,
     ...rollAttributes(entry.position, randInt(min, max)),
+  };
+}
+
+/**
+ * Die einmalige ???-Karte: 99 auf allen Attributen, Name und Position
+ * bestimmt der Nutzer beim Aufdecken selbst (V3).
+ */
+export function createMysteryPoolPlayer(name: string, position: Position): NewPoolPlayer {
+  return {
+    name,
+    position,
+    rarity: 'geheim',
+    isStarterChoice: false,
+    isFiller: false,
+    tempo: 99, technik: 99, abschluss: 99, verteidigung: 99, kondition: 99,
   };
 }
 
@@ -177,7 +207,7 @@ export function generatePlayerPool(): NewPoolPlayer[] {
     });
   });
 
-  // Die drei wählbaren Starter-Captains: starke (Gold-)Angreifer
+  // Die drei wählbaren Starter-Captains: Gold-Angreifer mit exakt 80 Overall (V3)
   STARTER_WINGERS.forEach((starter) => {
     usedNames.add(starter.name);
     players.push({
@@ -186,7 +216,7 @@ export function generatePlayerPool(): NewPoolPlayer[] {
       rarity: 'gold',
       isStarterChoice: true,
       isFiller: false,
-      ...rollAttributes('ST', randInt(78, 84)),
+      ...rollAttributesExact('ST', STARTER_OVERALL),
     });
   });
 

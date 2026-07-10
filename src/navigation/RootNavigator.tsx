@@ -8,6 +8,7 @@ import { PlayerDetailScreen } from '../features/squad/PlayerDetailScreen';
 import { LeagueScreen } from '../features/league/LeagueScreen';
 import { MatchLiveScreen } from '../features/league/MatchLiveScreen';
 import { PacksScreen } from '../features/packs/PacksScreen';
+import { PackOpeningScreen } from '../features/packs/PackOpeningScreen';
 import { ProfileScreen } from '../features/profile/ProfileScreen';
 import { StartScreen } from '../features/start/StartScreen';
 import { OnboardingScreen } from '../features/onboarding/OnboardingScreen';
@@ -62,6 +63,11 @@ export function RootNavigator() {
       />
       <Stack.Screen name="PlayerDetail" component={PlayerDetailScreen} />
       <Stack.Screen name="Friendlies" component={FriendliesScreen} />
+      <Stack.Screen
+        name="PackOpening"
+        component={PackOpeningScreen}
+        options={{ gestureEnabled: false, animation: 'fade' }}
+      />
     </Stack.Navigator>
   );
 }
