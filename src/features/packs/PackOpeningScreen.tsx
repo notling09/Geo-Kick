@@ -13,7 +13,7 @@ import { effectiveOverall, overallOf } from '../../core/engine/playerGen';
 import { playSound } from '../../core/services/sound';
 import { useGameStore, type PackEntry } from '../../state/gameStore';
 import { GKButton } from '../../ui/components';
-import { IconPack, IconStar } from '../../ui/icons';
+import { IconCoin, IconFlash, IconPack, IconStar } from '../../ui/icons';
 import { PitchBackground } from '../../ui/PitchBackground';
 import { PlayerAvatar } from '../../ui/PlayerAvatar';
 import { colors, font, radius, spacing } from '../../ui/theme';
@@ -31,7 +31,7 @@ import type { RootScreenProps } from '../../navigation/types';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
-type Phase = 'pack' | 'anim' | 'name' | 'card';
+type Phase = 'pack' | 'anim' | 'name' | 'card' | 'bonus';
 
 type Entry = PackEntry & { note?: string };
 
@@ -48,7 +48,7 @@ const POSITIONS: Position[] = ['TW', 'ABW', 'MF', 'ST'];
 export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOpening'>) {
   const { packId } = route.params;
   const {
-    packs, players, lineup, captainPlayerId, openPack, sellDrawnPlayer, trainWithDuplicate,
+    packs, players, lineup, captainPlayerId, openPack, sellDrawnPlayer, takeDuplicatePoints,
     keepDrawnPlayer, claimMysteryPlayer,
   } = useGameStore();
   const packType = packTypeFromSource(
@@ -56,6 +56,7 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
   );
 
   const [entries, setEntries] = useState<Entry[] | null>(null);
+  const [bonus, setBonus] = useState(0);
   const [index, setIndex] = useState(0);
   const [phase, setPhase] = useState<Phase>('pack');
   const [busy, setBusy] = useState(false);
@@ -167,9 +168,10 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
       Animated.timing(packOpacity, { toValue: 0, duration: 450, useNativeDriver: true }),
     ]).start();
     try {
-      const drawn = await openPack(packId);
+      const result = await openPack(packId);
+      setBonus(result.bonus);
       // Reihenfolge: schlechtester zuerst, die ???-Karte (99) immer zuletzt
-      const sorted = [...drawn].sort((a, b) => {
+      const sorted = [...result.entries].sort((a, b) => {
         const ovr = (e: PackEntry) =>
           e.outcome === 'mystery' ? Infinity : overallOf(e.pool, e.pool.position);
         return ovr(a) - ovr(b);
@@ -182,18 +184,21 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
     }
   };
 
-  /** Karte nach links rauswischen, dann nächster Zug oder zurück. */
+  /** Karte nach links rauswischen, dann nächster Zug oder der Pack-Bonus. */
   const onNext = () => {
     if (!entries || !current || phase !== 'card') return;
     if (needsDecision(current)) return;
-    if (index >= entries.length - 1) {
-      navigation.goBack();
-      return;
-    }
     Animated.parallel([
       Animated.timing(cardX, { toValue: -SCREEN_W, duration: 260, useNativeDriver: true }),
       Animated.timing(cardOpacity, { toValue: 0, duration: 260, useNativeDriver: true }),
     ]).start(() => {
+      if (index >= entries.length - 1) {
+        // Nach dem letzten Spieler: Bonus-Coins + Level-up-Punkte zeigen
+        cardX.setValue(0);
+        Animated.timing(cardOpacity, { toValue: 1, duration: 350, useNativeDriver: true }).start();
+        setPhase('bonus');
+        return;
+      }
       const next = index + 1;
       setIndex(next);
       runReveal(entries[next]);
@@ -220,19 +225,13 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
     }
   };
 
-  const onTrain = async (e: Entry) => {
+  /** Duplikat in frei ausgebbare Level-up-Punkte umwandeln (V3). */
+  const onTakePoints = async (e: Entry) => {
     if (busy) return;
     setBusy(true);
     try {
-      const newLevel = await trainWithDuplicate(e.pool);
-      if (newLevel === null) {
-        Alert.alert(
-          'Max level reached',
-          `${e.pool.name} is already at the maximum level - sell the duplicate instead.`,
-        );
-        return;
-      }
-      patchCurrent({ note: `trained (level ${newLevel})` });
+      const points = await takeDuplicatePoints(e.pool);
+      patchCurrent({ note: `+${points} level-up points` });
     } finally {
       setBusy(false);
     }
@@ -404,9 +403,9 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
                 {current.outcome === 'duplicate' ? (
                   <>
                     <GKButton
-                      title="Train +1 lvl"
+                      title={`Take +${SELL_VALUE[current.pool.rarity]} points`}
                       style={styles.decisionBtn}
-                      onPress={() => onTrain(current)}
+                      onPress={() => onTakePoints(current)}
                     />
                     <GKButton
                       title={`Sell +${SELL_VALUE[current.pool.rarity]}`}
@@ -433,14 +432,36 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
               </View>
             ) : (
               <GKButton
-                title={isLast ? 'Back to packs' : 'Next player'}
+                title={isLast ? 'Continue' : 'Next player'}
                 onPress={onNext}
                 style={styles.nextBtn}
               />
             )}
-            {!needsDecision(current) && !isLast && (
+            {!needsDecision(current) && (
               <Text style={styles.swipeHint}>Tap the card to continue</Text>
             )}
+          </View>
+        )}
+
+        {phase === 'bonus' && (
+          <View style={styles.center}>
+            <Animated.View
+              style={[styles.card, styles.bonusCard, { opacity: cardOpacity, transform: [{ translateX: cardX }] }]}
+            >
+              <Text style={styles.bonusTitle}>Pack bonus!</Text>
+              <View style={styles.bonusRow}>
+                <IconCoin size={26} />
+                <Text style={styles.bonusValue}>+{bonus} coins</Text>
+              </View>
+              <View style={styles.bonusRow}>
+                <IconFlash size={26} color={colors.sky} />
+                <Text style={styles.bonusValue}>+{bonus} level-up points</Text>
+              </View>
+              <Text style={styles.bonusHint}>
+                Spend level-up points on any player in his detail view.
+              </Text>
+            </Animated.View>
+            <GKButton title="Back to packs" onPress={() => navigation.goBack()} style={styles.nextBtn} />
           </View>
         )}
 
@@ -598,6 +619,31 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     color: 'rgba(255,255,255,0.6)',
     fontSize: font.small,
+  },
+  bonusCard: {
+    borderColor: colors.accent,
+    gap: spacing.sm,
+  },
+  bonusTitle: {
+    fontSize: font.h1,
+    fontWeight: '900',
+    color: colors.ink,
+  },
+  bonusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  bonusValue: {
+    fontSize: font.h2,
+    fontWeight: '900',
+    color: colors.ink,
+  },
+  bonusHint: {
+    fontSize: font.small,
+    color: colors.inkSoft,
+    textAlign: 'center',
+    marginTop: spacing.xs,
   },
   nameCard: {
     width: Math.min(320, SCREEN_W - spacing.lg * 2),

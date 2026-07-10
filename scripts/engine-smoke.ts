@@ -1,8 +1,8 @@
 ﻿import { simulateMatch } from '../src/core/engine/matchSim';
 import { generateSchedule, computeStandings, generateNpcClubs, resolveSeason } from '../src/core/engine/league';
 import { generatePlayerPool, generateFillerSquad, overallOf } from '../src/core/engine/playerGen';
-import { drawPackContent } from '../src/core/engine/packGen';
-import { LEAGUE_REWARDS, PACK_TYPES } from '../src/core/domain/constants';
+import { drawPackContent, rollPackBonus } from '../src/core/engine/packGen';
+import { LEAGUE_REWARDS, PACK_TYPES, levelUpCost } from '../src/core/domain/constants';
 import { calculateReward } from '../src/core/engine/rewards';
 import type { Match, PoolPlayer } from '../src/core/domain/types';
 
@@ -76,6 +76,26 @@ for (let i = 0; i < 4000; i++) {
 }
 check('mystery replaces exactly one slot', mysterySlotOk);
 check('ultimate mystery ~14% of packs', Math.abs(mysteryPacks / 4000 - 0.1426) < 0.03, String(mysteryPacks / 4000));
+
+// V3: Pack-Bonus (Coins + Level-up-Punkte in gleicher Höhe) je Pack-Spanne
+(['session', 'standard', 'rare', 'ultimate'] as const).forEach(id => {
+  const [min, max] = PACK_TYPES[id].bonus;
+  let ok = true;
+  for (let i = 0; i < 500; i++) {
+    const b = rollPackBonus(PACK_TYPES[id]);
+    if (b < min || b > max) ok = false;
+  }
+  check(`${id} bonus in ${min}..${max}`, ok);
+});
+
+// V3: Level-up-Kosten nach aktuellem Rating (25/50/100/200, ab 90: 250, Cap 99)
+check('level-up costs by rating',
+  levelUpCost(40) === 25 && levelUpCost(59) === 25 &&
+  levelUpCost(60) === 50 && levelUpCost(74) === 50 &&
+  levelUpCost(75) === 100 && levelUpCost(85) === 100 &&
+  levelUpCost(86) === 200 && levelUpCost(89) === 200 &&
+  levelUpCost(90) === 250 && levelUpCost(98) === 250 &&
+  levelUpCost(99) === null);
 
 // V3: Saisonprämien Platz 2 gestaffelt 50/75/100/125
 check('season 2nd place 50/75/100/125',

@@ -6,7 +6,7 @@ import {
 } from '../../core/domain/constants';
 import { packTypeFromSource } from '../../core/engine/packGen';
 import { useGameStore } from '../../state/gameStore';
-import { GKButton, Card, CoinBadge, SectionTitle } from '../../ui/components';
+import { GKButton, Card, CoinBadge, PointsBadge, SectionTitle } from '../../ui/components';
 import { IconPack } from '../../ui/icons';
 import { colors, font, spacing } from '../../ui/theme';
 import type { TabScreenProps } from '../../navigation/types';
@@ -25,7 +25,7 @@ function oddsLine(typeId: keyof typeof PACK_TYPES): string {
 }
 
 export function PacksScreen({ navigation }: TabScreenProps<'Packs'>) {
-  const { club, packs, players, buyPack } = useGameStore();
+  const { club, packs, players, buyPack, levelPoints } = useGameStore();
 
   const unopened = useMemo(() => packs.filter((p) => p.openedAt === null), [packs]);
   const openedCount = packs.length - unopened.length;
@@ -45,7 +45,10 @@ export function PacksScreen({ navigation }: TabScreenProps<'Packs'>) {
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.headerRow}>
           <Text style={styles.title}>Packs</Text>
-          <CoinBadge coins={club?.coins ?? 0} />
+          <View style={styles.badgeRow}>
+            <PointsBadge points={levelPoints} />
+            <CoinBadge coins={club?.coins ?? 0} />
+          </View>
         </View>
 
         <SectionTitle>Your packs ({unopened.length})</SectionTitle>
@@ -63,6 +66,7 @@ export function PacksScreen({ navigation }: TabScreenProps<'Packs'>) {
                 <Text style={styles.packLabel}>{packTypeFromSource(pack.source).label}</Text>
                 <Text style={styles.packMeta}>
                   {BALANCING.playersPerPack} players · {oddsLine(packTypeFromSource(pack.source).id)}
+                  {'\n'}Bonus: {packTypeFromSource(pack.source).bonus[0]}-{packTypeFromSource(pack.source).bonus[1]} coins + points
                 </Text>
               </View>
               <GKButton
@@ -80,7 +84,10 @@ export function PacksScreen({ navigation }: TabScreenProps<'Packs'>) {
             <IconPack size={34} color={typeId === 'ultimate' ? colors.gold : typeId === 'rare' ? colors.sky : colors.inkSoft} />
             <View style={styles.packInfo}>
               <Text style={styles.packLabel}>{PACK_TYPES[typeId].label}</Text>
-              <Text style={styles.packMeta}>{oddsLine(typeId)}</Text>
+              <Text style={styles.packMeta}>
+                {oddsLine(typeId)}
+                {'\n'}Bonus: {PACK_TYPES[typeId].bonus[0]}-{PACK_TYPES[typeId].bonus[1]} coins + points
+              </Text>
             </View>
             <GKButton
               title={`${PACK_TYPES[typeId].price}`}
@@ -91,8 +98,10 @@ export function PacksScreen({ navigation }: TabScreenProps<'Packs'>) {
           </Card>
         ))}
         <Text style={styles.statsText}>
-          Duplicates: train the player (+1 level) or sell for Bronze {SELL_VALUE.bronze} ·
-          Silver {SELL_VALUE.silber} · Gold {SELL_VALUE.gold} · Legendary {SELL_VALUE.legendaer} coins.{'\n'}
+          Duplicates: take level-up points or sell for coins (Bronze {SELL_VALUE.bronze} ·
+          Silver {SELL_VALUE.silber} · Gold {SELL_VALUE.gold} · Legendary {SELL_VALUE.legendaer}).{'\n'}
+          Every pack also drops a bonus: the same amount of coins AND level-up points.{'\n'}
+          Spend points on any player in his detail view - costs rise with his rating.{'\n'}
           The ??? card exists only once - a 99-rated player you get to name yourself.{'\n'}
           Packs opened so far: {openedCount} · squad size: {players.length}/{BALANCING.maxSquadSize}
         </Text>
@@ -115,6 +124,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: spacing.md,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
   },
   title: {
     fontSize: font.title,

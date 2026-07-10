@@ -20,8 +20,13 @@ aufsteigst. Komplett offline, kein Backend, kein Echtgeld.
 - **Packs** mit fiktiven Spielern (Session-Pack: Bronze 59,5 % / Silber 28 % / Gold 10 % /
   Legendär 2 % / ??? 0,5 %; Shop mit Standard-, Rare- und Ultimate-Packs mit besseren
   Quoten); Vollbild-Öffnung mit Seltenheits-Animationen und Soundeffekten, Spieler
-  erscheinen vom schwächsten zum besten; Duplikate trainieren Spieler (+1 Level)
-  oder werden verkauft
+  erscheinen vom schwächsten zum besten; nach den 3 Spielern gibt jedes Pack einen
+  Bonus in gleicher Höhe als Coins UND Level-up-Punkte (Session 10-25, Standard
+  25-100, Rare 100-200, Ultimate 200-500)
+- **Level-up-Punkte**: Duplikate werden verkauft (Coins) oder in gleichwertige
+  Level-up-Punkte getauscht; Punkte sind frei auf jeden Spieler ausgebbar, die
+  Kosten steigen mit dessen aktuellem Rating (25/50/100/200, ab 90: 250),
+  Obergrenze ist 99
 - **???-Karte**: seltener als Legendär und nur ein einziges Mal ziehbar – ein
   99er-Spieler, den der Spieler selbst benennt und dessen Position er wählt
   (unverkäuflich, kommt immer in den Klub)

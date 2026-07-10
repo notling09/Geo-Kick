@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import {
-  BALANCING, FORMATIONS, PACK_TYPES, RARITY_OVERALL_RANGE, SELL_VALUE, STARTER_OVERALL,
-  USER_CLUB_ID, type PackTypeId,
+  BALANCING, FORMATIONS, MAX_PLAYER_OVERALL, PACK_TYPES, RARITY_OVERALL_RANGE, SELL_VALUE,
+  STARTER_OVERALL, USER_CLUB_ID, levelUpCost, type PackTypeId,
 } from '../core/domain/constants';
 import type {
   Club, FormationId, OwnedPlayer, Pack, PoolPlayer, Position, Rarity, Tactic,
@@ -12,7 +12,7 @@ import {
   rollAttributes, rollAttributesExact, type NewPoolPlayer,
 } from '../core/engine/playerGen';
 import { GOLD_PLAYERS, LEGENDARY_PLAYERS, STARTER_WINGERS } from '../core/engine/names';
-import { drawPackContent, packTypeFromSource } from '../core/engine/packGen';
+import { drawPackContent, packTypeFromSource, rollPackBonus } from '../core/engine/packGen';
 import * as metaRepo from '../core/db/repositories/metaRepo';
 import * as playerRepo from '../core/db/repositories/playerRepo';
 import * as packRepo from '../core/db/repositories/packRepo';
@@ -34,6 +34,8 @@ interface GameState {
   pool: PoolPlayer[];
   /** Kapitän (V2): bringt Coin-Boni bei Toren/Assists in Ligaspielen */
   captainPlayerId: number | null;
+  /** Level-up-Punkte (V3): aus Duplikaten und Pack-Boni, frei ausgebbar */
+  levelPoints: number;
 
   init: () => Promise<void>;
   completeOnboarding: (clubName: string, crest: string, starterPoolId: number) => Promise<void>;
@@ -42,11 +44,13 @@ interface GameState {
   setLineupSlot: (slot: number, playerId: number | null) => Promise<void>;
   autoLineup: () => Promise<void>;
   addCoins: (amount: number) => Promise<void>;
+  addLevelPoints: (amount: number) => Promise<void>;
   grantPack: (source: Pack['source']) => Promise<void>;
-  openPack: (packId: number) => Promise<PackEntry[]>;
+  openPack: (packId: number) => Promise<PackOpenResult>;
   buyPack: (typeId: PackTypeId) => Promise<boolean>;
   sellDrawnPlayer: (poolPlayer: PoolPlayer) => Promise<void>;
-  trainWithDuplicate: (poolPlayer: PoolPlayer) => Promise<number | null>;
+  takeDuplicatePoints: (poolPlayer: PoolPlayer) => Promise<number>;
+  levelUpPlayer: (ownedId: number) => Promise<'ok' | 'max' | 'points'>;
   keepDrawnPlayer: (poolPlayer: PoolPlayer, sellOwnedId: number) => Promise<boolean>;
   sellPlayer: (ownedId: number) => Promise<boolean>;
   setCaptain: (playerId: number) => Promise<void>;
@@ -64,6 +68,13 @@ export interface PackEntry {
    */
   outcome: 'added' | 'duplicate' | 'pending' | 'mystery';
   coins?: number;
+}
+
+/** Ergebnis einer Pack-Öffnung: die 3 Züge + Bonus (Coins UND Punkte, V3). */
+export interface PackOpenResult {
+  entries: PackEntry[];
+  /** Wird doppelt gutgeschrieben: +bonus Coins und +bonus Level-up-Punkte */
+  bonus: number;
 }
 
 /** Anzeige-Platzhalter für die ???-Karte, bis der Nutzer sie benannt hat. */
@@ -206,6 +217,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   packs: [],
   pool: [],
   captainPlayerId: null,
+  levelPoints: 0,
 
   init: async () => {
     // Spieler-Pool einmalig erzeugen (fiktive Identitäten, Kapitel 8/9)
@@ -257,6 +269,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         packs,
         pool,
         captainPlayerId: captainPlayerId || null,
+        levelPoints: await metaRepo.getMetaNumber('levelPoints', 0),
       });
     } else {
       set({ initialized: true, onboarded: false, pool });
@@ -352,6 +365,12 @@ export const useGameStore = create<GameState>((set, get) => ({
     set({ club: { ...club, coins } });
   },
 
+  addLevelPoints: async (amount) => {
+    const levelPoints = Math.max(0, get().levelPoints + amount);
+    await metaRepo.setMeta('levelPoints', String(levelPoints));
+    set({ levelPoints });
+  },
+
   grantPack: async (source) => {
     await packRepo.addPack(source);
     set({ packs: await packRepo.getPacks() });
@@ -388,11 +407,16 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (drawn.mystery) {
       entries.push({ pool: MYSTERY_PLACEHOLDER, outcome: 'mystery' });
     }
+    // Pack-Bonus (V3): ein Betrag aus der Pack-Spanne, doppelt gutgeschrieben
+    // (Coins UND Level-up-Punkte); angezeigt wird er nach dem letzten Spieler.
+    const bonus = rollPackBonus(packType);
+    await get().addCoins(bonus);
+    await get().addLevelPoints(bonus);
     set({
       packs: await packRepo.getPacks(),
       players: await playerRepo.getOwnedPlayers(),
     });
-    return entries;
+    return { entries, bonus };
   },
 
   /**
@@ -417,16 +441,32 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   /**
-   * Duplikat als Training einsetzen: der bereits besessene Spieler mit
-   * dieser Pool-Identität bekommt +1 Level. Liefert das neue Level,
-   * oder null wenn das Maximallevel erreicht ist.
+   * Duplikat in Level-up-Punkte umwandeln (V3): gleicher Wert wie beim
+   * Verkauf, aber als frei ausgebbare Punkte. Liefert die Punktzahl.
    */
-  trainWithDuplicate: async (poolPlayer) => {
-    const owned = get().players.find((p) => p.poolId === poolPlayer.id);
-    if (!owned || owned.level >= BALANCING.maxPlayerLevel) return null;
+  takeDuplicatePoints: async (poolPlayer) => {
+    const points = SELL_VALUE[poolPlayer.rarity];
+    await get().addLevelPoints(points);
+    return points;
+  },
+
+  /**
+   * Level-up-Punkte für einen beliebigen eigenen Spieler ausgeben (V3):
+   * Kosten steigen mit dem aktuellen Rating (25/50/100/200, ab 90: 250);
+   * Obergrenze ist 99 Overall.
+   */
+  levelUpPlayer: async (ownedId) => {
+    const { players, levelPoints } = get();
+    const owned = players.find((p) => p.id === ownedId);
+    if (!owned) return 'max';
+    const overall = effectiveOverall(owned.pool, owned.level);
+    const cost = overall >= MAX_PLAYER_OVERALL ? null : levelUpCost(overall);
+    if (cost === null || owned.level >= BALANCING.maxPlayerLevel) return 'max';
+    if (levelPoints < cost) return 'points';
     await playerRepo.setPlayerLevel(owned.id, owned.level + 1);
+    await get().addLevelPoints(-cost);
     set({ players: await playerRepo.getOwnedPlayers() });
-    return owned.level + 1;
+    return 'ok';
   },
 
   buyPack: async (typeId) => {

@@ -1,7 +1,9 @@
 import React from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { POSITION_LABEL, RARITY_COLOR, RARITY_LABEL, SELL_VALUE } from '../../core/domain/constants';
+import {
+  MAX_PLAYER_OVERALL, POSITION_LABEL, RARITY_COLOR, RARITY_LABEL, SELL_VALUE, levelUpCost,
+} from '../../core/domain/constants';
 import { effectiveAttributes, effectiveOverall } from '../../core/engine/playerGen';
 import { useGameStore } from '../../state/gameStore';
 import { GKButton, Card, SectionTitle } from '../../ui/components';
@@ -10,8 +12,8 @@ import { colors, font, radius, spacing } from '../../ui/theme';
 import type { RootScreenProps } from '../../navigation/types';
 
 /**
- * Player detail: attributes plus selling for coins. Training happens at
- * pack opening: a drawn duplicate can be used for +1 level or sold.
+ * Player detail: attributes, level-ups (spend level-up points earned from
+ * duplicates and pack bonuses, V3) and selling for coins.
  */
 
 const ATTR_LABELS: Array<[keyof ReturnType<typeof effectiveAttributes>, string]> = [
@@ -24,7 +26,7 @@ const ATTR_LABELS: Array<[keyof ReturnType<typeof effectiveAttributes>, string]>
 
 export function PlayerDetailScreen({ route, navigation }: RootScreenProps<'PlayerDetail'>) {
   const { playerId } = route.params;
-  const { players, lineup, captainPlayerId, sellPlayer } = useGameStore();
+  const { players, lineup, captainPlayerId, sellPlayer, levelPoints, levelUpPlayer } = useGameStore();
 
   const player = players.find((p) => p.id === playerId);
   const inLineup = lineup.includes(playerId);
@@ -91,6 +93,35 @@ export function PlayerDetailScreen({ route, navigation }: RootScreenProps<'Playe
               <Text style={styles.attrValue}>{attrs[key]}</Text>
             </View>
           ))}
+        </Card>
+
+        <SectionTitle>Level up</SectionTitle>
+        <Card>
+          {(() => {
+            const cost = overall >= MAX_PLAYER_OVERALL ? null : levelUpCost(overall);
+            return (
+              <>
+                <Text style={styles.trainText}>
+                  {cost === null
+                    ? `${player.pool.name} has reached the maximum rating of ${MAX_PLAYER_OVERALL}.`
+                    : `Next level costs ${cost} points (rating ${overall}). You have ${levelPoints} level-up points - earn more from duplicates and pack bonuses.`}
+                </Text>
+                <GKButton
+                  title={cost === null ? 'Maximum reached' : `Level up for ${cost} points`}
+                  onPress={async () => {
+                    const result = await levelUpPlayer(player.id);
+                    if (result === 'points') {
+                      Alert.alert(
+                        'Not enough points',
+                        'Earn level-up points from duplicates and pack bonuses.',
+                      );
+                    }
+                  }}
+                  disabled={cost === null || levelPoints < cost}
+                />
+              </>
+            );
+          })()}
         </Card>
 
         <SectionTitle>Sell</SectionTitle>

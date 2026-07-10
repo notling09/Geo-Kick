@@ -23,8 +23,11 @@ export const BALANCING = {
   matchIntervalMs: 15 * 60 * 1000,
   /** Spieler pro Pack */
   playersPerPack: 3,
-  /** Maximales Trainingslevel */
-  maxPlayerLevel: 10,
+  /**
+   * Level-ups sind seit V3 durch das Rating gedeckelt (Maximum 99 Overall,
+   * MAX_PLAYER_OVERALL) statt durch ein festes Levellimit.
+   */
+  maxPlayerLevel: 99,
   /** Maximale Klubgröße; darüber muss verkauft werden */
   maxSquadSize: 30,
 } as const;
@@ -112,6 +115,12 @@ export interface PackType {
   price: number | null;
   /** Ziehungs-Gewichte je Seltenheit; Quoten steigen von Session → Ultimate */
   odds: Array<{ rarity: Rarity; weight: number }>;
+  /**
+   * Bonus nach den 3 Spielern (V3): [min, max]. Der ausgewürfelte Betrag
+   * wird DOPPELT gutgeschrieben – einmal als Coins, einmal als
+   * Level-up-Punkte in gleicher Höhe.
+   */
+  bonus: [number, number];
 }
 
 /**
@@ -132,6 +141,7 @@ export const PACK_TYPES: Record<PackTypeId, PackType> = {
       { rarity: 'legendaer', weight: 2 },
       { rarity: 'geheim', weight: 0.5 },
     ],
+    bonus: [10, 25],
   },
   standard: {
     id: 'standard',
@@ -144,6 +154,7 @@ export const PACK_TYPES: Record<PackTypeId, PackType> = {
       { rarity: 'legendaer', weight: 4 },
       { rarity: 'geheim', weight: 1 },
     ],
+    bonus: [25, 100],
   },
   rare: {
     id: 'rare',
@@ -156,6 +167,7 @@ export const PACK_TYPES: Record<PackTypeId, PackType> = {
       { rarity: 'legendaer', weight: 8 },
       { rarity: 'geheim', weight: 2 },
     ],
+    bonus: [100, 200],
   },
   ultimate: {
     id: 'ultimate',
@@ -168,6 +180,7 @@ export const PACK_TYPES: Record<PackTypeId, PackType> = {
       { rarity: 'legendaer', weight: 15 },
       { rarity: 'geheim', weight: 5 },
     ],
+    bonus: [200, 500],
   },
 };
 
@@ -184,6 +197,31 @@ export const RARITY_OVERALL_RANGE: Record<Rarity, [number, number]> = {
 
 /** Die drei wählbaren Starter haben exakt dieses Overall */
 export const STARTER_OVERALL = 80;
+
+/** Härtere Obergrenze für Level-ups: kein Spieler kommt über 99 Overall */
+export const MAX_PLAYER_OVERALL = 99;
+
+/**
+ * Level-up-Kosten in Punkten, gestaffelt nach dem AKTUELLEN (effektiven)
+ * Rating des Spielers – nicht nach seiner Karten-Seltenheit. Ein Bronze-
+ * Spieler, der sich per Level-ups in den Silber-Bereich hochgearbeitet hat,
+ * zahlt ab dann Silber-Preise; ab 90 wird es mit 250 nochmal teurer.
+ */
+export const LEVEL_UP_COST_BRACKETS: Array<{ maxOverall: number; cost: number }> = [
+  { maxOverall: 59, cost: 25 },
+  { maxOverall: 74, cost: 50 },
+  { maxOverall: 85, cost: 100 },
+  { maxOverall: 89, cost: 200 },
+  { maxOverall: 98, cost: 250 },
+];
+
+/** Punktekosten für den nächsten Level-up; null = Maximum (99) erreicht. */
+export function levelUpCost(currentOverall: number): number | null {
+  for (const bracket of LEVEL_UP_COST_BRACKETS) {
+    if (currentOverall <= bracket.maxOverall) return bracket.cost;
+  }
+  return null;
+}
 
 export const RARITY_LABEL: Record<Rarity, string> = {
   bronze: 'Bronze',

@@ -1,6 +1,6 @@
 import { BALANCING, PACK_TYPES, type PackType } from '../domain/constants';
 import type { PoolPlayer, Rarity } from '../domain/types';
-import { pick, pickWeighted } from './random';
+import { pick, pickWeighted, randInt } from './random';
 
 /**
  * Pack-Ziehung (Kapitel 3.2 / 8.1): pro Spieler im Pack wird zuerst die
@@ -56,6 +56,14 @@ export function drawPackContent(
     players.push(pick(candidates));
   }
   return { players, mystery };
+}
+
+/**
+ * Bonus nach den 3 Spielern (V3): ein Betrag aus der Pack-Spanne, der
+ * doppelt gutgeschrieben wird (Coins UND Level-up-Punkte in gleicher Höhe).
+ */
+export function rollPackBonus(packType: PackType): number {
+  return randInt(packType.bonus[0], packType.bonus[1]);
 }
 
 /** Pack-Typ aus dem gespeicherten source-Feld ableiten. */
