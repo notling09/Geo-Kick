@@ -1,8 +1,9 @@
 ﻿import { simulateMatch } from '../src/core/engine/matchSim';
 import { generateSchedule, computeStandings, generateNpcClubs, resolveSeason } from '../src/core/engine/league';
 import { generatePlayerPool, generateFillerSquad, overallOf } from '../src/core/engine/playerGen';
-import { drawPackContent, rollPackBonus } from '../src/core/engine/packGen';
-import { LEAGUE_REWARDS, PACK_TYPES, levelUpCost } from '../src/core/domain/constants';
+import { drawEggPlayer, drawPackContent, rollPackBonus } from '../src/core/engine/packGen';
+import { dayKey, hashString, pitchOpponent, specialSpotIdForDay } from '../src/core/engine/pitchBattle';
+import { EGG_TYPES, LEAGUE_REWARDS, PACK_TYPES, levelUpCost } from '../src/core/domain/constants';
 import { calculateReward } from '../src/core/engine/rewards';
 import type { Match, PoolPlayer } from '../src/core/domain/types';
 
@@ -101,6 +102,36 @@ check('level-up costs by rating',
   levelUpCost(86) === 200 && levelUpCost(89) === 200 &&
   levelUpCost(90) === 250 && levelUpCost(98) === 250 &&
   levelUpCost(99) === null);
+
+// V4: Eier – Quoten je Ei-Typ; das 10-km-Ei enthält nie Bronze, nie geheim
+const egg10 = EGG_TYPES.find(t => t.id === 'egg-10')!;
+const eggCount: Record<string, number> = { bronze: 0, silber: 0, gold: 0, legendaer: 0, geheim: 0 };
+for (let i = 0; i < 2000; i++) {
+  eggCount[drawEggPlayer(pool, egg10).rarity]++;
+}
+check('10km egg: no bronze, no geheim', eggCount.bronze === 0 && eggCount.geheim === 0, JSON.stringify(eggCount));
+check('10km egg: legendaer ~20%', Math.abs(eggCount.legendaer / 2000 - 0.2) < 0.04);
+
+// V4: Platz-Kämpfe – deterministisch je Platz/Tag, Boss deutlich stärker
+const day = dayKey(new Date(2026, 6, 12));
+const oppA = pitchOpponent('spot-1', day, 700, false);
+const oppB = pitchOpponent('spot-1', day, 700, false);
+check('pitch opponent deterministic', oppA.name === oppB.name && oppA.strength === oppB.strength);
+check('pitch opponent in band', oppA.strength >= 700 * 0.85 - 1 && oppA.strength <= 700 * 1.1 + 1, String(oppA.strength));
+const boss = pitchOpponent('spot-1', day, 700, true);
+check('boss stronger than user', boss.strength > 700 * 1.3, String(boss.strength));
+const special1 = specialSpotIdForDay(['a', 'b', 'c'], day);
+const special2 = specialSpotIdForDay(['c', 'a', 'b'], day);
+check('special spot stable per day', special1 !== null && special1 === special2);
+check('special spot changes across days', (() => {
+  // an mindestens einem von 10 Folgetagen muss ein anderer Platz dran sein
+  for (let i = 1; i <= 10; i++) {
+    const d = dayKey(new Date(2026, 6, 12 + i));
+    if (specialSpotIdForDay(['a', 'b', 'c'], d) !== special1) return true;
+  }
+  return false;
+})());
+check('hash stable', hashString('geo-kick') === hashString('geo-kick') && hashString('a') !== hashString('b'));
 
 // V3: Saisonprämien Platz 2 gestaffelt 50/75/100/125
 check('season 2nd place 50/75/100/125',

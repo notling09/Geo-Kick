@@ -84,6 +84,92 @@ export const FITNESS_BONUS_COINS = 20;
 /** Skill-Aufgaben pro Session (dazu kommt 1 Fitness-Aufgabe) */
 export const SKILL_OBJECTIVES_PER_SESSION = 2;
 
+/**
+ * Entdecker-Features (V4): Platz-Pass, tägliche Serie, Heimplatz und der
+ * besondere Platz des Tages.
+ */
+export const DISCOVERY = {
+  /** Bonus-Coins für die erste belohnte Session an einem neuen Platz */
+  firstVisitBonusCoins: 50,
+  /** Abzeichen-Stufen: so viele verschiedene Plätze besucht */
+  passportBadges: [5, 10, 25, 50],
+  /** Ab so vielen belohnten Besuchen wird ein Platz zum Heimplatz */
+  homeMinVisits: 3,
+  /** Kleiner Bonus für Sessions am eigenen Heimplatz */
+  homeBonusCoins: 10,
+  /** Alle so viele Besuche steigt das Heimplatz-Level um 1 */
+  homeVisitsPerLevel: 3,
+  /** Tägliche Serie: +so viele Coins pro Serientag … */
+  streakBonusPerDay: 5,
+  /** … gedeckelt bei diesem Bonus (Tag 10+) */
+  streakBonusMax: 50,
+  /** Session-Coins am besonderen Platz des Tages zählen doppelt */
+  specialDoubleFactor: 2,
+} as const;
+
+/** Platz-Kämpfe (V4): Gegner-Team an jedem Platz, 1 Versuch pro Platz und Tag */
+export const PITCH_BATTLE = {
+  /** Normale Gegner: Stärke relativ zur eigenen Elf (Spanne je Platz+Tag) */
+  normalStrengthRange: [0.85, 1.1] as [number, number],
+  /** Boss des Tages: deutlich stärker als die eigene Elf */
+  bossStrengthFactor: 1.35,
+  /** Belohnung nur bei Sieg (Coins UND Level-up-Punkte in gleicher Höhe) */
+  normalWinReward: 20,
+  bossWinReward: 150,
+} as const;
+
+/**
+ * Eier (V4): brüten durch echte Bewegung aus (GPS-Strecke, solange die App
+ * offen ist). Längere Strecke = bessere Quoten. Die ???-Karte fällt bewusst
+ * nie aus Eiern – sie bleibt exklusiv in Packs.
+ */
+export interface EggType {
+  id: string;
+  label: string;
+  km: number;
+  /** Wie oft dieser Ei-Typ vergeben wird (Gewicht) */
+  weight: number;
+  odds: Array<{ rarity: Rarity; weight: number }>;
+}
+
+export const EGG_TYPES: EggType[] = [
+  {
+    id: 'egg-2',
+    label: '2 km egg',
+    km: 2,
+    weight: 60,
+    odds: [
+      { rarity: 'bronze', weight: 50 },
+      { rarity: 'silber', weight: 35 },
+      { rarity: 'gold', weight: 13 },
+      { rarity: 'legendaer', weight: 2 },
+    ],
+  },
+  {
+    id: 'egg-5',
+    label: '5 km egg',
+    km: 5,
+    weight: 30,
+    odds: [
+      { rarity: 'bronze', weight: 20 },
+      { rarity: 'silber', weight: 45 },
+      { rarity: 'gold', weight: 28 },
+      { rarity: 'legendaer', weight: 7 },
+    ],
+  },
+  {
+    id: 'egg-10',
+    label: '10 km egg',
+    km: 10,
+    weight: 10,
+    odds: [
+      { rarity: 'silber', weight: 30 },
+      { rarity: 'gold', weight: 50 },
+      { rarity: 'legendaer', weight: 20 },
+    ],
+  },
+];
+
 /** Anti-Cheat-Parameter (Kapitel 6) */
 export const ANTI_CHEAT = {
   /** Check-out muss innerhalb Radius × Faktor erfolgen (GPS-Toleranz) */

@@ -11,6 +11,7 @@ import { PacksScreen } from '../features/packs/PacksScreen';
 import { PackOpeningScreen } from '../features/packs/PackOpeningScreen';
 import { ProfileScreen } from '../features/profile/ProfileScreen';
 import { HelpScreen } from '../features/profile/HelpScreen';
+import { PassportScreen } from '../features/profile/PassportScreen';
 import { StartScreen } from '../features/start/StartScreen';
 import { OnboardingScreen } from '../features/onboarding/OnboardingScreen';
 import { colors } from '../ui/theme';
@@ -70,6 +71,7 @@ export function RootNavigator() {
         options={{ gestureEnabled: false, animation: 'fade' }}
       />
       <Stack.Screen name="Help" component={HelpScreen} />
+      <Stack.Screen name="Passport" component={PassportScreen} />
     </Stack.Navigator>
   );
 }

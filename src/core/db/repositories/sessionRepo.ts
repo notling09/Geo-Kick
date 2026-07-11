@@ -62,6 +62,16 @@ export async function finishSession(
   );
 }
 
+/** Anzahl belohnter Sessions an einem Platz (für Erstbesuch-Bonus/Heimplatz). */
+export async function countRewardedSessionsAt(spotId: string): Promise<number> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ n: number }>(
+    'SELECT COUNT(*) AS n FROM sessions WHERE spotId = ? AND endTime IS NOT NULL AND endTime > startTime AND coins > 0',
+    spotId,
+  );
+  return row?.n ?? 0;
+}
+
 export interface VisitedSpot {
   spotId: string;
   name: string;

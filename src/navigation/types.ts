@@ -9,8 +9,9 @@ export type RootStackParamList = {
   MatchLive: undefined;
   PlayerDetail: { playerId: number };
   Friendlies: undefined;
-  PackOpening: { packId: number };
+  PackOpening: { packId?: number; egg?: boolean };
   Help: undefined;
+  Passport: undefined;
 };
 
 export type MainTabParamList = {

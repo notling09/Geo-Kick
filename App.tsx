@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { LoadingScreen } from './src/features/start/LoadingScreen';
 import { useCloudStore } from './src/state/cloudStore';
+import { useEggStore } from './src/state/eggStore';
 import { useGameStore } from './src/state/gameStore';
 import { useLeagueStore } from './src/state/leagueStore';
 import { useSessionStore } from './src/state/sessionStore';
@@ -36,6 +37,7 @@ export default function App() {
           await Promise.all([
             useLeagueStore.getState().hydrate(),
             useSessionStore.getState().hydrate(),
+            useEggStore.getState().hydrate(),
           ]);
           // Cloud-Login läuft im Hintergrund und blockiert den Start nie
           void useCloudStore.getState().init();

@@ -56,6 +56,35 @@ export async function computeAchievements(input: AchievementInput): Promise<Achi
       icon: 'map',
       unlocked: stats.distinctSpots >= 3,
     },
+    // Platz-Pass-Abzeichen (V4)
+    {
+      id: 'passport-5',
+      title: 'Scout',
+      description: 'Discover 5 different pitches',
+      icon: 'map',
+      unlocked: stats.distinctSpots >= 5,
+    },
+    {
+      id: 'passport-10',
+      title: 'Globetrotter',
+      description: 'Discover 10 different pitches',
+      icon: 'map',
+      unlocked: stats.distinctSpots >= 10,
+    },
+    {
+      id: 'passport-25',
+      title: 'Pitch Hunter',
+      description: 'Discover 25 different pitches',
+      icon: 'map',
+      unlocked: stats.distinctSpots >= 25,
+    },
+    {
+      id: 'streak-7',
+      title: 'One Week Wonder',
+      description: 'Check in 7 days in a row',
+      icon: 'flash',
+      unlocked: (await getMetaNumber('bestStreak', 0)) >= 7,
+    },
     {
       id: 'full-ninety',
       title: 'The Full Ninety',

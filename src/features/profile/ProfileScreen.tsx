@@ -38,13 +38,6 @@ const ACHIEVEMENT_ICON: Record<AchievementIcon, React.ComponentType<IconProps>> 
   coin: IconCoin,
 };
 
-function formatLastVisit(ts: number): string {
-  const days = Math.floor((Date.now() - ts) / 86400000);
-  if (days === 0) return 'today';
-  if (days === 1) return 'yesterday';
-  return `${days} days ago`;
-}
-
 export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
   const club = useGameStore((s) => s.club);
   const players = useGameStore((s) => s.players);
@@ -140,29 +133,23 @@ export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
           })}
         </View>
 
-        <SectionTitle>Visited pitches</SectionTitle>
-        {visited.length === 0 ? (
-          <Card>
-            <Text style={styles.aboutText}>
-              No pitches visited yet - check in at a pitch on the map to get started!
+        <SectionTitle>Pitch Passport</SectionTitle>
+        <Card style={styles.visitedCard}>
+          <IconPin size={22} color={colors.pitch} />
+          <View style={styles.visitedInfo}>
+            <Text style={styles.visitedName}>
+              {visited.length} different pitch{visited.length === 1 ? '' : 'es'} discovered
             </Text>
-          </Card>
-        ) : (
-          visited.map((v) => (
-            <Card key={v.spotId} style={styles.visitedCard}>
-              <IconPin size={20} color={colors.pitch} />
-              <View style={styles.visitedInfo}>
-                <Text style={styles.visitedName} numberOfLines={1}>
-                  {v.name}
-                </Text>
-                <Text style={styles.visitedMeta}>
-                  {v.visits} visit{v.visits === 1 ? '' : 's'} · {v.totalMinutes} min · last{' '}
-                  {formatLastVisit(v.lastVisit)}
-                </Text>
-              </View>
-            </Card>
-          ))
-        )}
+            <Text style={styles.visitedMeta}>
+              Badges, daily streak, home ground and all visited pitches
+            </Text>
+          </View>
+        </Card>
+        <GKButton
+          title="Open pitch passport"
+          variant="secondary"
+          onPress={() => navigation.navigate('Passport')}
+        />
 
         <SectionTitle>Friendlies</SectionTitle>
         <Card>

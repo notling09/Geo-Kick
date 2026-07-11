@@ -2,7 +2,7 @@ import React from 'react';
 import { ScrollView, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  BALANCING, LEAGUE_REWARDS, PACK_TYPES, SELL_VALUE, SHOP_PACK_IDS,
+  BALANCING, DISCOVERY, LEAGUE_REWARDS, PACK_TYPES, PITCH_BATTLE, SELL_VALUE, SHOP_PACK_IDS,
 } from '../../core/domain/constants';
 import { GKButton, Card, SectionTitle } from '../../ui/components';
 import { colors, font, spacing } from '../../ui/theme';
@@ -35,6 +35,50 @@ export function HelpScreen({ navigation }: RootScreenProps<'Help'>) {
             Stay honest: check-in and check-out only work near the pitch, mock locations
             are rejected, and a phone that never moves earns nothing. After a session the
             pitch needs a {cooldownMin} minute cooldown.
+          </Text>
+        </Card>
+
+        <SectionTitle>Discovering pitches</SectionTitle>
+        <Card>
+          <Text style={styles.text}>
+            Your Pitch Passport (Profile tab) collects every pitch you visit. The first
+            rewarded session at a new pitch pays +{DISCOVERY.firstVisitBonusCoins} bonus
+            coins, and badges unlock at {DISCOVERY.passportBadges.join(' / ')} different
+            pitches.
+          </Text>
+          <Text style={styles.text}>
+            Check in every day to build a daily streak: +{DISCOVERY.streakBonusPerDay}{' '}
+            coins per streak day (up to +{DISCOVERY.streakBonusMax}). Miss a day and it
+            resets.
+          </Text>
+          <Text style={styles.text}>
+            The pitch you visit most (at least {DISCOVERY.homeMinVisits} times) becomes
+            your home ground - blue pin on the map, +{DISCOVERY.homeBonusCoins} bonus
+            coins per session, and it levels up as you keep coming back.
+          </Text>
+        </Card>
+
+        <SectionTitle>Pitch battles and the pitch of the day</SectionTitle>
+        <Card>
+          <Text style={styles.text}>
+            Every pitch has its own team. Challenge it while you are physically there -
+            once per pitch per day. Winning pays +{PITCH_BATTLE.normalWinReward} coins
+            AND +{PITCH_BATTLE.normalWinReward} level-up points.
+          </Text>
+          <Text style={styles.text}>
+            One pitch per day is special (gold pin): a much stronger boss team waits
+            there. Beat it for +{PITCH_BATTLE.bossWinReward} coins and points - and
+            sessions at that pitch pay double coins all day.
+          </Text>
+        </Card>
+
+        <SectionTitle>Eggs</SectionTitle>
+        <Card>
+          <Text style={styles.text}>
+            Finish a session to find an egg (2, 5 or 10 km). It hatches by real
+            movement: your walking distance counts while the app is open. Longer eggs
+            hatch better players - a 10 km egg can never contain a Bronze player. Hatch
+            it in the Packs tab.
           </Text>
         </Card>
 

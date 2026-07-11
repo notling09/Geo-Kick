@@ -55,6 +55,8 @@ interface GameState {
   sellPlayer: (ownedId: number) => Promise<boolean>;
   setCaptain: (playerId: number) => Promise<void>;
   claimMysteryPlayer: (name: string, position: Position) => Promise<PoolPlayer | null>;
+  /** Einzelnen gezogenen Spieler aufnehmen (Ei-Ausbrüten, V4) */
+  receivePlayer: (poolPlayer: PoolPlayer) => Promise<PackEntry>;
   lineupPlayers: () => Array<OwnedPlayer | null>;
 }
 
@@ -503,6 +505,25 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (!get().players.some((p) => p.id === playerId)) return;
     await metaRepo.setMeta('captainPlayerId', String(playerId));
     set({ captainPlayerId: playerId });
+  },
+
+  /**
+   * Einzelnen Spieler aufnehmen (V4, Ei-Ausbrüten): gleiche Regeln wie beim
+   * Pack – Duplikat = Wahl Punkte/Verkauf, Kader voll = behalten/verkaufen.
+   */
+  receivePlayer: async (poolPlayer) => {
+    const players = await playerRepo.getOwnedPlayers();
+    let entry: PackEntry;
+    if (players.some((o) => o.poolId === poolPlayer.id)) {
+      entry = { pool: poolPlayer, outcome: 'duplicate', coins: SELL_VALUE[poolPlayer.rarity] };
+    } else if (players.length < BALANCING.maxSquadSize) {
+      await playerRepo.addOwnedPlayer(poolPlayer.id);
+      entry = { pool: poolPlayer, outcome: 'added' };
+    } else {
+      entry = { pool: poolPlayer, outcome: 'pending' };
+    }
+    set({ players: await playerRepo.getOwnedPlayers() });
+    return entry;
   },
 
   /** Eigenen Spieler verkaufen (nicht möglich: aufgestellt, Captain oder ???-Karte). */

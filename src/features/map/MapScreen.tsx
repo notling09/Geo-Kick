@@ -20,15 +20,20 @@ import {
 } from '@maplibre/maplibre-react-native';
 import * as Location from 'expo-location';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BALANCING, FITNESS_BONUS_COINS, OBJECTIVE_BONUS_COINS } from '../../core/domain/constants';
+import {
+  BALANCING, FITNESS_BONUS_COINS, OBJECTIVE_BONUS_COINS, PITCH_BATTLE,
+} from '../../core/domain/constants';
 import type { Spot } from '../../core/domain/types';
 import { circlePolygon, distanceMeters } from '../../core/services/geo';
 import { getMotionStats } from '../../core/services/motion';
+import { useBattleStore, type BattleResult } from '../../state/battleStore';
+import { useEggStore } from '../../state/eggStore';
 import { useSessionStore, type CheckInResult } from '../../state/sessionStore';
 import { useGameStore } from '../../state/gameStore';
 import { GKButton, Card, CoinBadge, IconCircleButton } from '../../ui/components';
 import { IconCheck, IconLocate, IconRefresh, MapPin } from '../../ui/icons';
 import { colors, font, radius, spacing } from '../../ui/theme';
+import type { TabScreenProps } from '../../navigation/types';
 
 /**
  * Map view (chapter 3.1): OpenStreetMap data rendered with MapLibre - no API
@@ -59,13 +64,31 @@ function formatDuration(ms: number): string {
   return `${min}:${String(sec).padStart(2, '0')}`;
 }
 
-export function MapScreen() {
+const BATTLE_ERROR_TEXT: Record<Exclude<BattleResult, { ok: true }>['reason'], string> = {
+  permission: 'Location permission missing. Please allow it in the settings.',
+  mocked: 'Simulated GPS position detected - battle blocked.',
+  too_far: 'You need to be at the pitch to challenge its team.',
+  already_fought: 'You already challenged this pitch today. Come back tomorrow!',
+  no_location: 'Could not determine your location.',
+  no_club: 'No club found.',
+};
+
+export function MapScreen({ navigation }: TabScreenProps<'Map'>) {
   const cameraRef = useRef<CameraRef>(null);
   const {
-    spots, activeSession, objectives, osmLoading, osmError,
+    spots, activeSession, objectives, osmLoading, osmError, homeSpotId,
     hydrate, refreshOsmSpots, addUserSpot, checkIn, checkOut, toggleObjective,
   } = useSessionStore();
   const coins = useGameStore((s) => s.club?.coins ?? 0);
+  const battle = useBattleStore();
+  const [fighting, setFighting] = useState(false);
+
+  // Der besondere Boss-/Gold-Platz des Tages (V4)
+  const specialSpotId = useMemo(
+    () => battle.specialSpotId(spots),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [spots, battle.day],
+  );
 
   const [myPos, setMyPos] = useState<{ latitude: number; longitude: number } | null>(null);
   const [selectedSpotId, setSelectedSpotId] = useState<string | null>(null);
@@ -101,6 +124,8 @@ export function MapScreen() {
       });
       const coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
       setMyPos(coords);
+      // Ei-Tracking läuft, sobald die Berechtigung da ist (V4)
+      void useEggStore.getState().ensureTracking();
       cameraRef.current?.easeTo({
         center: [coords.longitude, coords.latitude],
         zoom: 14,
@@ -114,11 +139,13 @@ export function MapScreen() {
 
   useEffect(() => {
     hydrate();
+    battle.hydrate();
     (async () => {
       const coords = await locate();
       // Load pitches from OSM automatically on first open
       if (coords) await refreshOsmSpots(coords.latitude, coords.longitude);
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrate, locate, refreshOsmSpots]);
 
   const onLocate = async () => {
@@ -161,13 +188,19 @@ export function MapScreen() {
   const onCheckOut = async () => {
     const result = await checkOut();
     if (result.ok) {
-      const bonusLine =
-        result.objectiveBonus > 0
-          ? `\n(includes +${result.objectiveBonus} objective bonus)`
-          : '';
+      const lines: string[] = [];
+      if (result.doubled) lines.push('Pitch of the day: session coins doubled!');
+      if (result.objectiveBonus > 0) lines.push(`Objectives: +${result.objectiveBonus}`);
+      if (result.firstVisitBonus > 0) lines.push(`New pitch discovered: +${result.firstVisitBonus}`);
+      if (result.homeBonus > 0) lines.push(`Home ground: +${result.homeBonus}`);
+      if (result.streakBonus > 0) {
+        lines.push(`Daily streak day ${result.streak}: +${result.streakBonus}`);
+      }
+      if (result.eggLabel) lines.push(`You found a ${result.eggLabel}! Walk to hatch it (Packs tab).`);
       Alert.alert(
         'Session complete!',
-        `${result.durationMinutes} minutes at the pitch.\nYou earned ${result.coins} coins and 1 pack!${bonusLine}`,
+        `${result.durationMinutes} minutes at the pitch.\nYou earned ${result.coins} coins and 1 pack!` +
+          (lines.length > 0 ? `\n\n${lines.join('\n')}` : ''),
       );
     } else if (result.reason === 'too_short') {
       Alert.alert(
@@ -189,6 +222,24 @@ export function MapScreen() {
         'No reward',
         'The motion sensor detected no movement at all during this session - session closed without a reward.',
       );
+    }
+  };
+
+  /** V4: Gegner-Team des Platzes herausfordern (nur vor Ort, 1x pro Tag). */
+  const onFight = async (spot: Spot) => {
+    if (fighting) return;
+    setFighting(true);
+    try {
+      const isBoss = spot.id === specialSpotId;
+      const result = await battle.fight(spot, isBoss);
+      if (result.ok) {
+        navigation.navigate('MatchLive');
+      } else {
+        const extra = result.detail ? ` (${result.detail})` : '';
+        Alert.alert('Battle not possible', BATTLE_ERROR_TEXT[result.reason] + extra);
+      }
+    } finally {
+      setFighting(false);
     }
   };
 
@@ -258,11 +309,16 @@ export function MapScreen() {
           )}
           {spots.map((spot) => {
             const onCooldown = spot.cooldownUntil > now;
+            // V4: Gold = besonderer Platz des Tages, Blau = Heimplatz
             const pinColor = onCooldown
               ? '#9BA6B2'
-              : spot.source === 'user'
-                ? colors.accent
-                : colors.pitch;
+              : spot.id === specialSpotId
+                ? colors.gold
+                : spot.id === homeSpotId
+                  ? colors.sky
+                  : spot.source === 'user'
+                    ? colors.accent
+                    : colors.pitch;
             return (
               <Marker
                 key={spot.id}
@@ -372,7 +428,15 @@ export function MapScreen() {
 
       {!activeSession && selectedSpot && (
         <Card style={styles.bottomCard}>
-          <Text style={styles.spotName}>{selectedSpot.name}</Text>
+          <Text style={styles.spotName}>
+            {selectedSpot.name}
+            {selectedSpot.id === homeSpotId ? '  ·  HOME' : ''}
+          </Text>
+          {selectedSpot.id === specialSpotId && (
+            <Text style={styles.specialText}>
+              Pitch of the day: boss team waiting + double session coins!
+            </Text>
+          )}
           <Text style={styles.spotMeta}>
             {selectedSpot.source === 'user' ? 'Added by you · ' : 'From OpenStreetMap · '}
             {spotDistance !== null ? `${spotDistance} m away · ` : ''}
@@ -386,6 +450,30 @@ export function MapScreen() {
           ) : (
             <GKButton title="Check in" onPress={() => onCheckIn(selectedSpot)} />
           )}
+          {(() => {
+            // V4 Platz-Kampf: Gegner-Team + Kampf-Button (1x pro Platz und Tag)
+            const isBoss = selectedSpot.id === specialSpotId;
+            const opponent = battle.opponentFor(selectedSpot, isBoss);
+            const reward = isBoss ? PITCH_BATTLE.bossWinReward : PITCH_BATTLE.normalWinReward;
+            return (
+              <View style={styles.battleBox}>
+                <Text style={[styles.battleText, isBoss && styles.battleBossText]}>
+                  {isBoss ? 'BOSS: ' : 'Pitch team: '}
+                  {opponent.name} · strength {opponent.strength}
+                </Text>
+                {battle.canFight(selectedSpot.id) ? (
+                  <GKButton
+                    title={`Challenge on-site (win +${reward} coins & points)`}
+                    variant="secondary"
+                    loading={fighting}
+                    onPress={() => onFight(selectedSpot)}
+                  />
+                ) : (
+                  <Text style={styles.spotMeta}>Already challenged today - back tomorrow!</Text>
+                )}
+              </View>
+            );
+          })()}
         </Card>
       )}
 
@@ -486,6 +574,28 @@ const styles = StyleSheet.create({
     fontSize: font.body,
     fontWeight: '700',
     color: colors.accentDark,
+  },
+  specialText: {
+    fontSize: font.small,
+    fontWeight: '800',
+    color: colors.accentDark,
+    marginBottom: 4,
+  },
+  battleBox: {
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+  },
+  battleText: {
+    fontSize: font.small,
+    fontWeight: '700',
+    color: colors.ink,
+    marginBottom: spacing.sm,
+  },
+  battleBossText: {
+    color: colors.accentDark,
+    fontWeight: '900',
   },
   sessionTimer: {
     fontSize: 40,

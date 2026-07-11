@@ -1,4 +1,4 @@
-import { BALANCING, PACK_TYPES, type PackType } from '../domain/constants';
+import { BALANCING, PACK_TYPES, type EggType, type PackType } from '../domain/constants';
 import type { PoolPlayer, Rarity } from '../domain/types';
 import { pick, pickWeighted } from './random';
 
@@ -74,6 +74,21 @@ export function rollPackBonus(packType: PackType): number {
   return pickWeighted(
     steps.map((value, i) => ({ value, weight: steps.length - i })),
   );
+}
+
+/**
+ * Ei-Ausbrüten (V4): ein einzelner Spieler mit den Quoten des Ei-Typs
+ * (längere Strecke = bessere Quoten). Die ???-Karte fällt nie aus Eiern.
+ */
+export function drawEggPlayer(pool: PoolPlayer[], eggType: EggType): PoolPlayer {
+  const drawable = pool.filter(
+    (p) => !p.isFiller && !p.isStarterChoice && p.rarity !== 'geheim',
+  );
+  const rarity = pickWeighted(
+    eggType.odds.map((o) => ({ value: o.rarity, weight: o.weight })),
+  );
+  const candidates = drawable.filter((p) => p.rarity === rarity);
+  return pick(candidates.length > 0 ? candidates : drawable);
 }
 
 /** Pack-Typ aus dem gespeicherten source-Feld ableiten. */

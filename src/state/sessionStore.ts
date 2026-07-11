@@ -1,10 +1,11 @@
 import * as Location from 'expo-location';
 import { create } from 'zustand';
 import {
-  ANTI_CHEAT, BALANCING, FITNESS_BONUS_COINS, FITNESS_OBJECTIVES, OBJECTIVE_BONUS_COINS,
-  SKILL_OBJECTIVES, SKILL_OBJECTIVES_PER_SESSION,
+  ANTI_CHEAT, BALANCING, DISCOVERY, FITNESS_BONUS_COINS, FITNESS_OBJECTIVES,
+  OBJECTIVE_BONUS_COINS, SKILL_OBJECTIVES, SKILL_OBJECTIVES_PER_SESSION,
 } from '../core/domain/constants';
 import type { Session, Spot } from '../core/domain/types';
+import { dayKey, specialSpotIdForDay } from '../core/engine/pitchBattle';
 import { shuffle } from '../core/engine/random';
 import { calculateReward } from '../core/engine/rewards';
 import { distanceMeters } from '../core/services/geo';
@@ -13,6 +14,7 @@ import { fetchNearbyPitches } from '../core/services/overpass';
 import * as metaRepo from '../core/db/repositories/metaRepo';
 import * as sessionRepo from '../core/db/repositories/sessionRepo';
 import * as spotRepo from '../core/db/repositories/spotRepo';
+import { useEggStore } from './eggStore';
 import { useGameStore } from './gameStore';
 
 /**
@@ -37,6 +39,17 @@ export type CheckOutResult =
       objectiveBonus: number;
       packGranted: boolean;
       durationMinutes: number;
+      /** V4: Erstbesuch-Bonus (Platz-Pass), 0 wenn Platz schon bekannt */
+      firstVisitBonus: number;
+      /** V4: Bonus am eigenen Heimplatz */
+      homeBonus: number;
+      /** V4: aktuelle tägliche Serie + Bonus (0, wenn heute schon gezählt) */
+      streak: number;
+      streakBonus: number;
+      /** V4: Session am besonderen Platz des Tages → Basis-Coins verdoppelt */
+      doubled: boolean;
+      /** V4: Label des neu erhaltenen Eis (null = schon eins aktiv) */
+      eggLabel: string | null;
     }
   | {
       ok: false;
@@ -61,6 +74,8 @@ interface SessionState {
   objectives: SessionObjective[];
   osmLoading: boolean;
   osmError: string | null;
+  /** V4: Platz mit den meisten Besuchen ('' = noch keiner qualifiziert) */
+  homeSpotId: string;
 
   hydrate: () => Promise<void>;
   toggleObjective: (index: number) => Promise<void>;
@@ -111,12 +126,27 @@ async function loadObjectives(): Promise<SessionObjective[]> {
   }
 }
 
+/**
+ * Heimplatz (V4) neu bestimmen: der Platz mit den meisten Besuchen (ab
+ * DISCOVERY.homeMinVisits); bei Gleichstand der zuletzt besuchte.
+ */
+async function recomputeHomeSpot(): Promise<string> {
+  const visited = await sessionRepo.getVisitedSpots();
+  const top = visited
+    .filter((v) => v.visits >= DISCOVERY.homeMinVisits)
+    .sort((a, b) => b.visits - a.visits || b.lastVisit - a.lastVisit)[0];
+  const homeSpotId = top?.spotId ?? '';
+  await metaRepo.setMeta('homeSpotId', homeSpotId);
+  return homeSpotId;
+}
+
 export const useSessionStore = create<SessionState>((set, get) => ({
   spots: [],
   activeSession: null,
   objectives: [],
   osmLoading: false,
   osmError: null,
+  homeSpotId: '',
 
   hydrate: async () => {
     const activeSession = await sessionRepo.getActiveSession();
@@ -128,6 +158,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       spots: await spotRepo.getSpots(),
       activeSession,
       objectives: activeSession ? await loadObjectives() : [],
+      homeSpotId: (await metaRepo.getMeta('homeSpotId')) ?? '',
     });
   },
 
@@ -292,7 +323,38 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         o.kind === 'activeMs' ? motion.movedMs >= o.target : motion.sprints >= o.target;
       return achieved ? sum + o.bonus : sum;
     }, 0);
-    const totalCoins = reward.coins + objectiveBonus;
+
+    // V4: Session am besonderen Platz des Tages → Basis-Coins verdoppelt
+    const specialId = specialSpotIdForDay(get().spots.map((s) => s.id), dayKey());
+    const doubled = session.spotId === specialId;
+    const baseCoins = reward.coins * (doubled ? DISCOVERY.specialDoubleFactor : 1);
+
+    // V4 Platz-Pass: erste belohnte Session an einem neuen Platz
+    const priorVisits = await sessionRepo.countRewardedSessionsAt(session.spotId);
+    const firstVisitBonus = priorVisits === 0 ? DISCOVERY.firstVisitBonusCoins : 0;
+
+    // V4 Heimplatz: kleiner Bonus für Sessions am eigenen Heimstadion
+    const homeBonus =
+      get().homeSpotId !== '' && get().homeSpotId === session.spotId
+        ? DISCOVERY.homeBonusCoins
+        : 0;
+
+    // V4 Tägliche Serie: die erste belohnte Session des Tages zählt
+    const today = dayKey();
+    const lastDay = await metaRepo.getMeta('streakDay');
+    let streak = await metaRepo.getMetaNumber('streakCount', 0);
+    let streakBonus = 0;
+    if (lastDay !== today) {
+      const yesterday = dayKey(new Date(Date.now() - 86400000));
+      streak = lastDay === yesterday ? streak + 1 : 1;
+      await metaRepo.setMeta('streakDay', today);
+      await metaRepo.setMeta('streakCount', String(streak));
+      const best = await metaRepo.getMetaNumber('bestStreak', 0);
+      if (streak > best) await metaRepo.setMeta('bestStreak', String(streak));
+      streakBonus = Math.min(streak * DISCOVERY.streakBonusPerDay, DISCOVERY.streakBonusMax);
+    }
+
+    const totalCoins = baseCoins + objectiveBonus + firstVisitBonus + homeBonus + streakBonus;
 
     await sessionRepo.finishSession(session.id, now, totalCoins, reward.pack);
     await sessionRepo.voidOrphanOpenSessions();
@@ -304,8 +366,24 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const game = useGameStore.getState();
     await game.addCoins(totalCoins);
     if (reward.pack) await game.grantPack('session');
-    set({ spots: await spotRepo.getSpots() });
 
-    return { ok: true, coins: totalCoins, objectiveBonus, packGranted: reward.pack, durationMinutes };
+    // V4: Heimplatz neu bestimmen und ggf. ein neues Ei vergeben
+    const homeSpotId = await recomputeHomeSpot();
+    const eggType = await useEggStore.getState().grantEggIfNone();
+    set({ spots: await spotRepo.getSpots(), homeSpotId });
+
+    return {
+      ok: true,
+      coins: totalCoins,
+      objectiveBonus,
+      packGranted: reward.pack,
+      durationMinutes,
+      firstVisitBonus,
+      homeBonus,
+      streak,
+      streakBonus,
+      doubled,
+      eggLabel: eggType?.label ?? null,
+    };
   },
 }));
