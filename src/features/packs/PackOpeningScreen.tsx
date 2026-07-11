@@ -3,7 +3,7 @@ import {
   Alert, Animated, Dimensions, Easing, FlatList, KeyboardAvoidingView, Modal, Platform,
   Pressable, StyleSheet, Text, TextInput, View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   POSITION_LABEL, POSITION_SHORT, RARITY_COLOR, RARITY_LABEL, SELL_VALUE,
 } from '../../core/domain/constants';
@@ -54,6 +54,7 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
   const packType = packTypeFromSource(
     packs.find((p) => p.id === packId)?.source ?? 'session',
   );
+  const insets = useSafeAreaInsets();
 
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [bonus, setBonus] = useState(0);
@@ -503,7 +504,7 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
       {/* Kader voll: eigenen Spieler zum Verkauf wählen */}
       <Modal visible={pickerOpen} transparent animationType="slide">
         <View style={styles.modalBackdrop}>
-          <View style={styles.modalSheet}>
+          <View style={[styles.modalSheet, { paddingBottom: insets.bottom + spacing.md }]}>
             <Text style={styles.pickerTitle}>
               Sell a player to keep {current?.pool.name}
             </Text>
@@ -533,7 +534,12 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
                 <Text style={styles.pickerMeta}>No sellable players - everyone is in your XI.</Text>
               }
             />
-            <GKButton title="Back" variant="ghost" onPress={() => setPickerOpen(false)} />
+            <GKButton
+              title="Back"
+              variant="secondary"
+              style={styles.pickerBack}
+              onPress={() => setPickerOpen(false)}
+            />
           </View>
         </View>
       </Modal>
@@ -750,7 +756,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   pickerList: {
-    maxHeight: 380,
+    maxHeight: 300,
+  },
+  pickerBack: {
+    marginTop: spacing.sm,
   },
   pickerRow: {
     flexDirection: 'row',

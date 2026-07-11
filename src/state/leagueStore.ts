@@ -51,9 +51,16 @@ interface LeagueStateStore {
   suspensions: Suspension[];
   /** Meister-Feier nach Platz 1 am Saisonende (Pokal-Animation) */
   championCelebration: { clubName: string; division: number; captainPlayerId: number | null } | null;
+  /**
+   * Feier wartet hier, bis der Live-Ticker durchgelaufen ist: das Ergebnis
+   * steht zwar sofort fest, gezeigt (und gehört) wird der Pokal aber erst
+   * nach dem Spiel (revealCelebration beim Verlassen der Live-Ansicht).
+   */
+  pendingCelebration: LeagueStateStore['championCelebration'];
 
   hydrate: () => Promise<void>;
   acknowledgeCelebration: () => void;
+  revealCelebration: () => void;
   matchReady: () => boolean;
   msUntilNextMatch: () => number;
   /** Simuliert den kompletten Spieltag und persistiert ihn; Live-Ansicht spielt danach ab. */
@@ -95,8 +102,16 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
   lastPlayedMatch: null,
   suspensions: [],
   championCelebration: null,
+  pendingCelebration: null,
 
   acknowledgeCelebration: () => set({ championCelebration: null }),
+
+  revealCelebration: () =>
+    set((s) =>
+      s.pendingCelebration
+        ? { championCelebration: s.pendingCelebration, pendingCelebration: null }
+        : {},
+    ),
 
   hydrate: async () => {
     const data = await loadLeagueData();
@@ -276,9 +291,10 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       if (outcome.finalRank === 1) {
         await game.addCoins(firstPrize);
         message += ` Season prize: ${firstPrize} coins!`;
-        // Meister: Pokal-Animation mit dem Captain
+        // Meister: Pokal-Animation mit dem Captain – aber erst NACH dem
+        // Live-Ticker zeigen (revealCelebration in der Live-Ansicht)
         set({
-          championCelebration: {
+          pendingCelebration: {
             clubName: club.name,
             division: club.division,
             captainPlayerId: game.captainPlayerId,

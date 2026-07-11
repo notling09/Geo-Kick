@@ -46,6 +46,10 @@ function StatRow({ label, home, away }: { label: string; home: string | number; 
 export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
   const played = useLeagueStore((s) => s.lastPlayedMatch);
   const [minute, setMinute] = useState(0);
+
+  // Wartende Meister-Feier erst freigeben, wenn die Live-Ansicht zugeht
+  // (Continue-Button oder Hardware-Back) – nie schon vor dem Abpfiff
+  useEffect(() => () => useLeagueStore.getState().revealCelebration(), []);
   const [skipped, setSkipped] = useState(false);
   const listRef = useRef<FlatList<MatchEvent>>(null);
 
