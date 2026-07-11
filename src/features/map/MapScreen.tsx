@@ -454,7 +454,9 @@ export function MapScreen({ navigation }: TabScreenProps<'Map'>) {
             // V4 Platz-Kampf: Gegner-Team + Kampf-Button (1x pro Platz und Tag)
             const isBoss = selectedSpot.id === specialSpotId;
             const opponent = battle.opponentFor(selectedSpot, isBoss);
-            const reward = isBoss ? PITCH_BATTLE.bossWinReward : PITCH_BATTLE.normalWinReward;
+            const rewardLabel = isBoss
+              ? `win +${PITCH_BATTLE.bossWinReward} coins & points`
+              : 'win a session pack';
             return (
               <View style={styles.battleBox}>
                 <Text style={[styles.battleText, isBoss && styles.battleBossText]}>
@@ -463,7 +465,7 @@ export function MapScreen({ navigation }: TabScreenProps<'Map'>) {
                 </Text>
                 {battle.canFight(selectedSpot.id) ? (
                   <GKButton
-                    title={`Challenge on-site (win +${reward} coins & points)`}
+                    title={`Challenge on-site (${rewardLabel})`}
                     variant="secondary"
                     loading={fighting}
                     onPress={() => onFight(selectedSpot)}

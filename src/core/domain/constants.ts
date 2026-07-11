@@ -113,8 +113,9 @@ export const PITCH_BATTLE = {
   normalStrengthRange: [0.85, 1.1] as [number, number],
   /** Boss des Tages: deutlich stärker als die eigene Elf */
   bossStrengthFactor: 1.35,
-  /** Belohnung nur bei Sieg (Coins UND Level-up-Punkte in gleicher Höhe) */
-  normalWinReward: 20,
+  /** Normaler Kampf: Sieg = 1 Session-Pack, Remis = 10 Coins, Niederlage = nichts */
+  drawCoins: 10,
+  /** Boss: Sieg = Coins UND Level-up-Punkte in dieser Höhe */
   bossWinReward: 150,
 } as const;
 
@@ -134,9 +135,9 @@ export interface EggType {
 
 export const EGG_TYPES: EggType[] = [
   {
-    id: 'egg-2',
-    label: '2 km egg',
-    km: 2,
+    id: 'egg-1',
+    label: '1 km egg',
+    km: 1,
     weight: 60,
     odds: [
       { rarity: 'bronze', weight: 50 },
@@ -146,9 +147,9 @@ export const EGG_TYPES: EggType[] = [
     ],
   },
   {
-    id: 'egg-5',
-    label: '5 km egg',
-    km: 5,
+    id: 'egg-3',
+    label: '3 km egg',
+    km: 3,
     weight: 30,
     odds: [
       { rarity: 'bronze', weight: 20 },
@@ -158,9 +159,9 @@ export const EGG_TYPES: EggType[] = [
     ],
   },
   {
-    id: 'egg-10',
-    label: '10 km egg',
-    km: 10,
+    id: 'egg-5',
+    label: '5 km egg',
+    km: 5,
     weight: 10,
     odds: [
       { rarity: 'silber', weight: 30 },

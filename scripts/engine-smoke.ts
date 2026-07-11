@@ -103,14 +103,15 @@ check('level-up costs by rating',
   levelUpCost(90) === 250 && levelUpCost(98) === 250 &&
   levelUpCost(99) === null);
 
-// V4: Eier – Quoten je Ei-Typ; das 10-km-Ei enthält nie Bronze, nie geheim
-const egg10 = EGG_TYPES.find(t => t.id === 'egg-10')!;
+// V4: Eier – Quoten je Ei-Typ; das 5-km-Ei enthält nie Bronze, nie geheim
+const egg5 = EGG_TYPES.find(t => t.id === 'egg-5')!;
 const eggCount: Record<string, number> = { bronze: 0, silber: 0, gold: 0, legendaer: 0, geheim: 0 };
 for (let i = 0; i < 2000; i++) {
-  eggCount[drawEggPlayer(pool, egg10).rarity]++;
+  eggCount[drawEggPlayer(pool, egg5).rarity]++;
 }
-check('10km egg: no bronze, no geheim', eggCount.bronze === 0 && eggCount.geheim === 0, JSON.stringify(eggCount));
-check('10km egg: legendaer ~20%', Math.abs(eggCount.legendaer / 2000 - 0.2) < 0.04);
+check('5km egg: no bronze, no geheim', eggCount.bronze === 0 && eggCount.geheim === 0, JSON.stringify(eggCount));
+check('5km egg: legendaer ~20%', Math.abs(eggCount.legendaer / 2000 - 0.2) < 0.04);
+check('egg distances 1/3/5 km', EGG_TYPES.map(t => t.km).join(',') === '1,3,5');
 
 // V4: Platz-Kämpfe – deterministisch je Platz/Tag, Boss deutlich stärker
 const day = dayKey(new Date(2026, 6, 12));

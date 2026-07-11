@@ -45,10 +45,10 @@ aufsteigst. Komplett offline, kein Backend, kein Echtgeld.
   Abzeichen (5/10/25/50 Plätze), tägliche Check-in-Serie mit wachsendem Bonus
   und ein Heimplatz (meistbesuchter Platz: blauer Pin, Level, Bonus-Coins)
 - **Platz-Kämpfe**: an jedem Platz wartet ein fiktives Gegner-Team, das man nur
-  vor Ort herausfordern kann (1x pro Platz und Tag, Sieg = Coins + Punkte);
-  einmal am Tag ist ein Platz der Gold-Platz mit starkem Boss-Team, großer
-  Belohnung und doppelten Session-Coins
-- **Eier**: nach Sessions gefundene Eier (2/5/10 km) brüten durch echte
+  vor Ort herausfordern kann (1x pro Platz und Tag; Sieg = Session-Pack,
+  Remis = 10 Coins); einmal am Tag ist ein Platz der Gold-Platz mit starkem
+  Boss-Team, großer Belohnung und doppelten Session-Coins
+- **Eier**: nach Sessions gefundene Eier (1/3/5 km) brüten durch echte
   GPS-Strecke aus (zählt, solange die App offen ist) und schlüpfen zu
   Spielern - längere Strecke, bessere Quoten
 - **Lokale Speicherung** aller Daten in SQLite (expo-sqlite)

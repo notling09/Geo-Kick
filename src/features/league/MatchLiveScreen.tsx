@@ -160,9 +160,11 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
           <StatRow label="Fouls" home={stats.home.fouls} away={stats.away.fouls} />
           <StatRow label="Yellow cards" home={stats.home.yellows} away={stats.away.yellows} />
           <StatRow label="Red cards" home={stats.home.reds} away={stats.away.reds} />
-          {coinReward && coinReward.total > 0 && (
+          {coinReward && coinReward.breakdown.length > 0 && (
             <Text style={styles.coinLine}>
-              +{coinReward.total} coins ({coinReward.breakdown.join(' · ')})
+              {coinReward.total > 0
+                ? `+${coinReward.total} coins (${coinReward.breakdown.join(' · ')})`
+                : coinReward.breakdown.join(' · ')}
             </Text>
           )}
         </Card>

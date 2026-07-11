@@ -69,6 +69,18 @@ export const useEggStore = create<EggState>((set, get) => ({
         egg = null;
       }
     }
+    // Ei-Typ validieren (Distanzen wurden auf 1/3/5 km geändert): unbekannte
+    // Typen verwerfen, Ziel an die aktuelle km-Zahl angleichen
+    if (egg) {
+      const type = EGG_TYPES.find((t) => t.id === egg?.typeId);
+      if (!type) {
+        egg = null;
+        await persistEgg(null);
+      } else if (egg.targetMeters !== type.km * 1000) {
+        egg = { ...egg, targetMeters: type.km * 1000 };
+        await persistEgg(egg);
+      }
+    }
     set({ egg });
     if (egg && egg.progressMeters < egg.targetMeters) {
       await startEggTracking(onMeters);

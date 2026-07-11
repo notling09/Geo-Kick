@@ -62,8 +62,8 @@ export function HelpScreen({ navigation }: RootScreenProps<'Help'>) {
         <Card>
           <Text style={styles.text}>
             Every pitch has its own team. Challenge it while you are physically there -
-            once per pitch per day. Winning pays +{PITCH_BATTLE.normalWinReward} coins
-            AND +{PITCH_BATTLE.normalWinReward} level-up points.
+            once per pitch per day. Win a session pack, get {PITCH_BATTLE.drawCoins} coins
+            for a draw, nothing for a loss.
           </Text>
           <Text style={styles.text}>
             One pitch per day is special (gold pin): a much stronger boss team waits
@@ -75,9 +75,9 @@ export function HelpScreen({ navigation }: RootScreenProps<'Help'>) {
         <SectionTitle>Eggs</SectionTitle>
         <Card>
           <Text style={styles.text}>
-            Finish a session to find an egg (2, 5 or 10 km). It hatches by real
+            Finish a session to find an egg (1, 3 or 5 km). It hatches by real
             movement: your walking distance counts while the app is open. Longer eggs
-            hatch better players - a 10 km egg can never contain a Bronze player. Hatch
+            hatch better players - a 5 km egg can never contain a Bronze player. Hatch
             it in the Packs tab.
           </Text>
         </Card>

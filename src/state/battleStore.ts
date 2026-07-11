@@ -22,7 +22,7 @@ import { useLeagueStore, type PlayedUserMatch } from './leagueStore';
  */
 
 export type BattleResult =
-  | { ok: true; played: PlayedUserMatch; won: boolean; reward: number }
+  | { ok: true; played: PlayedUserMatch; won: boolean }
   | {
       ok: false;
       reason: 'permission' | 'mocked' | 'too_far' | 'already_fought' | 'no_location' | 'no_club';
@@ -142,20 +142,25 @@ export const useBattleStore = create<BattleState>((set, get) => ({
     await persist(state.day, foughtSpotIds);
     set({ day: state.day, foughtSpotIds });
 
-    // Belohnung nur bei Sieg: Coins UND Level-up-Punkte in gleicher Höhe
+    // Belohnung: Sieg = Session-Pack (Boss: Coins+Punkte), Remis = 10 Coins,
+    // Niederlage = nichts
     const won = result.homeGoals > result.awayGoals;
-    const reward = isBoss ? PITCH_BATTLE.bossWinReward : PITCH_BATTLE.normalWinReward;
+    const draw = result.homeGoals === result.awayGoals;
     let coinReward: PlayedUserMatch['coinReward'];
-    if (won) {
+    if (won && isBoss) {
+      const reward = PITCH_BATTLE.bossWinReward;
       await game.addCoins(reward);
       await game.addLevelPoints(reward);
       coinReward = {
         total: reward,
-        breakdown: [
-          isBoss ? `Boss beaten +${reward} coins` : `Pitch battle won +${reward} coins`,
-          `+${reward} level-up points`,
-        ],
+        breakdown: [`Boss beaten +${reward} coins`, `+${reward} level-up points`],
       };
+    } else if (won) {
+      await game.grantPack('session');
+      coinReward = { total: 0, breakdown: ['Pitch battle won: +1 session pack'] };
+    } else if (draw) {
+      await game.addCoins(PITCH_BATTLE.drawCoins);
+      coinReward = { total: PITCH_BATTLE.drawCoins, breakdown: ['Draw'] };
     }
 
     const played: PlayedUserMatch = {
@@ -181,6 +186,6 @@ export const useBattleStore = create<BattleState>((set, get) => ({
     };
     // Live-Ticker-Replay über den bestehenden MatchLive-Screen
     useLeagueStore.setState({ lastPlayedMatch: played });
-    return { ok: true, played, won, reward: won ? reward : 0 };
+    return { ok: true, played, won };
   },
 }));
