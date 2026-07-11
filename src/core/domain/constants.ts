@@ -113,10 +113,14 @@ export const PITCH_BATTLE = {
   normalStrengthRange: [0.85, 1.1] as [number, number],
   /** Boss des Tages: deutlich stärker als die eigene Elf */
   bossStrengthFactor: 1.35,
-  /** Normaler Kampf: Sieg = 1 Session-Pack, Remis = 10 Coins, Niederlage = nichts */
-  drawCoins: 10,
-  /** Boss: Sieg = Coins UND Level-up-Punkte in dieser Höhe */
+  /**
+   * Kein Remis: nach 90 Minuten geht es ins Elfmeterschießen (Best-of-5,
+   * dann Sudden Death). Sieg = 1 Session-Pack (Boss: Coins UND Punkte in
+   * bossWinReward-Höhe), Niederlage = nichts.
+   */
   bossWinReward: 150,
+  /** Elfmeter: Chance zu treffen (Torwart rät 1 von 5 Ecken → 80 %) */
+  penaltyTargets: 5,
 } as const;
 
 /**

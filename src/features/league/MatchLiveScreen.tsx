@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { MatchEvent } from '../../core/domain/types';
+import { useBattleStore } from '../../state/battleStore';
 import { useLeagueStore } from '../../state/leagueStore';
 import { GKButton, Card } from '../../ui/components';
 import { Crest } from '../../ui/Crest';
@@ -105,6 +106,21 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
     }
   }, [minute]);
 
+  // Platz-Kampf endete unentschieden (V4): nach dem Abpfiff automatisch
+  // weiter ins Elfmeterschießen (kein Remis bei Platz-Kämpfen). Gilt NUR
+  // für Platz-Kampf-Matches, nie für Liga-Spiele oder Friendlies.
+  const isBattleMatch = played?.match.awayId.startsWith('battle-') ?? false;
+  const pendingShootoutRaw = useBattleStore((s) => s.pendingShootout);
+  const pendingShootout = isBattleMatch ? pendingShootoutRaw : null;
+  const shootoutStarted = useRef(false);
+  useEffect(() => {
+    if (minute >= 90 && pendingShootout && !shootoutStarted.current) {
+      shootoutStarted.current = true;
+      const t = setTimeout(() => navigation.replace('Shootout'), 2200);
+      return () => clearTimeout(t);
+    }
+  }, [minute, pendingShootout, navigation]);
+
   if (!played) {
     return (
       <SafeAreaView style={styles.safe}>
@@ -191,10 +207,18 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
 
       <View style={styles.footer}>
         {finished ? (
-          <GKButton
-            title={`Continue (final score ${match.homeGoals}:${match.awayGoals})`}
-            onPress={() => navigation.goBack()}
-          />
+          pendingShootout ? (
+            <GKButton
+              title="Penalty shootout!"
+              variant="secondary"
+              onPress={() => navigation.replace('Shootout')}
+            />
+          ) : (
+            <GKButton
+              title={`Continue (final score ${match.homeGoals}:${match.awayGoals})`}
+              onPress={() => navigation.goBack()}
+            />
+          )
         ) : (
           <GKButton title="Skip" variant="ghost" onPress={() => setSkipped(true)} />
         )}

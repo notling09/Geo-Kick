@@ -29,9 +29,21 @@ export type BattleResult =
       detail?: string;
     };
 
+/** Remis nach 90 Min → Elfmeterschießen (V4): alles, was der Screen braucht. */
+export interface ShootoutSetup {
+  isBoss: boolean;
+  opponentName: string;
+  /** Eigene Schützen (Start-Elf, beste Abschluss-Werte zuerst) */
+  userShooters: string[];
+  /** Gegnerische Schützen (derselbe Kader wie im Ticker) */
+  oppShooters: string[];
+}
+
 interface BattleState {
   day: string;
   foughtSpotIds: string[];
+  /** Steht ein Elfmeterschießen aus (Kampf endete 90 Min unentschieden)? */
+  pendingShootout: ShootoutSetup | null;
 
   hydrate: () => Promise<void>;
   /** Der besondere Boss-/Gold-Platz des heutigen Tages. */
@@ -39,6 +51,13 @@ interface BattleState {
   opponentFor: (spot: Spot, isBoss: boolean) => PitchOpponent;
   canFight: (spotId: string) => boolean;
   fight: (spot: Spot, isBoss: boolean) => Promise<BattleResult>;
+  /**
+   * Elfmeterschießen beenden: Sieg vergibt die Kampf-Belohnung (Session-Pack
+   * bzw. Boss-Coins+Punkte) und liefert den Anzeigetext; Niederlage null.
+   */
+  resolveShootout: (won: boolean) => Promise<string | null>;
+  /** Abbruch (Screen verlassen): kein Reward, Zustand aufräumen. */
+  abandonShootout: () => void;
 }
 
 async function persist(day: string, foughtSpotIds: string[]): Promise<void> {
@@ -57,6 +76,7 @@ function rolledOver(state: { day: string; foughtSpotIds: string[] }): {
 export const useBattleStore = create<BattleState>((set, get) => ({
   day: dayKey(),
   foughtSpotIds: [],
+  pendingShootout: null,
 
   hydrate: async () => {
     const raw = await metaRepo.getMeta('pitchBattles');
@@ -121,6 +141,7 @@ export const useBattleStore = create<BattleState>((set, get) => ({
     const userRoster = lineup
       .filter((p): p is NonNullable<typeof p> => p !== null)
       .map((p) => ({ name: p.pool.name, position: p.pool.position }));
+    const oppRoster = generateNpcRoster();
 
     const result = simulateMatch(
       {
@@ -133,7 +154,7 @@ export const useBattleStore = create<BattleState>((set, get) => ({
         name: opponent.name,
         strength: opponent.strength,
         tactic: 'ausgewogen',
-        roster: generateNpcRoster(),
+        roster: oppRoster,
       },
     );
 
@@ -142,8 +163,8 @@ export const useBattleStore = create<BattleState>((set, get) => ({
     await persist(state.day, foughtSpotIds);
     set({ day: state.day, foughtSpotIds });
 
-    // Belohnung: Sieg = Session-Pack (Boss: Coins+Punkte), Remis = 10 Coins,
-    // Niederlage = nichts
+    // Belohnung: Sieg = Session-Pack (Boss: Coins+Punkte), Niederlage = nichts.
+    // Remis gibt es nicht: nach 90 Minuten geht es ins Elfmeterschießen.
     const won = result.homeGoals > result.awayGoals;
     const draw = result.homeGoals === result.awayGoals;
     let coinReward: PlayedUserMatch['coinReward'];
@@ -158,9 +179,25 @@ export const useBattleStore = create<BattleState>((set, get) => ({
     } else if (won) {
       await game.grantPack('session');
       coinReward = { total: 0, breakdown: ['Pitch battle won: +1 session pack'] };
-    } else if (draw) {
-      await game.addCoins(PITCH_BATTLE.drawCoins);
-      coinReward = { total: PITCH_BATTLE.drawCoins, breakdown: ['Draw'] };
+    }
+
+    if (draw) {
+      // Schützen fürs Elfmeterschießen: eigene Elf nach Abschluss sortiert,
+      // Gegner mit denselben Namen wie im Ticker
+      const userShooters = lineup
+        .filter((p): p is NonNullable<typeof p> => p !== null)
+        .sort((a, b) => b.pool.abschluss - a.pool.abschluss)
+        .map((p) => p.pool.name);
+      set({
+        pendingShootout: {
+          isBoss,
+          opponentName: opponent.name,
+          userShooters: userShooters.length > 0 ? userShooters : ['Your player'],
+          oppShooters: oppRoster.map((r) => r.name),
+        },
+      });
+    } else {
+      set({ pendingShootout: null });
     }
 
     const played: PlayedUserMatch = {
@@ -188,4 +225,21 @@ export const useBattleStore = create<BattleState>((set, get) => ({
     useLeagueStore.setState({ lastPlayedMatch: played });
     return { ok: true, played, won };
   },
+
+  resolveShootout: async (won) => {
+    const pending = get().pendingShootout;
+    set({ pendingShootout: null });
+    if (!pending || !won) return null;
+    const game = useGameStore.getState();
+    if (pending.isBoss) {
+      const reward = PITCH_BATTLE.bossWinReward;
+      await game.addCoins(reward);
+      await game.addLevelPoints(reward);
+      return `Boss beaten: +${reward} coins and +${reward} level-up points!`;
+    }
+    await game.grantPack('session');
+    return 'You won a session pack!';
+  },
+
+  abandonShootout: () => set({ pendingShootout: null }),
 }));

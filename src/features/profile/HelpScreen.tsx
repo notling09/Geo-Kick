@@ -62,8 +62,10 @@ export function HelpScreen({ navigation }: RootScreenProps<'Help'>) {
         <Card>
           <Text style={styles.text}>
             Every pitch has its own team. Challenge it while you are physically there -
-            once per pitch per day. Win a session pack, get {PITCH_BATTLE.drawCoins} coins
-            for a draw, nothing for a loss.
+            once per pitch per day. Winning earns a session pack, losing earns nothing.
+            There are no draws: after 90 minutes it goes to a penalty shootout - you
+            pick the corner for every shot AND the dive for every save (the keeper
+            guesses one of five spots, so 4 out of 5 shots go in).
           </Text>
           <Text style={styles.text}>
             One pitch per day is special (gold pin): a much stronger boss team waits

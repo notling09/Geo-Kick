@@ -12,6 +12,7 @@ export type RootStackParamList = {
   PackOpening: { packId?: number; egg?: boolean };
   Help: undefined;
   Passport: undefined;
+  Shootout: undefined;
 };
 
 export type MainTabParamList = {

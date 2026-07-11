@@ -12,6 +12,7 @@ import { PackOpeningScreen } from '../features/packs/PackOpeningScreen';
 import { ProfileScreen } from '../features/profile/ProfileScreen';
 import { HelpScreen } from '../features/profile/HelpScreen';
 import { PassportScreen } from '../features/profile/PassportScreen';
+import { PenaltyShootoutScreen } from '../features/map/PenaltyShootoutScreen';
 import { StartScreen } from '../features/start/StartScreen';
 import { OnboardingScreen } from '../features/onboarding/OnboardingScreen';
 import { colors } from '../ui/theme';
@@ -72,6 +73,11 @@ export function RootNavigator() {
       />
       <Stack.Screen name="Help" component={HelpScreen} />
       <Stack.Screen name="Passport" component={PassportScreen} />
+      <Stack.Screen
+        name="Shootout"
+        component={PenaltyShootoutScreen}
+        options={{ gestureEnabled: false, animation: 'fade' }}
+      />
     </Stack.Navigator>
   );
 }
