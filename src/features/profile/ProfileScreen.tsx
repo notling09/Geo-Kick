@@ -12,7 +12,8 @@ import {
 import { useCloudStore } from '../../state/cloudStore';
 import { useGameStore } from '../../state/gameStore';
 import { useLeagueStore } from '../../state/leagueStore';
-import { Card, SectionTitle } from '../../ui/components';
+import { GKButton, Card, SectionTitle } from '../../ui/components';
+import type { TabScreenProps } from '../../navigation/types';
 import { Crest } from '../../ui/Crest';
 import {
   IconBall, IconCheck, IconClock, IconCoin, IconFlash, IconMap, IconPack, IconPin,
@@ -44,7 +45,7 @@ function formatLastVisit(ts: number): string {
   return `${days} days ago`;
 }
 
-export function ProfileScreen() {
+export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
   const club = useGameStore((s) => s.club);
   const players = useGameStore((s) => s.players);
   const packs = useGameStore((s) => s.packs);
@@ -190,6 +191,15 @@ export function ProfileScreen() {
             Map data: © OpenStreetMap contributors (ODbL). All player and club names are
             entirely fictional.
           </Text>
+        </Card>
+
+        <SectionTitle>Help</SectionTitle>
+        <Card>
+          <Text style={styles.aboutText}>
+            New to Geo-Kick or unsure how packs, points or the league work? The guide
+            explains everything.
+          </Text>
+          <GKButton title="Open game guide" onPress={() => navigation.navigate('Help')} />
         </Card>
       </ScrollView>
     </SafeAreaView>

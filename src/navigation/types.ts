@@ -10,6 +10,7 @@ export type RootStackParamList = {
   PlayerDetail: { playerId: number };
   Friendlies: undefined;
   PackOpening: { packId: number };
+  Help: undefined;
 };
 
 export type MainTabParamList = {

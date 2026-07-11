@@ -1,9 +1,9 @@
 import { createAudioPlayer, type AudioPlayer } from 'expo-audio';
 
 /**
- * Zentrale Soundeffekte (V3). Aktuell einfache Platzhalter-Toene
- * (scripts/gen-placeholder-sounds.ps1) - echte Sounds ersetzen einfach die
- * gleichnamigen Dateien in assets/sounds/.
+ * Zentrale Soundeffekte (V3). Die Dateien in assets/sounds/ stammen vom
+ * Nutzer; zum Austauschen Datei ersetzen (und ggf. Endung hier anpassen),
+ * danach die APK neu bauen.
  *
  * playSound ist bewusst fire-and-forget und schluckt Fehler: ein kaputter
  * Sound darf nie das Spiel blockieren.
@@ -11,18 +11,20 @@ import { createAudioPlayer, type AudioPlayer } from 'expo-audio';
 
 const SOURCES = {
   /** Eigenes Tor im Live-Ticker */
-  goal: require('../../../assets/sounds/goal.wav'),
+  goal: require('../../../assets/sounds/goal.m4a'),
+  /** Gegentor im Live-Ticker */
+  goalConceded: require('../../../assets/sounds/goal-conceded.mp3'),
   /** Abpfiff (Spielende) */
-  fulltime: require('../../../assets/sounds/fulltime.wav'),
-  /** Meister-Feier (Pokal + Konfetti) */
-  champion: require('../../../assets/sounds/champion.wav'),
+  fulltime: require('../../../assets/sounds/fulltime.mp3'),
+  /** Meister-Feier (Pokal + Konfetti, ~7 s) */
+  champion: require('../../../assets/sounds/champion.mp3'),
   /** Pack wird aufgerissen */
-  packOpen: require('../../../assets/sounds/pack-open.wav'),
+  packOpen: require('../../../assets/sounds/pack-open.mp4'),
   /** Reveal-Animationen je Seltenheit */
-  revealSilver: require('../../../assets/sounds/reveal-silver.wav'),
-  revealGold: require('../../../assets/sounds/reveal-gold.wav'),
-  revealLegendary: require('../../../assets/sounds/reveal-legendary.wav'),
-  revealMystery: require('../../../assets/sounds/reveal-mystery.wav'),
+  revealSilver: require('../../../assets/sounds/reveal-silver.mp3'),
+  revealGold: require('../../../assets/sounds/reveal-gold.mp3'),
+  revealLegendary: require('../../../assets/sounds/reveal-legendary.mp3'),
+  revealMystery: require('../../../assets/sounds/reveal-mystery.mp3'),
 } as const;
 
 export type SoundName = keyof typeof SOURCES;

@@ -5,7 +5,7 @@ export type Position = 'TW' | 'ABW' | 'MF' | 'ST';
 /** 'geheim' = die "???"-Karte: einmalig ziehbar, 99er-Spieler, Name vom Nutzer */
 export type Rarity = 'bronze' | 'silber' | 'gold' | 'legendaer' | 'geheim';
 
-export type FormationId = '4-4-2' | '4-3-3' | '5-3-2';
+export type FormationId = '4-4-2' | '4-3-3' | '4-2-4';
 
 export type Tactic = 'offensiv' | 'ausgewogen' | 'defensiv';
 

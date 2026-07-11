@@ -10,6 +10,7 @@ import { MatchLiveScreen } from '../features/league/MatchLiveScreen';
 import { PacksScreen } from '../features/packs/PacksScreen';
 import { PackOpeningScreen } from '../features/packs/PackOpeningScreen';
 import { ProfileScreen } from '../features/profile/ProfileScreen';
+import { HelpScreen } from '../features/profile/HelpScreen';
 import { StartScreen } from '../features/start/StartScreen';
 import { OnboardingScreen } from '../features/onboarding/OnboardingScreen';
 import { colors } from '../ui/theme';
@@ -68,6 +69,7 @@ export function RootNavigator() {
         component={PackOpeningScreen}
         options={{ gestureEnabled: false, animation: 'fade' }}
       />
+      <Stack.Screen name="Help" component={HelpScreen} />
     </Stack.Navigator>
   );
 }

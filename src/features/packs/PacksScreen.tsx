@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  BALANCING, PACK_TYPES, RARITY_LABEL, SELL_VALUE, SHOP_PACK_IDS,
+  BALANCING, PACK_TYPES, RARITY_LABEL, SHOP_PACK_IDS,
 } from '../../core/domain/constants';
 import { packTypeFromSource } from '../../core/engine/packGen';
 import { useGameStore } from '../../state/gameStore';
@@ -98,11 +98,6 @@ export function PacksScreen({ navigation }: TabScreenProps<'Packs'>) {
           </Card>
         ))}
         <Text style={styles.statsText}>
-          Duplicates: take level-up points or sell for coins (Bronze {SELL_VALUE.bronze} ·
-          Silver {SELL_VALUE.silber} · Gold {SELL_VALUE.gold} · Legendary {SELL_VALUE.legendaer}).{'\n'}
-          Every pack also drops a bonus: the same amount of coins AND level-up points.{'\n'}
-          Spend points on any player in his detail view - costs rise with his rating.{'\n'}
-          The ??? card exists only once - a 99-rated player you get to name yourself.{'\n'}
           Packs opened so far: {openedCount} · squad size: {players.length}/{BALANCING.maxSquadSize}
         </Text>
       </ScrollView>

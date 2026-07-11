@@ -91,11 +91,11 @@ interface Props {
 export function ChampionOverlay({ visible, clubName, division, captain, onDismiss }: Props) {
   const { height } = useWindowDimensions();
 
-  // Nach ~6 Sekunden automatisch schließen; Fanfare beim Erscheinen (V3)
+  // Nach 7 Sekunden automatisch schließen (Länge des Champion-Sounds, V3)
   useEffect(() => {
     if (!visible) return;
     playSound('champion');
-    const t = setTimeout(onDismiss, 6000);
+    const t = setTimeout(onDismiss, 7000);
     return () => clearTimeout(t);
   }, [visible, onDismiss]);
 

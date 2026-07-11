@@ -15,12 +15,12 @@ export const BALANCING = {
   maxCoins: 150,
   /** Genau 1 Pack pro abgeschlossener Session */
   packsPerSession: 1,
-  /** Cooldown pro Platz (nach Nutzertests schrittweise auf 45 Min gesenkt) */
-  spotCooldownMs: 45 * 60 * 1000,
+  /** Cooldown pro Platz (nach Nutzertests schrittweise auf 30 Min gesenkt) */
+  spotCooldownMs: 30 * 60 * 1000,
   /** Default-Check-in-Radius um einen Platz (m) */
   defaultSpotRadius: 75,
-  /** 1 simuliertes Ligaspiel alle 15 Min (nach Nutzertests von 24 h gesenkt) */
-  matchIntervalMs: 15 * 60 * 1000,
+  /** 1 simuliertes Ligaspiel alle 10 Min (nach Nutzertests von 24 h gesenkt) */
+  matchIntervalMs: 10 * 60 * 1000,
   /** Spieler pro Pack */
   playersPerPack: 3,
   /**
@@ -267,10 +267,10 @@ export const POSITION_SHORT: Record<Position, string> = {
 export const FORMATIONS: Record<FormationId, Position[]> = {
   '4-4-2': ['TW', 'ABW', 'ABW', 'ABW', 'ABW', 'MF', 'MF', 'MF', 'MF', 'ST', 'ST'],
   '4-3-3': ['TW', 'ABW', 'ABW', 'ABW', 'ABW', 'MF', 'MF', 'MF', 'ST', 'ST', 'ST'],
-  '5-3-2': ['TW', 'ABW', 'ABW', 'ABW', 'ABW', 'ABW', 'MF', 'MF', 'MF', 'ST', 'ST'],
+  '4-2-4': ['TW', 'ABW', 'ABW', 'ABW', 'ABW', 'MF', 'MF', 'ST', 'ST', 'ST', 'ST'],
 };
 
-export const FORMATION_IDS: FormationId[] = ['4-4-2', '4-3-3', '5-3-2'];
+export const FORMATION_IDS: FormationId[] = ['4-4-2', '4-3-3', '4-2-4'];
 
 export const TACTIC_LABEL: Record<Tactic, string> = {
   offensiv: 'Offensive',

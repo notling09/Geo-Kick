@@ -79,14 +79,18 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
     }
   }, [visibleEvents.length]);
 
-  // V3-Sounds: eigenes Tor im Ticker + Abpfiff (nicht beim Skip-Sprung)
+  // V3-Sounds: eigenes Tor und Gegentor im Ticker + Abpfiff (nicht beim Skip-Sprung)
   const prevUserGoals = useRef(0);
+  const prevOppGoals = useRef(0);
   useEffect(() => {
     if (!played) return;
     const side = played.userIsHome ? 'home' : 'away';
     const userGoals = visibleEvents.filter((e) => e.type === 'tor' && e.team === side).length;
+    const oppGoals = visibleEvents.filter((e) => e.type === 'tor' && e.team !== side).length;
     if (userGoals > prevUserGoals.current && !skipped) playSound('goal');
+    if (oppGoals > prevOppGoals.current && !skipped) playSound('goalConceded');
     prevUserGoals.current = userGoals;
+    prevOppGoals.current = oppGoals;
   }, [visibleEvents, played, skipped]);
 
   const fulltimeSoundPlayed = useRef(false);

@@ -14,7 +14,7 @@ aufsteigst. Komplett offline, kein Backend, kein Echtgeld.
   150 Coins bei 15 Min., plus genau 1 Pack pro Session; dazu 3 zufällige
   Session-Objectives (Mini-Aufgaben, Ehrensystem, Bonus-Coins)
 - **Anti-Cheat**: Geofencing bei Check-in und Check-out (75-m-Radius),
-  Mock-Location-Erkennung, Pflicht-Check-out, 45 Min Cooldown pro Platz,
+  Mock-Location-Erkennung, Pflicht-Check-out, 30 Min Cooldown pro Platz,
   Bewegungssensor-Prüfung (Kapitel 6.2: ein komplett regungsloses Gerät
   bekommt keine Belohnung)
 - **Packs** mit fiktiven Spielern (Session-Pack: Bronze 59,5 % / Silber 28 % / Gold 10 % /
@@ -31,9 +31,9 @@ aufsteigst. Komplett offline, kein Backend, kein Echtgeld.
 - **???-Karte**: seltener als Legendär und nur ein einziges Mal ziehbar – ein
   99er-Spieler, den der Spieler selbst benennt und dessen Position er wählt
   (unverkäuflich, kommt immer in den Klub)
-- **Kadermanagement**: Formationen 4-4-2 / 4-3-3 / 5-3-2, Slot-Editor, Best-XI-Button,
+- **Kadermanagement**: Formationen 4-4-2 / 4-3-3 / 4-2-4, Slot-Editor, Best-XI-Button,
   Kader-Limit 30 mit Verkaufssystem
-- **Liga**: 4 Divisionen, 8 Klubs, Doppelrunde (14 Spieltage), 1 Spiel alle 15 Min.,
+- **Liga**: 4 Divisionen, 8 Klubs, Doppelrunde (14 Spieltage), 1 Spiel alle 10 Min.,
   Taktikwahl vor Anpfiff, Minuten-Live-Ticker mit Torschützen, gelben/roten Karten
   (rote Karte = Sperre fürs nächste Spiel) und Endstatistik (xG, Schüsse,
   Ballbesitz, Ecken, Fouls, Karten); Liga-Coins (Sieg 10 / Remis 5, Captain-Boni,
