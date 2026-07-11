@@ -67,6 +67,7 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
   // Animationswerte
   const packScale = useRef(new Animated.Value(1)).current;
   const packOpacity = useRef(new Animated.Value(1)).current;
+  const packRotate = useRef(new Animated.Value(0)).current;
   const flashOpacity = useRef(new Animated.Value(0)).current;
   const glowScale = useRef(new Animated.Value(0.2)).current;
   const glowOpacity = useRef(new Animated.Value(0)).current;
@@ -77,9 +78,9 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
 
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
-  // Ruhiges Pulsieren des ungeöffneten Packs
+  // Ruhiges Pulsieren des ungeöffneten Packs (stoppt, sobald geöffnet wird)
   useEffect(() => {
-    if (phase !== 'pack') return;
+    if (phase !== 'pack' || busy || entries) return;
     const pulse = Animated.loop(
       Animated.sequence([
         Animated.timing(packScale, { toValue: 1.06, duration: 900, useNativeDriver: true }),
@@ -88,7 +89,7 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
     );
     pulse.start();
     return () => pulse.stop();
-  }, [phase, packScale]);
+  }, [phase, busy, entries, packScale]);
 
   const current = entries?.[index];
 
@@ -158,14 +159,28 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
     }, REVEAL_MS[rarity]);
   };
 
-  /** Pack aufreißen: Icon zoomt weg, dann erster Reveal (schwächster zuerst). */
+  /**
+   * Pack aufreißen: das Pack wackelt erst immer stärker, platzt dann auf
+   * (Zoom + Ausblenden) – zusammen ~2 s, passend zur Länge des Sounds.
+   * Danach der erste Reveal (schwächster Spieler zuerst).
+   */
   const onOpenPack = async () => {
     if (busy || entries) return;
     setBusy(true);
     playSound('packOpen');
-    Animated.parallel([
-      Animated.timing(packScale, { toValue: 2.2, duration: 450, useNativeDriver: true }),
-      Animated.timing(packOpacity, { toValue: 0, duration: 450, useNativeDriver: true }),
+    const shake = (angle: number, ms: number) =>
+      Animated.timing(packRotate, { toValue: angle, duration: ms, useNativeDriver: true });
+    Animated.sequence([
+      // Wackeln, immer stärker …
+      shake(0.4, 120), shake(-0.4, 120),
+      shake(0.7, 110), shake(-0.7, 110),
+      shake(1, 100), shake(-1, 100),
+      shake(0.6, 80), shake(0, 60),
+      // … dann Aufplatzen
+      Animated.parallel([
+        Animated.timing(packScale, { toValue: 2.4, duration: 550, useNativeDriver: true }),
+        Animated.timing(packOpacity, { toValue: 0, duration: 550, useNativeDriver: true }),
+      ]),
     ]).start();
     try {
       const result = await openPack(packId);
@@ -178,7 +193,7 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
       });
       setEntries(sorted);
       setIndex(0);
-      timer.current = setTimeout(() => runReveal(sorted[0]), 500);
+      timer.current = setTimeout(() => runReveal(sorted[0]), 1800);
     } finally {
       setBusy(false);
     }
@@ -287,7 +302,20 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         {phase === 'pack' && (
           <Pressable style={styles.center} onPress={onOpenPack}>
-            <Animated.View style={{ transform: [{ scale: packScale }], opacity: packOpacity }}>
+            <Animated.View
+              style={{
+                transform: [
+                  { scale: packScale },
+                  {
+                    rotate: packRotate.interpolate({
+                      inputRange: [-1, 1],
+                      outputRange: ['-10deg', '10deg'],
+                    }),
+                  },
+                ],
+                opacity: packOpacity,
+              }}
+            >
               <IconPack size={160} color={colors.accent} />
             </Animated.View>
             <Animated.Text style={[styles.tapHint, { opacity: packOpacity }]}>
