@@ -33,13 +33,18 @@ check('legendary overall 85..91', legendaries.every(p => {
 }));
 // V3: Starter haben exakt 80 Overall
 check('starters exactly 80', pool.filter(p => p.isStarterChoice).every(p => overallOf(p, p.position) === 80));
-// V4: faire Positionsverteilung bei den kuratierten Stars
-const legPos = { TW: 0, ABW: 0, MF: 0, ST: 0 };
-legendaries.forEach(p => { legPos[p.position]++; });
-check('legendary positions balanced', legPos.ABW >= 5 && legPos.TW >= 3 && legPos.ST <= 7, JSON.stringify(legPos));
-const goldPos = { TW: 0, ABW: 0, MF: 0, ST: 0 };
-pool.filter(p => p.rarity === 'gold' && !p.isStarterChoice).forEach(p => { goldPos[p.position]++; });
-check('gold positions balanced', goldPos.ABW >= 11 && goldPos.TW >= 4 && goldPos.ST <= 11, JSON.stringify(goldPos));
+// V4: exakt faire Positionsverteilung – ST = MF = ABW in JEDER Seltenheit
+const posCount = (rarity: string) => {
+  const c = { TW: 0, ABW: 0, MF: 0, ST: 0 };
+  pool
+    .filter(p => p.rarity === rarity && !p.isStarterChoice && !p.isFiller)
+    .forEach(p => { c[p.position]++; });
+  return c;
+};
+(['bronze', 'silber', 'gold', 'legendaer'] as const).forEach(rarity => {
+  const c = posCount(rarity);
+  check(`${rarity}: ST = MF = ABW`, c.ST === c.MF && c.MF === c.ABW && c.TW > 0, JSON.stringify(c));
+});
 check('gold pool = 40', pool.filter(p => p.rarity === 'gold' && !p.isStarterChoice).length === 40);
 check('legendary pool = 20', legendaries.length === 20);
 check('bronze pool = 88', pool.filter(p => p.rarity === 'bronze').length === 88);
