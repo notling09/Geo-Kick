@@ -220,6 +220,7 @@ export const useBattleStore = create<BattleState>((set, get) => ({
       userIsHome: true,
       stats: result.stats,
       coinReward,
+      motm: result.motm,
     };
     // Live-Ticker-Replay über den bestehenden MatchLive-Screen
     useLeagueStore.setState({ lastPlayedMatch: played });

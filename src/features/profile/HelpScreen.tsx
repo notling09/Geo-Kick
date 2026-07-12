@@ -77,10 +77,10 @@ export function HelpScreen({ navigation }: RootScreenProps<'Help'>) {
         <SectionTitle>Eggs</SectionTitle>
         <Card>
           <Text style={styles.text}>
-            Finish a session to find an egg (1, 3 or 5 km). It hatches by real
-            movement: your walking distance counts while the app is open. Longer eggs
-            hatch better players - a 5 km egg can never contain a Bronze player. Hatch
-            it in the Packs tab.
+            Finish a session to find an egg (1, 3 or 5 km) - you can carry up to 3 at
+            once, and they all hatch from the same walking distance. Your distance
+            counts while the app is open. Longer eggs hatch better players - a 5 km
+            egg can never contain a Bronze player. Hatch them in the Packs tab.
           </Text>
         </Card>
 

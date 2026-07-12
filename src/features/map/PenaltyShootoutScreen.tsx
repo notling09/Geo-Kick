@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Line, Rect } from 'react-native-svg';
 import { playSound } from '../../core/services/sound';
@@ -17,23 +17,33 @@ import type { RootScreenProps } from '../../navigation/types';
  *    eine Ecke – rät er die richtige, ist der Ball gehalten (1 von 5 = 20 %).
  *  - Gegnerischer Schütze: die Hechtrichtung des eigenen Torwarts antippen.
  *    Trifft man die Ecke des Schützen, ist der Ball gehalten.
+ *
+ * Optik: Stadion-Tor als Bild in der Mitte; darüber der blaue Himmel mit
+ * allen Infos (Trefferliste links, Ergebnis + Schütze rechts, Anweisung
+ * direkt über dem Tor), darunter Rasen-Grün passend zum Bild.
  */
+
+// Farben aus dem Stadion-Bild gesampelt (Himmel oben, Rasen unten)
+const SKY = '#0D72BA';
+const GRASS = '#35A54F';
+const GOAL_IMAGE = require('../../../assets/images/penalty-goal.jpg');
+const IMAGE_ASPECT = 1470 / 980;
 
 type TargetId = 'TL' | 'TR' | 'C' | 'BL' | 'BR';
 
 interface Target {
   id: TargetId;
-  /** Position in % des Tor-Bereichs */
+  /** Position in % des Bild-Bereichs (auf das Tor im Bild abgestimmt) */
   x: number;
   y: number;
 }
 
 const TARGETS: Target[] = [
-  { id: 'TL', x: 16, y: 30 },
-  { id: 'TR', x: 84, y: 30 },
+  { id: 'TL', x: 29, y: 40 },
+  { id: 'TR', x: 71, y: 40 },
   { id: 'C', x: 50, y: 52 },
-  { id: 'BL', x: 16, y: 74 },
-  { id: 'BR', x: 84, y: 74 },
+  { id: 'BL', x: 29, y: 64 },
+  { id: 'BR', x: 71, y: 64 },
 ];
 
 interface Kick {
@@ -67,7 +77,7 @@ function shootoutWinner(kicks: Kick[]): 'user' | 'opp' | null {
 }
 
 /** Torwart-Figur (einfach gezeichnet, Comic-Stil). */
-function Keeper({ size = 64 }: { size?: number }) {
+function Keeper({ size = 58 }: { size?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 40 40">
       <Circle cx={20} cy={8} r={5.5} fill="#F0C27B" stroke="#1A2E1A" strokeWidth={1.4} />
@@ -149,7 +159,7 @@ export function PenaltyShootoutScreen({ navigation }: RootScreenProps<'Shootout'
     }, 1500);
   };
 
-  /** Punkte-Reihe eines Teams: grün = Tor, rot = gehalten, grau = offen. */
+  /** Punkte-Reihe eines Teams: grün = Tor, rot = gehalten, offen = hell. */
   const dots = (teamKicks: Kick[]) => {
     const slots = Math.max(5, teamKicks.length);
     return Array.from({ length: slots }, (_, i) => {
@@ -167,40 +177,51 @@ export function PenaltyShootoutScreen({ navigation }: RootScreenProps<'Shootout'
   };
 
   const targetPos = (id: TargetId) => TARGETS.find((t) => t.id === id)!;
-  const keeperShown = phase === 'result' && lastShot ? targetPos(lastShot.keeper) : { x: 50, y: 60 };
+  const keeperShown = phase === 'result' && lastShot ? targetPos(lastShot.keeper) : { x: 50, y: 56 };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      {/* Kopf: Wer schießt gerade? */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTeam}>
-            {shooting ? clubName : setup.opponentName} shoot{shooting ? '' : 's'}
-          </Text>
-          <Text style={styles.headerShooter}>{shooterName}</Text>
+      {/* Blauer Himmel: alle Infos */}
+      <View style={styles.skyArea}>
+        <View style={styles.infoRow}>
+          {/* Links: die Trefferlisten beider Teams */}
+          <View style={styles.dotsBlock}>
+            <View style={styles.dotsTeamRow}>
+              <Text style={styles.dotsTeamName} numberOfLines={1}>{clubName}</Text>
+              <View style={styles.dotRow}>{dots(userKicks)}</View>
+            </View>
+            <View style={styles.dotsTeamRow}>
+              <Text style={styles.dotsTeamName} numberOfLines={1}>{setup.opponentName}</Text>
+              <View style={styles.dotRow}>{dots(oppKicks)}</View>
+            </View>
+          </View>
+          {/* Rechts: Ergebnis groß, daneben wer schießt + welcher Spieler */}
+          <View style={styles.scoreBlock}>
+            <View style={styles.scoreLine}>
+              <Text style={styles.shootingTeam} numberOfLines={1}>
+                {shooting ? clubName : setup.opponentName} shoot{shooting ? '' : 's'}
+              </Text>
+              <Text style={styles.score}>{userGoals}:{oppGoals}</Text>
+            </View>
+            <Text style={styles.shooterName} numberOfLines={1}>{shooterName}</Text>
+          </View>
         </View>
-        <Text style={styles.headerScore}>
-          {userGoals}:{oppGoals}
+        {/* Anweisung direkt über dem Tor */}
+        <Text style={styles.promptText}>
+          {phase === 'result' && lastShot
+            ? lastShot.scored
+              ? 'GOAL!'
+              : 'SAVED!'
+            : shooting
+              ? 'You shoot - tap a corner!'
+              : 'Your keeper saves - tap where to dive!'}
         </Text>
       </View>
 
-      {/* Das Tor mit Netz und Torwart */}
-      <View style={styles.goalArea}>
-        <Svg width="100%" height="100%" viewBox="0 0 100 80" preserveAspectRatio="none">
-          {/* Netz */}
-          {Array.from({ length: 9 }, (_, i) => (
-            <Line key={`v${i}`} x1={8 + i * 10.5} y1={10} x2={8 + i * 10.5} y2={78} stroke="rgba(255,255,255,0.35)" strokeWidth={0.5} />
-          ))}
-          {Array.from({ length: 7 }, (_, i) => (
-            <Line key={`h${i}`} x1={6} y1={16 + i * 10} x2={94} y2={16 + i * 10} stroke="rgba(255,255,255,0.35)" strokeWidth={0.5} />
-          ))}
-          {/* Pfosten + Latte */}
-          <Rect x={4} y={8} width={3} height={72} fill="#fff" />
-          <Rect x={93} y={8} width={3} height={72} fill="#fff" />
-          <Rect x={4} y={8} width={92} height={3.5} fill="#fff" />
-        </Svg>
+      {/* Stadion-Bild mit Torwart, Ball und Ziel-Ringen */}
+      <View style={styles.imageWrap}>
+        <Image source={GOAL_IMAGE} style={styles.image} resizeMode="cover" />
 
-        {/* Torwart (springt beim Ergebnis in die geratene Ecke) */}
         <View
           style={[
             styles.keeper,
@@ -210,7 +231,6 @@ export function PenaltyShootoutScreen({ navigation }: RootScreenProps<'Shootout'
           <Keeper />
         </View>
 
-        {/* Ball beim Ergebnis */}
         {phase === 'result' && lastShot && (
           <View
             style={[
@@ -220,7 +240,6 @@ export function PenaltyShootoutScreen({ navigation }: RootScreenProps<'Shootout'
           />
         )}
 
-        {/* Die 5 Ziel-Ringe */}
         {phase === 'aim' &&
           TARGETS.map((t) => (
             <Pressable
@@ -233,28 +252,8 @@ export function PenaltyShootoutScreen({ navigation }: RootScreenProps<'Shootout'
           ))}
       </View>
 
-      {/* Status + Punkte */}
-      <View style={styles.panel}>
-        {phase === 'result' && lastShot ? (
-          <Text style={[styles.resultText, { color: lastShot.scored ? (lastShot.team === 'user' ? colors.pitchLight : colors.danger) : colors.gold }]}>
-            {lastShot.scored ? 'GOAL!' : 'SAVED!'}
-          </Text>
-        ) : (
-          <Text style={styles.promptText}>
-            {shooting
-              ? 'You shoot - tap a corner!'
-              : 'Your keeper saves - tap where to dive!'}
-          </Text>
-        )}
-        <View style={styles.scoreRow}>
-          <Text style={styles.scoreName} numberOfLines={1}>{clubName}</Text>
-          <View style={styles.dotRow}>{dots(userKicks)}</View>
-        </View>
-        <View style={styles.scoreRow}>
-          <Text style={styles.scoreName} numberOfLines={1}>{setup.opponentName}</Text>
-          <View style={styles.dotRow}>{dots(oppKicks)}</View>
-        </View>
-      </View>
+      {/* Rasen-Grün unterhalb des Bildes */}
+      <View style={styles.grassArea} />
 
       {/* Ende */}
       {phase === 'done' && (
@@ -278,117 +277,124 @@ export function PenaltyShootoutScreen({ navigation }: RootScreenProps<'Shootout'
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: colors.pitchDark,
+    backgroundColor: SKY,
   },
-  header: {
+  skyArea: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    justifyContent: 'flex-end',
+  },
+  infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    alignItems: 'flex-start',
+    gap: spacing.md,
   },
-  headerTeam: {
+  dotsBlock: {
+    flex: 1,
+    gap: 6,
+  },
+  dotsTeamRow: {
+    gap: 3,
+  },
+  dotsTeamName: {
     color: '#fff',
-    fontWeight: '900',
-    fontSize: font.h2,
-  },
-  headerShooter: {
-    color: 'rgba(255,255,255,0.8)',
+    fontWeight: '800',
     fontSize: font.small,
-    fontWeight: '600',
   },
-  headerScore: {
+  dotRow: {
+    flexDirection: 'row',
+    gap: 5,
+  },
+  dot: {
+    width: 13,
+    height: 13,
+    borderRadius: 7,
+  },
+  dotGoal: {
+    backgroundColor: '#7CE97C',
+  },
+  dotMiss: {
+    backgroundColor: '#FF6B5E',
+  },
+  dotOpen: {
+    backgroundColor: 'rgba(255,255,255,0.35)',
+  },
+  scoreBlock: {
+    alignItems: 'flex-end',
+  },
+  scoreLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  shootingTeam: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: font.body,
+    maxWidth: 160,
+  },
+  score: {
     color: '#fff',
     fontWeight: '900',
     fontSize: 34,
   },
-  goalArea: {
+  shooterName: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: font.small,
+    fontWeight: '600',
+  },
+  promptText: {
+    color: '#fff',
+    fontWeight: '900',
+    fontSize: font.h2,
+    textAlign: 'center',
+    marginVertical: spacing.sm,
+  },
+  imageWrap: {
+    width: '100%',
+    aspectRatio: IMAGE_ASPECT,
+  },
+  image: {
+    width: '100%',
+    height: '100%',
+  },
+  grassArea: {
     flex: 1,
-    margin: spacing.md,
-    backgroundColor: colors.pitch,
-    borderRadius: radius.md,
-    overflow: 'hidden',
+    backgroundColor: GRASS,
   },
   keeper: {
     position: 'absolute',
-    marginLeft: -32,
-    marginTop: -32,
+    marginLeft: -29,
+    marginTop: -29,
   },
   ball: {
     position: 'absolute',
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    marginLeft: -11,
-    marginTop: -11,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    marginLeft: -10,
+    marginTop: -10,
     backgroundColor: '#fff',
     borderWidth: 2,
     borderColor: '#1A2E1A',
   },
   target: {
     position: 'absolute',
-    width: 56,
-    height: 56,
-    marginLeft: -28,
-    marginTop: -28,
+    width: 54,
+    height: 54,
+    marginLeft: -27,
+    marginTop: -27,
     alignItems: 'center',
     justifyContent: 'center',
   },
   targetRing: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     borderWidth: 3,
     borderColor: colors.accent,
-    backgroundColor: 'rgba(255,143,0,0.25)',
-  },
-  panel: {
-    padding: spacing.md,
-    paddingTop: 0,
-  },
-  promptText: {
-    color: '#fff',
-    fontWeight: '800',
-    fontSize: font.body,
-    textAlign: 'center',
-    marginBottom: spacing.sm,
-  },
-  resultText: {
-    fontWeight: '900',
-    fontSize: font.h1,
-    textAlign: 'center',
-    marginBottom: spacing.sm,
-  },
-  scoreRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 3,
-  },
-  scoreName: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: font.small,
-    flex: 1,
-    marginRight: spacing.sm,
-  },
-  dotRow: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  dot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-  },
-  dotGoal: {
-    backgroundColor: colors.pitchLight,
-  },
-  dotMiss: {
-    backgroundColor: colors.danger,
-  },
-  dotOpen: {
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: 'rgba(255,143,0,0.28)',
   },
   doneOverlay: {
     position: 'absolute',

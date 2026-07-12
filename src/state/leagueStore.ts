@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { BALANCING, LEAGUE, LEAGUE_REWARDS, USER_CLUB_ID } from '../core/domain/constants';
 import type { Match, MatchStats, NpcClub, StandingRow, Tactic } from '../core/domain/types';
 import { computeStandings, generateNpcRoster, resolveSeason } from '../core/engine/league';
-import { simulateMatch, type SimTeam } from '../core/engine/matchSim';
+import { simulateMatch, type MatchMotm, type SimTeam } from '../core/engine/matchSim';
 import { teamStrength } from '../core/engine/strength';
 import * as leagueRepo from '../core/db/repositories/leagueRepo';
 import * as metaRepo from '../core/db/repositories/metaRepo';
@@ -26,6 +26,16 @@ export interface PlayedUserMatch {
   stats?: MatchStats;
   /** Liga-Coins für dieses Spiel (V2), inkl. Aufschlüsselung für die Anzeige */
   coinReward?: { total: number; breakdown: string[] };
+  /** Man of the Match (V4): Note bis 10 + Kurzbegründung */
+  motm?: MatchMotm;
+}
+
+/** Saison-Statistik der eigenen Spieler (V4): für den "Spieler der Saison". */
+interface SeasonPlayerStat {
+  goals: number;
+  assists: number;
+  ratingSum: number;
+  matches: number;
 }
 
 /** Ein Spieler ist für genau dieses (Saison, Runde)-Paar gesperrt. */
@@ -191,6 +201,7 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
     const roundMatches = matches.filter((m) => m.round === round && !m.played);
     let userMatch: Match | null = null;
     let userStats: MatchStats | undefined;
+    let userMotm: MatchMotm | undefined;
     for (const m of roundMatches) {
       const isUserMatch = m.homeId === USER_CLUB_ID || m.awayId === USER_CLUB_ID;
       const homeTactic = m.homeId === USER_CLUB_ID ? tactic : pick(npcTactics);
@@ -200,7 +211,49 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       if (isUserMatch) {
         userMatch = { ...m, homeGoals: result.homeGoals, awayGoals: result.awayGoals, played: true, events: result.events };
         userStats = result.stats;
+        userMotm = result.motm;
       }
+    }
+
+    // Saison-Statistik der eigenen Elf fortschreiben (V4): Tore, Assists und
+    // eine Spielnote je Einsatz – Grundlage für den "Spieler der Saison"
+    if (userMatch) {
+      const userSide = userMatch.homeId === USER_CLUB_ID ? 'home' : 'away';
+      const userGoalsFor = userSide === 'home' ? userMatch.homeGoals : userMatch.awayGoals;
+      const userGoalsAgainst = userSide === 'home' ? userMatch.awayGoals : userMatch.homeGoals;
+      const resultBonus =
+        userGoalsFor > userGoalsAgainst ? 0.4 : userGoalsFor === userGoalsAgainst ? 0.1 : -0.3;
+      let seasonStats: Record<string, SeasonPlayerStat> = {};
+      try {
+        seasonStats = JSON.parse((await metaRepo.getMeta('seasonSquadStats')) || '{}');
+      } catch {
+        seasonStats = {};
+      }
+      const xi = lineupPlayers.filter((p): p is NonNullable<typeof p> => p !== null);
+      for (const p of xi) {
+        const name = p.pool.name;
+        const goals = userMatch.events.filter(
+          (e) => e.type === 'tor' && e.team === userSide && e.player === name,
+        ).length;
+        const assists = userMatch.events.filter(
+          (e) => e.type === 'tor' && e.team === userSide && e.assist === name,
+        ).length;
+        const cleanSheetBonus =
+          userGoalsAgainst === 0 && (p.pool.position === 'TW' || p.pool.position === 'ABW')
+            ? 0.6
+            : 0;
+        const rating = Math.min(
+          10,
+          Math.max(4, 6.5 + goals * 1.2 + assists * 0.6 + resultBonus + cleanSheetBonus),
+        );
+        const entry = seasonStats[name] ?? { goals: 0, assists: 0, ratingSum: 0, matches: 0 };
+        entry.goals += goals;
+        entry.assists += assists;
+        entry.ratingSum += rating;
+        entry.matches += 1;
+        seasonStats[name] = entry;
+      }
+      await metaRepo.setMeta('seasonSquadStats', JSON.stringify(seasonStats));
     }
 
     // Liga-Coins (V2): Sieg/Remis plus Captain-Boni – auch bei Niederlage
@@ -305,6 +358,28 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
         message += ` Season prize: ${secondPrize} coins!`;
       }
 
+      // Spieler der Saison (V4): bester Notenschnitt über die Saison,
+      // bei Gleichstand entscheiden die Tore
+      try {
+        const seasonStats = JSON.parse(
+          (await metaRepo.getMeta('seasonSquadStats')) || '{}',
+        ) as Record<string, SeasonPlayerStat>;
+        const best = Object.entries(seasonStats)
+          .filter(([, s]) => s.matches > 0)
+          .sort(
+            ([, a], [, b]) =>
+              b.ratingSum / b.matches - a.ratingSum / a.matches || b.goals - a.goals,
+          )[0];
+        if (best) {
+          const [name, s] = best;
+          const avg = (s.ratingSum / s.matches).toFixed(1);
+          message += ` Player of the season: ${name} - ${s.goals} goal${s.goals === 1 ? '' : 's'}, ${s.assists} assist${s.assists === 1 ? '' : 's'}, average rating ${avg}/10 over ${s.matches} matches.`;
+        }
+      } catch {
+        // kaputte Statistik: einfach ohne Spieler der Saison weitermachen
+      }
+      await metaRepo.setMeta('seasonSquadStats', '{}');
+
       await metaRepo.setMeta('seasonMessage', message);
       await metaRepo.setMeta('division', String(outcome.newDivision));
       // Beste erreichte Division für Erfolge festhalten
@@ -335,6 +410,7 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
           userIsHome: userMatch.homeId === USER_CLUB_ID,
           stats: userStats,
           coinReward,
+          motm: userMotm,
         }
       : null;
 

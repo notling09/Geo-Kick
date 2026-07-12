@@ -300,7 +300,9 @@ export const useGameStore = create<GameState>((set, get) => ({
     const lineup = buildAutoLineup(players, '4-4-2');
     await playerRepo.replaceLineup(lineup.map((id, slot) => [slot, id]));
 
-    // Der gewählte Starter ist der erste Captain (V2)
+    // Der gewählte Starter ist der erste Captain (V2). Wichtig: auch sofort
+    // in den Store schreiben, nicht nur in die Meta – sonst hat der Klub bis
+    // zum nächsten App-Start keinen Captain (V4-Fix)
     const captain = players.find((p) => p.poolId === starterPoolId);
     if (captain) await metaRepo.setMeta('captainPlayerId', String(captain.id));
 
@@ -315,6 +317,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       lineup,
       packs: await packRepo.getPacks(),
       pool,
+      captainPlayerId: captain?.id ?? null,
     });
   },
 

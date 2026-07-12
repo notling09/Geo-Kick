@@ -33,6 +33,13 @@ check('legendary overall 85..91', legendaries.every(p => {
 }));
 // V3: Starter haben exakt 80 Overall
 check('starters exactly 80', pool.filter(p => p.isStarterChoice).every(p => overallOf(p, p.position) === 80));
+// V4: faire Positionsverteilung bei den kuratierten Stars
+const legPos = { TW: 0, ABW: 0, MF: 0, ST: 0 };
+legendaries.forEach(p => { legPos[p.position]++; });
+check('legendary positions balanced', legPos.ABW >= 5 && legPos.TW >= 3 && legPos.ST <= 7, JSON.stringify(legPos));
+const goldPos = { TW: 0, ABW: 0, MF: 0, ST: 0 };
+pool.filter(p => p.rarity === 'gold' && !p.isStarterChoice).forEach(p => { goldPos[p.position]++; });
+check('gold positions balanced', goldPos.ABW >= 11 && goldPos.TW >= 4 && goldPos.ST <= 11, JSON.stringify(goldPos));
 check('gold pool = 40', pool.filter(p => p.rarity === 'gold' && !p.isStarterChoice).length === 40);
 check('legendary pool = 20', legendaries.length === 20);
 check('bronze pool = 88', pool.filter(p => p.rarity === 'bronze').length === 88);
@@ -188,6 +195,11 @@ for (let i = 0; i < N; i++) {
     const redEvents = r.events.filter(e => e.type === 'rot').length;
     check('card stats match events', r.stats.home.yellows + r.stats.away.yellows === yellowEvents && r.stats.home.reds + r.stats.away.reds === redEvents);
     check('xg positive when shots exist', r.stats.home.shots === 0 || r.stats.home.xg > 0);
+    // V4: Paraden und Man of the Match
+    check('saves within misses', r.stats.home.saves <= r.stats.away.shots - r.stats.away.goals
+      && r.stats.away.saves <= r.stats.home.shots - r.stats.home.goals);
+    check('motm present and rated 4..10', !!r.motm && r.motm.name.length > 0
+      && r.motm.rating >= 4 && r.motm.rating <= 10 && r.motm.summary.length > 0);
   }
 }
 console.log(`avg goals/match: ${(goalsTotal / N).toFixed(2)}, strong team winrate: ${(strongWins / N * 100).toFixed(1)}%`);

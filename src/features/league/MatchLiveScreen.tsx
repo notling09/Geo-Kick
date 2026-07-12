@@ -130,7 +130,7 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
     );
   }
 
-  const { match, homeName, awayName, homeCrest, awayCrest, userIsHome, stats, coinReward } = played;
+  const { match, homeName, awayName, homeCrest, awayCrest, userIsHome, stats, coinReward, motm } = played;
   const homeGoals = visibleEvents.filter((e) => e.type === 'tor' && e.team === 'home').length;
   const awayGoals = visibleEvents.filter((e) => e.type === 'tor' && e.team === 'away').length;
   const finished = minute >= 90;
@@ -176,6 +176,12 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
           <StatRow label="Fouls" home={stats.home.fouls} away={stats.away.fouls} />
           <StatRow label="Yellow cards" home={stats.home.yellows} away={stats.away.yellows} />
           <StatRow label="Red cards" home={stats.home.reds} away={stats.away.reds} />
+          <StatRow label="Saves" home={stats.home.saves ?? 0} away={stats.away.saves ?? 0} />
+          {motm && (
+            <Text style={styles.motmLine}>
+              Man of the match: {motm.name} ({motm.teamName}) · {motm.rating.toFixed(1)}/10 · {motm.summary}
+            </Text>
+          )}
           {coinReward && coinReward.breakdown.length > 0 && (
             <Text style={styles.coinLine}>
               {coinReward.total > 0
@@ -336,6 +342,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontSize: font.small,
     color: colors.accentDark,
+  },
+  motmLine: {
+    marginTop: spacing.sm,
+    textAlign: 'center',
+    fontWeight: '800',
+    fontSize: font.small,
+    color: colors.sky,
   },
   noMatch: {
     color: '#fff',

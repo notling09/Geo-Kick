@@ -4,7 +4,6 @@ import {
   Pressable, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Ellipse } from 'react-native-svg';
 import {
   POSITION_LABEL, POSITION_SHORT, RARITY_COLOR, RARITY_LABEL, SELL_VALUE,
 } from '../../core/domain/constants';
@@ -48,7 +47,7 @@ const REVEAL_MS: Record<string, number> = {
 const POSITIONS: Position[] = ['TW', 'ABW', 'MF', 'ST'];
 
 export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOpening'>) {
-  const { packId, egg: eggMode } = route.params;
+  const { packId, egg: eggMode, eggIndex } = route.params;
   const {
     packs, players, lineup, captainPlayerId, openPack, sellDrawnPlayer, takeDuplicatePoints,
     keepDrawnPlayer, claimMysteryPlayer,
@@ -56,7 +55,6 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
   const packType = packTypeFromSource(
     packs.find((p) => p.id === packId)?.source ?? 'session',
   );
-  const eggLabel = useEggStore((s) => s.eggType()?.label ?? 'Egg');
   const insets = useSafeAreaInsets();
 
   const [entries, setEntries] = useState<Entry[] | null>(null);
@@ -187,18 +185,6 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
       ]),
     ]).start();
     try {
-      if (eggMode) {
-        // Ei-Ausbrüten (V4): genau ein Spieler, kein Pack-Bonus
-        const entry = await useEggStore.getState().hatchEgg();
-        if (!entry) {
-          navigation.goBack();
-          return;
-        }
-        setEntries([entry]);
-        setIndex(0);
-        timer.current = setTimeout(() => runReveal(entry), 1800);
-        return;
-      }
       const result = await openPack(packId ?? -1);
       setBonus(result.bonus);
       // Reihenfolge: schlechtester zuerst, die ???-Karte (99) immer zuletzt
@@ -214,6 +200,24 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
       setBusy(false);
     }
   };
+
+  // Ei-Ausbrüten (V4): keine Icon-Phase – direkt zur Spieler-Animation
+  const eggHatched = useRef(false);
+  useEffect(() => {
+    if (!eggMode || eggHatched.current) return;
+    eggHatched.current = true;
+    (async () => {
+      const entry = await useEggStore.getState().hatchEgg(eggIndex ?? 0);
+      if (!entry) {
+        navigation.goBack();
+        return;
+      }
+      setEntries([entry]);
+      setIndex(0);
+      timer.current = setTimeout(() => runReveal(entry), 350);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eggMode]);
 
   /** Karte nach links rauswischen, dann nächster Zug oder der Pack-Bonus. */
   const onNext = () => {
@@ -321,7 +325,7 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
         <PitchBackground width={SCREEN_W} height={SCREEN_H} variant="deep" />
       </View>
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        {phase === 'pack' && (
+        {phase === 'pack' && !eggMode && (
           <Pressable style={styles.center} onPress={onOpenPack}>
             <Animated.View
               style={{
@@ -337,20 +341,13 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
                 opacity: packOpacity,
               }}
             >
-              {eggMode ? (
-                <Svg width={150} height={180} viewBox="0 0 100 120">
-                  <Ellipse cx={50} cy={65} rx={40} ry={52} fill="#FFF7E0" stroke="#D9C58A" strokeWidth={3} />
-                  <Ellipse cx={38} cy={42} rx={10} ry={16} fill="rgba(255,255,255,0.8)" />
-                </Svg>
-              ) : (
-                <IconPack size={160} color={colors.accent} />
-              )}
+              <IconPack size={160} color={colors.accent} />
             </Animated.View>
             <Animated.Text style={[styles.tapHint, { opacity: packOpacity }]}>
-              {eggMode ? eggLabel : packType.label}
+              {packType.label}
             </Animated.Text>
             <Animated.Text style={[styles.tapHintSmall, { opacity: packOpacity }]}>
-              {eggMode ? 'Tap the egg to hatch it' : 'Tap the pack to open it'}
+              Tap the pack to open it
             </Animated.Text>
           </Pressable>
         )}

@@ -25,11 +25,23 @@ export interface SimTeam {
   roster?: Array<{ name: string; position: Position }>;
 }
 
+/** Man of the Match (V4): bester Spieler mit Note bis 10 und Kurzbegründung. */
+export interface MatchMotm {
+  name: string;
+  team: 'home' | 'away';
+  teamName: string;
+  /** Note auf eine Dezimalstelle, maximal 10 */
+  rating: number;
+  /** z. B. "2 goals, 1 assist" oder "5 saves, clean sheet" */
+  summary: string;
+}
+
 export interface SimResult {
   homeGoals: number;
   awayGoals: number;
   events: MatchEvent[];
   stats: MatchStats;
+  motm: MatchMotm;
 }
 
 function tacticAttack(strength: number, tactic: Tactic): number {
@@ -94,7 +106,99 @@ function pickPlayerName(team: SimTeam, weights?: Record<Position, number>): stri
 }
 
 function emptyStats(): TeamStats {
-  return { goals: 0, xg: 0, shots: 0, possession: 50, corners: 0, fouls: 0, yellows: 0, reds: 0 };
+  return {
+    goals: 0, xg: 0, shots: 0, possession: 50, corners: 0, fouls: 0,
+    yellows: 0, reds: 0, saves: 0,
+  };
+}
+
+/** Torwart-Name eines Teams (Kader: erster TW; sonst fiktiver Name). */
+function keeperName(team: SimTeam): string {
+  const keeper = team.roster?.find((p) => p.position === 'TW');
+  return keeper?.name ?? pickPlayerName(team);
+}
+
+/**
+ * Man of the Match (V4): Torschützen/Vorbereiter sammeln Punkte auf eine
+ * Basisnote von 6,5; Torhüter kommen über Paraden und Zu-null-Spiele in
+ * Frage ("verteidigt"). Die beste Note gewinnt.
+ */
+function computeMotm(
+  home: SimTeam,
+  away: SimTeam,
+  events: MatchEvent[],
+  stats: MatchStats,
+  homeGoals: number,
+  awayGoals: number,
+): MatchMotm {
+  const winner: 'home' | 'away' | null =
+    homeGoals > awayGoals ? 'home' : awayGoals > homeGoals ? 'away' : null;
+  const teamBonus = (team: 'home' | 'away') =>
+    winner === null ? 0.1 : winner === team ? 0.4 : -0.2;
+
+  interface Candidate extends MatchMotm {}
+  const candidates: Candidate[] = [];
+
+  // Feldspieler: Tore + Assists aus den Ticker-Events
+  const contributions = new Map<string, { team: 'home' | 'away'; goals: number; assists: number }>();
+  const bump = (team: 'home' | 'away', name: string, kind: 'goals' | 'assists') => {
+    const key = `${team}:${name}`;
+    const entry = contributions.get(key) ?? { team, goals: 0, assists: 0 };
+    entry[kind]++;
+    contributions.set(key, entry);
+  };
+  events.forEach((e) => {
+    if (e.type !== 'tor' || !e.team) return;
+    if (e.player) bump(e.team, e.player, 'goals');
+    if (e.assist) bump(e.team, e.assist, 'assists');
+  });
+  contributions.forEach((c, key) => {
+    const name = key.slice(key.indexOf(':') + 1);
+    const rating = Math.min(10, 6.5 + c.goals * 1.2 + c.assists * 0.6 + teamBonus(c.team));
+    const parts: string[] = [];
+    if (c.goals > 0) parts.push(`${c.goals} goal${c.goals > 1 ? 's' : ''}`);
+    if (c.assists > 0) parts.push(`${c.assists} assist${c.assists > 1 ? 's' : ''}`);
+    candidates.push({
+      name,
+      team: c.team,
+      teamName: c.team === 'home' ? home.name : away.name,
+      rating,
+      summary: parts.join(', '),
+    });
+  });
+
+  // Torhüter: Paraden + Zu-null zählen als "verteidigt"
+  (['home', 'away'] as const).forEach((side) => {
+    const conceded = side === 'home' ? awayGoals : homeGoals;
+    const saves = stats[side].saves;
+    if (conceded === 0 || saves >= 4) {
+      const parts: string[] = [];
+      if (saves > 0) parts.push(`${saves} save${saves > 1 ? 's' : ''}`);
+      if (conceded === 0) parts.push('clean sheet');
+      candidates.push({
+        name: keeperName(side === 'home' ? home : away),
+        team: side,
+        teamName: side === 'home' ? home.name : away.name,
+        rating: Math.min(10, 6.5 + saves * 0.35 + (conceded === 0 ? 0.8 : 0) + teamBonus(side)),
+        summary: parts.join(', ') || 'solid at the back',
+      });
+    }
+  });
+
+  // Fallback (praktisch nie): solider Torwart des Teams mit weniger Gegentoren
+  if (candidates.length === 0) {
+    const side: 'home' | 'away' = awayGoals <= homeGoals ? 'away' : 'home';
+    candidates.push({
+      name: keeperName(side === 'home' ? home : away),
+      team: side,
+      teamName: side === 'home' ? home.name : away.name,
+      rating: 6.8,
+      summary: 'kept his team in the game',
+    });
+  }
+
+  const best = candidates.sort((a, b) => b.rating - a.rating)[0];
+  return { ...best, rating: Math.round(best.rating * 10) / 10 };
 }
 
 export function simulateMatch(home: SimTeam, away: SimTeam): SimResult {
@@ -173,6 +277,10 @@ export function simulateMatch(home: SimTeam, away: SimTeam): SimResult {
             (assist ? ` (assist: ${assist})` : ''),
         });
       } else {
+        // Kein Tor: in ~65 % der Fälle hält der gegnerische Torwart (V4: Saves)
+        if (Math.random() < 0.65) {
+          stats[attackerSide === 'home' ? 'away' : 'home'].saves++;
+        }
         const player = pickPlayerName(atk, SCORER_WEIGHTS);
         events.push({
           minute,
@@ -254,5 +362,6 @@ export function simulateMatch(home: SimTeam, away: SimTeam): SimResult {
   stats.home.xg = Math.round(stats.home.xg * 10) / 10;
   stats.away.xg = Math.round(stats.away.xg * 10) / 10;
 
-  return { homeGoals, awayGoals, events, stats };
+  const motm = computeMotm(home, away, events, stats, homeGoals, awayGoals);
+  return { homeGoals, awayGoals, events, stats, motm };
 }

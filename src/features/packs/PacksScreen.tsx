@@ -5,7 +5,7 @@ import {
   BALANCING, PACK_TYPES, RARITY_LABEL, SHOP_PACK_IDS,
 } from '../../core/domain/constants';
 import { packTypeFromSource } from '../../core/engine/packGen';
-import { useEggStore } from '../../state/eggStore';
+import { MAX_EGGS, useEggStore } from '../../state/eggStore';
 import { useGameStore } from '../../state/gameStore';
 import { GKButton, Card, CoinBadge, PointsBadge, SectionTitle } from '../../ui/components';
 import { IconPack } from '../../ui/icons';
@@ -27,13 +27,11 @@ function oddsLine(typeId: keyof typeof PACK_TYPES): string {
 
 export function PacksScreen({ navigation }: TabScreenProps<'Packs'>) {
   const { club, packs, players, buyPack, levelPoints } = useGameStore();
-  const egg = useEggStore((s) => s.egg);
-  const eggType = useEggStore((s) => s.eggType());
+  const eggs = useEggStore((s) => s.eggs);
+  const eggTypeAt = useEggStore((s) => s.eggTypeAt);
 
   const unopened = useMemo(() => packs.filter((p) => p.openedAt === null), [packs]);
   const openedCount = packs.length - unopened.length;
-  const eggReady = !!egg && egg.progressMeters >= egg.targetMeters;
-  const eggPct = egg ? Math.min(100, (egg.progressMeters / egg.targetMeters) * 100) : 0;
 
   const onBuy = async (typeId: (typeof SHOP_PACK_IDS)[number]) => {
     const ok = await buyPack(typeId);
@@ -83,32 +81,45 @@ export function PacksScreen({ navigation }: TabScreenProps<'Packs'>) {
           ))
         )}
 
-        <SectionTitle>Your egg</SectionTitle>
-        {egg && eggType ? (
-          <Card>
-            <Text style={styles.packLabel}>{eggType.label}</Text>
-            <Text style={styles.packMeta}>
-              {eggReady
-                ? 'Ready to hatch!'
-                : `Walk to hatch it: ${(egg.progressMeters / 1000).toFixed(2)} / ${eggType.km} km (distance counts while the app is open)`}
-            </Text>
-            <View style={styles.eggBarWrap}>
-              <View style={[styles.eggBar, { width: `${eggPct}%` }]} />
-            </View>
-            {eggReady && (
-              <GKButton
-                title="Hatch egg"
-                onPress={() => navigation.navigate('PackOpening', { egg: true })}
-              />
-            )}
-          </Card>
-        ) : (
+        <SectionTitle>Your eggs ({eggs.length}/{MAX_EGGS})</SectionTitle>
+        {eggs.length === 0 ? (
           <Card>
             <Text style={styles.packHint}>
-              No egg right now. Finish a session at a pitch to find one - then walk to
+              No eggs right now. Finish a session at a pitch to find one - then walk to
               hatch it into a new player.
             </Text>
           </Card>
+        ) : (
+          eggs.map((egg, index) => {
+            const type = eggTypeAt(index);
+            if (!type) return null;
+            const ready = egg.progressMeters >= egg.targetMeters;
+            const pct = Math.min(100, (egg.progressMeters / egg.targetMeters) * 100);
+            return (
+              <Card key={`${type.id}-${index}`} style={styles.eggCard}>
+                <Text style={styles.packLabel}>{type.label}</Text>
+                <Text style={styles.packMeta}>
+                  {ready
+                    ? 'Ready to hatch!'
+                    : `Walk to hatch it: ${(egg.progressMeters / 1000).toFixed(2)} / ${type.km} km (distance counts while the app is open)`}
+                </Text>
+                <View style={styles.eggBarWrap}>
+                  <View style={[styles.eggBar, { width: `${pct}%` }]} />
+                </View>
+                {ready && (
+                  <GKButton
+                    title="Hatch egg"
+                    onPress={() => navigation.navigate('PackOpening', { egg: true, eggIndex: index })}
+                  />
+                )}
+              </Card>
+            );
+          })
+        )}
+        {eggs.length >= MAX_EGGS && (
+          <Text style={styles.packHint}>
+            All egg slots full - hatch one to find new eggs at the pitch.
+          </Text>
         )}
 
         <SectionTitle>Shop</SectionTitle>
@@ -189,6 +200,9 @@ const styles = StyleSheet.create({
   packHint: {
     fontSize: font.small,
     color: colors.inkSoft,
+  },
+  eggCard: {
+    marginBottom: spacing.sm,
   },
   eggBarWrap: {
     height: 10,

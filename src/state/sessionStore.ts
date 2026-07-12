@@ -367,9 +367,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     await game.addCoins(totalCoins);
     if (reward.pack) await game.grantPack('session');
 
-    // V4: Heimplatz neu bestimmen und ggf. ein neues Ei vergeben
+    // V4: Heimplatz neu bestimmen und ggf. ein neues Ei vergeben (max. 3)
     const homeSpotId = await recomputeHomeSpot();
-    const eggType = await useEggStore.getState().grantEggIfNone();
+    const eggType = await useEggStore.getState().grantEgg();
     set({ spots: await spotRepo.getSpots(), homeSpotId });
 
     return {

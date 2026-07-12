@@ -36,7 +36,9 @@ aufsteigst. Komplett offline, kein Backend, kein Echtgeld.
 - **Liga**: 4 Divisionen, 8 Klubs, Doppelrunde (14 Spieltage), 1 Spiel alle 10 Min.,
   Taktikwahl vor Anpfiff, Minuten-Live-Ticker mit Torschützen, gelben/roten Karten
   (rote Karte = Sperre fürs nächste Spiel) und Endstatistik (xG, Schüsse,
-  Ballbesitz, Ecken, Fouls, Karten); Liga-Coins (Sieg 10 / Remis 5, Captain-Boni,
+  Ballbesitz, Ecken, Fouls, Karten, Paraden) samt Man of the Match mit Note
+  bis 10; am Saisonende wird der Spieler der Saison gekürt (Tore, Assists,
+  Notenschnitt); Liga-Coins (Sieg 10 / Remis 5, Captain-Boni,
   Saisonprämien je Division) und Pokal-Feier beim Meistertitel;
   Auf-/Abstieg am Saisonende
 - **Captain-System**: Der gewählte Starter ist der erste Captain (wechselbar im
@@ -50,9 +52,9 @@ aufsteigst. Komplett offline, kein Backend, kein Echtgeld.
   beim Schießen UND Halten, Best-of-5 mit Sudden Death); einmal am Tag ist ein
   Platz der Gold-Platz mit starkem Boss-Team, großer Belohnung und doppelten
   Session-Coins
-- **Eier**: nach Sessions gefundene Eier (1/3/5 km) brüten durch echte
-  GPS-Strecke aus (zählt, solange die App offen ist) und schlüpfen zu
-  Spielern - längere Strecke, bessere Quoten
+- **Eier**: nach Sessions gefundene Eier (1/3/5 km, bis zu 3 gleichzeitig)
+  brüten durch echte GPS-Strecke aus (zählt, solange die App offen ist) und
+  schlüpfen zu Spielern - längere Strecke, bessere Quoten
 - **Lokale Speicherung** aller Daten in SQLite (expo-sqlite)
 - **Friendlies** (optional, via Supabase): anonymes Konto, Freunde per
   6-stelligem Code, Freundschaftsspiele gegen die zuletzt synchronisierte

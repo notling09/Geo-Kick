@@ -101,6 +101,8 @@ export interface TeamStats {
   fouls: number;
   yellows: number;
   reds: number;
+  /** Paraden des eigenen Torwarts (V4) */
+  saves: number;
 }
 
 export interface MatchStats {
