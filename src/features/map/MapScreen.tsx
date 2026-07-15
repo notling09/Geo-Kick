@@ -81,14 +81,8 @@ export function MapScreen({ navigation }: TabScreenProps<'Map'>) {
   } = useSessionStore();
   const coins = useGameStore((s) => s.club?.coins ?? 0);
   const battle = useBattleStore();
+  const specialSpotId = useBattleStore((s) => s.specialSpotId);
   const [fighting, setFighting] = useState(false);
-
-  // Der besondere Boss-/Gold-Platz des Tages (V4)
-  const specialSpotId = useMemo(
-    () => battle.specialSpotId(spots),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [spots, battle.day],
-  );
 
   const [myPos, setMyPos] = useState<{ latitude: number; longitude: number } | null>(null);
   const [selectedSpotId, setSelectedSpotId] = useState<string | null>(null);
@@ -147,6 +141,13 @@ export function MapScreen({ navigation }: TabScreenProps<'Map'>) {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrate, locate, refreshOsmSpots]);
+
+  // Gold-Platz des Tages im aktuellen Umkreis bestimmen/aktualisieren (V5):
+  // reist der Nutzer in eine andere Stadt, wird ein neuer Platz dort golden
+  useEffect(() => {
+    if (spots.length > 0) void battle.ensureSpecialSpot(spots, myPos);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spots, myPos]);
 
   const onLocate = async () => {
     setLocating(true);
@@ -253,6 +254,36 @@ export function MapScreen({ navigation }: TabScreenProps<'Map'>) {
     if (!newSpotCoords) return;
     await addUserSpot(newSpotName, newSpotCoords.latitude, newSpotCoords.longitude);
     setNewSpotCoords(null);
+  };
+
+  /**
+   * Platz-Kampf-Bereich (V4/V5): Gegner-Team + Kampf-Button. Auch während
+   * einer laufenden Session am eigenen Platz nutzbar.
+   */
+  const renderBattleBox = (spot: Spot) => {
+    const isBoss = spot.id === specialSpotId;
+    const opponent = battle.opponentFor(spot, isBoss);
+    const rewardLabel = isBoss
+      ? `win +${PITCH_BATTLE.bossWinReward} coins & points`
+      : 'win a session pack';
+    return (
+      <View style={styles.battleBox}>
+        <Text style={[styles.battleText, isBoss && styles.battleBossText]}>
+          {isBoss ? 'BOSS: ' : 'Pitch team: '}
+          {opponent.name} · strength {opponent.strength}
+        </Text>
+        {battle.canFight(spot.id) ? (
+          <GKButton
+            title={`Challenge on-site (${rewardLabel})`}
+            variant="secondary"
+            loading={fighting}
+            onPress={() => onFight(spot)}
+          />
+        ) : (
+          <Text style={styles.spotMeta}>Already challenged today - back tomorrow!</Text>
+        )}
+      </View>
+    );
   };
 
   const sessionMs = activeSession ? now - activeSession.startTime : 0;
@@ -423,6 +454,8 @@ export function MapScreen({ navigation }: TabScreenProps<'Map'>) {
             </View>
           )}
           <GKButton title="Check out" variant="secondary" onPress={onCheckOut} />
+          {/* V5: Platz-Kampf auch während der laufenden Session möglich */}
+          {activeSpot && renderBattleBox(activeSpot)}
         </Card>
       )}
 
@@ -450,32 +483,7 @@ export function MapScreen({ navigation }: TabScreenProps<'Map'>) {
           ) : (
             <GKButton title="Check in" onPress={() => onCheckIn(selectedSpot)} />
           )}
-          {(() => {
-            // V4 Platz-Kampf: Gegner-Team + Kampf-Button (1x pro Platz und Tag)
-            const isBoss = selectedSpot.id === specialSpotId;
-            const opponent = battle.opponentFor(selectedSpot, isBoss);
-            const rewardLabel = isBoss
-              ? `win +${PITCH_BATTLE.bossWinReward} coins & points`
-              : 'win a session pack';
-            return (
-              <View style={styles.battleBox}>
-                <Text style={[styles.battleText, isBoss && styles.battleBossText]}>
-                  {isBoss ? 'BOSS: ' : 'Pitch team: '}
-                  {opponent.name} · strength {opponent.strength}
-                </Text>
-                {battle.canFight(selectedSpot.id) ? (
-                  <GKButton
-                    title={`Challenge on-site (${rewardLabel})`}
-                    variant="secondary"
-                    loading={fighting}
-                    onPress={() => onFight(selectedSpot)}
-                  />
-                ) : (
-                  <Text style={styles.spotMeta}>Already challenged today - back tomorrow!</Text>
-                )}
-              </View>
-            );
-          })()}
+          {renderBattleBox(selectedSpot)}
         </Card>
       )}
 
@@ -553,8 +561,9 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   mapButtons: {
+    // Links, damit der MapLibre-Kompass oben rechts sichtbar bleibt (V5)
     position: 'absolute',
-    right: spacing.sm,
+    left: spacing.sm,
     top: spacing.sm,
     gap: spacing.sm,
   },

@@ -62,15 +62,17 @@ export function HelpScreen({ navigation }: RootScreenProps<'Help'>) {
         <Card>
           <Text style={styles.text}>
             Every pitch has its own team. Challenge it while you are physically there -
-            once per pitch per day. Winning earns a session pack, losing earns nothing.
+            even during a running session - once per pitch per day. Winning earns a
+            session pack, losing earns nothing.
             There are no draws: after 90 minutes it goes to a penalty shootout - you
             pick the corner for every shot AND the dive for every save (the keeper
             guesses one of five spots, so 4 out of 5 shots go in).
           </Text>
           <Text style={styles.text}>
-            One pitch per day is special (gold pin): a much stronger boss team waits
-            there. Beat it for +{PITCH_BATTLE.bossWinReward} coins and points - and
-            sessions at that pitch pay double coins all day.
+            One pitch per day is special (gold pin) - always picked near your current
+            location, so travelling shows you a new one. A much stronger boss team
+            waits there: beat it for +{PITCH_BATTLE.bossWinReward} coins and points,
+            and sessions at that pitch pay double coins all day.
           </Text>
         </Card>
 
@@ -142,8 +144,19 @@ export function HelpScreen({ navigation }: RootScreenProps<'Help'>) {
         <Card>
           <Text style={styles.text}>
             Your club plays in a division of 8 teams, 14 rounds per season, one match
-            every {matchMin} minutes. Pick a tactic before kickoff. A win pays{' '}
-            {LEAGUE_REWARDS.win} coins, a draw {LEAGUE_REWARDS.draw}.
+            every {matchMin} minutes. Pick a tactic before kickoff - it really matters:
+            offensive creates far more chances but weakens your defense, defensive is
+            the opposite. A win pays {LEAGUE_REWARDS.win} coins, a draw {LEAGUE_REWARDS.draw}.
+          </Text>
+          <Text style={styles.text}>
+            At half-time the match pauses: make substitutions and change your tactic -
+            both really affect the second half. A live possession bar (green = you)
+            runs during the match.
+          </Text>
+          <Text style={styles.text}>
+            After the last matchday the season review shows the final table, your
+            promotion or relegation with the season prize, the Player of the Season
+            and every player's average rating.
           </Text>
           <Text style={styles.text}>
             Red cards (or two yellows) suspend a player for the next match. At the end of

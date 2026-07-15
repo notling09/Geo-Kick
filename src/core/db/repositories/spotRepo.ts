@@ -21,6 +21,12 @@ export async function getSpots(): Promise<Spot[]> {
   return rows.map(toSpot);
 }
 
+/** Migration (V5): gespeicherte Plätze auf den neuen Mindestradius anheben. */
+export async function raiseMinRadius(minRadius: number): Promise<void> {
+  const db = await getDb();
+  await db.runAsync('UPDATE spots SET radius = ? WHERE radius < ?', minRadius, minRadius);
+}
+
 /** OSM-Spots einfügen/aktualisieren, ohne den Cooldown zu überschreiben. */
 export async function upsertOsmSpots(
   spots: Array<Omit<Spot, 'cooldownUntil'>>,

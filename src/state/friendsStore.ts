@@ -1,12 +1,13 @@
 import { create } from 'zustand';
 import type { Position } from '../core/domain/types';
-import { simulateMatch } from '../core/engine/matchSim';
+import { simulateFirstHalf, simulateSecondHalf, type SimTeam } from '../core/engine/matchSim';
 import { teamStrength } from '../core/engine/strength';
 import { getSupabase, type CloudClub } from '../core/services/cloud';
 import * as metaRepo from '../core/db/repositories/metaRepo';
 import { useCloudStore } from './cloudStore';
 import { useGameStore } from './gameStore';
 import { useLeagueStore, type PlayedUserMatch } from './leagueStore';
+import { setHalftimeResume } from './matchFlow';
 
 /**
  * Friendlies (Stufe 3+4): Freunde per Code hinzufügen und gegen ihren
@@ -151,62 +152,97 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
     if (!friend) return null;
 
     const lineup = game.lineupPlayers();
-    const userRoster = lineup
-      .filter((p): p is NonNullable<typeof p> => p !== null)
-      .map((p) => ({ name: p.pool.name, position: p.pool.position }));
     const friendRoster = (friend.squad ?? []).map((p) => ({
       name: p.name,
       position: p.position as Position,
     }));
+    const friendTeam: SimTeam = {
+      name: friend.club_name,
+      strength: friend.strength > 0 ? friend.strength : 400,
+      tactic: 'ausgewogen',
+      roster: friendRoster.length > 0 ? friendRoster : undefined,
+    };
+    const userTeam: SimTeam = {
+      name: club.name,
+      strength: teamStrength(lineup, club.formation),
+      tactic: club.tactic,
+      roster: lineup
+        .filter((p): p is NonNullable<typeof p> => p !== null)
+        .map((p) => ({ name: p.pool.name, position: p.pool.position })),
+    };
 
-    const result = simulateMatch(
-      {
-        name: club.name,
-        strength: teamStrength(lineup, club.formation),
-        tactic: club.tactic,
-        roster: userRoster,
-      },
-      {
-        name: friend.club_name,
-        strength: friend.strength > 0 ? friend.strength : 400,
-        tactic: 'ausgewogen',
-        roster: friendRoster.length > 0 ? friendRoster : undefined,
-      },
-    );
-
-    // Lokale Siegbilanz fortschreiben (kein Coin-/Pack-Reward: Ehrensache)
-    const records = { ...get().records };
-    const rec = records[friendId] ?? { w: 0, d: 0, l: 0 };
-    if (result.homeGoals > result.awayGoals) rec.w++;
-    else if (result.homeGoals < result.awayGoals) rec.l++;
-    else rec.d++;
-    records[friendId] = rec;
-    await metaRepo.setMeta('friendlyRecords', JSON.stringify(records));
-    set({ records });
-
-    const played: PlayedUserMatch = {
+    // V5: erst die 1. Halbzeit – zur Pause sind Wechsel/Taktikwechsel möglich
+    const half = simulateFirstHalf(userTeam, friendTeam);
+    const baseMatch = {
+      id: 0,
+      season: 0,
+      division: 0,
+      round: 0,
+      homeId: 'user',
+      awayId: friendId,
+    };
+    const provisional: PlayedUserMatch = {
       match: {
-        id: 0,
-        season: 0,
-        division: 0,
-        round: 0,
-        homeId: 'user',
-        awayId: friendId,
-        homeGoals: result.homeGoals,
-        awayGoals: result.awayGoals,
-        played: true,
-        events: result.events,
+        ...baseMatch,
+        homeGoals: half.homeGoals,
+        awayGoals: half.awayGoals,
+        played: false,
+        events: half.events,
       },
       homeName: club.name,
       awayName: friend.club_name,
       homeCrest: club.crest,
       awayCrest: friend.crest,
       userIsHome: true,
-      stats: result.stats,
-      motm: result.motm,
+      halftimePending: true,
     };
-    // Live-Ticker-Replay über den bestehenden MatchLive-Screen
-    useLeagueStore.setState({ lastPlayedMatch: played });
-    return played;
+    useLeagueStore.setState({ lastPlayedMatch: provisional });
+
+    setHalftimeResume(async (secondHalfTactic) => {
+      const g2 = useGameStore.getState();
+      await g2.setTactic(secondHalfTactic);
+      const lineup2 = g2.lineupPlayers();
+      const userTeam2: SimTeam = {
+        name: club.name,
+        strength: teamStrength(lineup2, g2.club?.formation ?? club.formation),
+        tactic: secondHalfTactic,
+        roster: lineup2
+          .filter((p): p is NonNullable<typeof p> => p !== null)
+          .map((p) => ({ name: p.pool.name, position: p.pool.position })),
+      };
+      const result = simulateSecondHalf(userTeam2, friendTeam, half);
+
+      // Lokale Siegbilanz fortschreiben (kein Coin-/Pack-Reward: Ehrensache)
+      const records = { ...get().records };
+      const rec = records[friendId] ?? { w: 0, d: 0, l: 0 };
+      if (result.homeGoals > result.awayGoals) rec.w++;
+      else if (result.homeGoals < result.awayGoals) rec.l++;
+      else rec.d++;
+      records[friendId] = rec;
+      await metaRepo.setMeta('friendlyRecords', JSON.stringify(records));
+      set({ records });
+
+      useLeagueStore.setState({
+        lastPlayedMatch: {
+          match: {
+            ...baseMatch,
+            homeGoals: result.homeGoals,
+            awayGoals: result.awayGoals,
+            played: true,
+            events: result.events,
+          },
+          homeName: club.name,
+          awayName: friend.club_name,
+          homeCrest: club.crest,
+          awayCrest: friend.crest,
+          userIsHome: true,
+          stats: result.stats,
+          motm: result.motm,
+          halftimePending: false,
+        },
+      });
+    });
+
+    return provisional;
   },
 }));

@@ -9,8 +9,14 @@ import { pick, pickWeighted } from './random';
  * Pro Spielminute wird geprüft, ob ein Ereignis stattfindet (Basis 8 % für
  * eine Chance). Bei einer Chance entscheidet das Stärkeverhältnis beider
  * Teams über ein Tor: P(Tor) = Stärke A ÷ (Stärke A + Stärke B), mit einem
- * kleinen Zufalls-Faktor. Offensive Taktik erhöht die Chancenhäufigkeit,
- * senkt aber die eigene Abwehrstärke leicht (und umgekehrt).
+ * kleinen Zufalls-Faktor. Offensive Taktik erhöht die Chancenhäufigkeit
+ * deutlich, senkt aber die eigene Abwehrstärke (und umgekehrt).
+ *
+ * V5: Die Simulation läuft in ZWEI Halbzeiten. Nutzer-Spiele pausieren zur
+ * Halbzeit – Auswechslungen und ein Taktikwechsel wirken sich dann wirklich
+ * auf die zweite Hälfte aus (simulateFirstHalf → Pause → simulateSecondHalf
+ * mit aktualisierten Teams). simulateMatch bleibt der Ein-Schritt-Weg für
+ * NPC-Spiele.
  */
 
 export interface SimTeam {
@@ -42,6 +48,19 @@ export interface SimResult {
   events: MatchEvent[];
   stats: MatchStats;
   motm: MatchMotm;
+}
+
+/** Zwischenstand zur Halbzeit (V5): alles, was die 2. Hälfte fortführt. */
+export interface HalfTimeState {
+  homeGoals: number;
+  awayGoals: number;
+  events: MatchEvent[];
+  stats: MatchStats;
+  /** Gelbe Karten je "seite:spieler" (zweite Gelbe = Rot) */
+  yellow: Array<[string, number]>;
+  /** Stärke-Faktoren aus roten Karten (1 = vollzählig) */
+  homeStrengthFactor: number;
+  awayStrengthFactor: number;
 }
 
 function tacticAttack(strength: number, tactic: Tactic): number {
@@ -201,42 +220,34 @@ function computeMotm(
   return { ...best, rating: Math.round(best.rating * 10) / 10 };
 }
 
-export function simulateMatch(home: SimTeam, away: SimTeam): SimResult {
-  const events: MatchEvent[] = [];
-  let homeGoals = 0;
-  let awayGoals = 0;
-  const stats: MatchStats = { home: emptyStats(), away: emptyStats() };
-  // Effektive Stärken sind veränderlich: rote Karte = Unterzahl-Malus
-  let homeStrength = home.strength;
-  let awayStrength = away.strength;
-  // Gelbe Karten je Spieler (zweite Gelbe = Rot)
-  const yellowBook = new Map<string, number>();
+/** Veränderlicher Spielzustand während der Minuten-Schleife. */
+interface SimContext {
+  events: MatchEvent[];
+  homeGoals: number;
+  awayGoals: number;
+  stats: MatchStats;
+  yellowBook: Map<string, number>;
+  homeStrength: number;
+  awayStrength: number;
+}
 
-  events.push({ minute: 1, type: 'anpfiff', text: 'Kick-off! The match is under way.' });
-
+/** Die Minuten-Schleife für einen Spielabschnitt (mutiert ctx). */
+function simulateRange(ctx: SimContext, home: SimTeam, away: SimTeam, from: number, to: number): void {
   const homeChanceRate = tacticChanceRate(home.tactic);
   const awayChanceRate = tacticChanceRate(away.tactic);
 
-  for (let minute = 1; minute <= 90; minute++) {
-    if (minute === 46) {
-      events.push({
-        minute: 45,
-        type: 'halbzeit',
-        text: `Half-time. The score is ${homeGoals}:${awayGoals}.`,
-      });
-    }
-
+  for (let minute = from; minute <= to; minute++) {
     const roll = Math.random();
     if (roll < homeChanceRate + awayChanceRate) {
       // Wer hat die Chance? Gewichtet nach (taktik-modifizierter) Chancenrate und Stärke
       const attackerSide = pickWeighted<'home' | 'away'>([
-        { value: 'home', weight: homeChanceRate * homeStrength },
-        { value: 'away', weight: awayChanceRate * awayStrength },
+        { value: 'home', weight: homeChanceRate * ctx.homeStrength },
+        { value: 'away', weight: awayChanceRate * ctx.awayStrength },
       ]);
       const atk = attackerSide === 'home' ? home : away;
-      const atkStr = attackerSide === 'home' ? homeStrength : awayStrength;
-      const defStr = attackerSide === 'home' ? awayStrength : homeStrength;
-      const atkStats = stats[attackerSide];
+      const atkStr = attackerSide === 'home' ? ctx.homeStrength : ctx.awayStrength;
+      const defStr = attackerSide === 'home' ? ctx.awayStrength : ctx.homeStrength;
+      const atkStats = ctx.stats[attackerSide];
 
       const atkStrength = tacticAttack(atkStr, atk.tactic);
       const defStrength = tacticDefense(defStr, attackerSide === 'home' ? away.tactic : home.tactic);
@@ -251,8 +262,8 @@ export function simulateMatch(home: SimTeam, away: SimTeam): SimResult {
       atkStats.xg += Math.max(0.02, Math.min(goalProb, 0.95));
 
       if (Math.random() < goalProb) {
-        if (attackerSide === 'home') homeGoals++;
-        else awayGoals++;
+        if (attackerSide === 'home') ctx.homeGoals++;
+        else ctx.awayGoals++;
         atkStats.goals++;
         const scorer = pickPlayerName(atk, SCORER_WEIGHTS);
         // ~70 % der Tore mit Vorlage – Vorlagengeber ≠ Torschütze
@@ -266,23 +277,23 @@ export function simulateMatch(home: SimTeam, away: SimTeam): SimResult {
             }
           }
         }
-        events.push({
+        ctx.events.push({
           minute,
           type: 'tor',
           team: attackerSide,
           player: scorer,
           assist,
           text:
-            `GOAL! ${scorer} (${atk.name}) ${pickText(GOAL_TEXTS)} ${homeGoals}:${awayGoals}` +
+            `GOAL! ${scorer} (${atk.name}) ${pickText(GOAL_TEXTS)} ${ctx.homeGoals}:${ctx.awayGoals}` +
             (assist ? ` (assist: ${assist})` : ''),
         });
       } else {
         // Kein Tor: in ~65 % der Fälle hält der gegnerische Torwart (V4: Saves)
         if (Math.random() < 0.65) {
-          stats[attackerSide === 'home' ? 'away' : 'home'].saves++;
+          ctx.stats[attackerSide === 'home' ? 'away' : 'home'].saves++;
         }
         const player = pickPlayerName(atk, SCORER_WEIGHTS);
-        events.push({
+        ctx.events.push({
           minute,
           type: 'chance',
           team: attackerSide,
@@ -290,15 +301,15 @@ export function simulateMatch(home: SimTeam, away: SimTeam): SimResult {
         });
       }
     } else if (roll < homeChanceRate + awayChanceRate + MATCH_SIM.cornerPerMinute) {
-      const side = Math.random() < homeStrength / (homeStrength + awayStrength) ? 'home' : 'away';
-      stats[side].corners++;
-      events.push({ minute, type: 'ecke', team: side, text: `${side === 'home' ? home.name : away.name}: ${pickText(CORNER_TEXTS)}` });
+      const side = Math.random() < ctx.homeStrength / (ctx.homeStrength + ctx.awayStrength) ? 'home' : 'away';
+      ctx.stats[side].corners++;
+      ctx.events.push({ minute, type: 'ecke', team: side, text: `${side === 'home' ? home.name : away.name}: ${pickText(CORNER_TEXTS)}` });
     } else if (roll < homeChanceRate + awayChanceRate + MATCH_SIM.cornerPerMinute + MATCH_SIM.foulPerMinute) {
       const side = Math.random() < 0.5 ? 'home' : 'away';
       const team = side === 'home' ? home : away;
       const offender = pickPlayerName(team);
-      stats[side].fouls++;
-      events.push({
+      ctx.stats[side].fouls++;
+      ctx.events.push({
         minute,
         type: 'foul',
         team: side,
@@ -309,33 +320,33 @@ export function simulateMatch(home: SimTeam, away: SimTeam): SimResult {
       const cardRoll = Math.random();
       const bookKey = `${side}:${offender}`;
       if (cardRoll < MATCH_SIM.straightRedPerFoul) {
-        stats[side].reds++;
-        events.push({
+        ctx.stats[side].reds++;
+        ctx.events.push({
           minute,
           type: 'rot',
           team: side,
           player: offender,
           text: `RED CARD! ${offender} (${team.name}) is sent off for a reckless challenge!`,
         });
-        if (side === 'home') homeStrength *= MATCH_SIM.redCardPenalty;
-        else awayStrength *= MATCH_SIM.redCardPenalty;
+        if (side === 'home') ctx.homeStrength *= MATCH_SIM.redCardPenalty;
+        else ctx.awayStrength *= MATCH_SIM.redCardPenalty;
       } else if (cardRoll < MATCH_SIM.straightRedPerFoul + MATCH_SIM.yellowPerFoul) {
-        const yellows = (yellowBook.get(bookKey) ?? 0) + 1;
-        yellowBook.set(bookKey, yellows);
+        const yellows = (ctx.yellowBook.get(bookKey) ?? 0) + 1;
+        ctx.yellowBook.set(bookKey, yellows);
         if (yellows >= 2) {
-          stats[side].reds++;
-          events.push({
+          ctx.stats[side].reds++;
+          ctx.events.push({
             minute,
             type: 'rot',
             team: side,
             player: offender,
             text: `Second yellow - RED CARD! ${offender} (${team.name}) has to go off!`,
           });
-          if (side === 'home') homeStrength *= MATCH_SIM.redCardPenalty;
-          else awayStrength *= MATCH_SIM.redCardPenalty;
+          if (side === 'home') ctx.homeStrength *= MATCH_SIM.redCardPenalty;
+          else ctx.awayStrength *= MATCH_SIM.redCardPenalty;
         } else {
-          stats[side].yellows++;
-          events.push({
+          ctx.stats[side].yellows++;
+          ctx.events.push({
             minute,
             type: 'gelb',
             team: side,
@@ -346,22 +357,80 @@ export function simulateMatch(home: SimTeam, away: SimTeam): SimResult {
       }
     }
   }
+}
 
-  events.push({
+/** Erste Halbzeit simulieren (V5): endet mit dem Halbzeit-Zwischenstand. */
+export function simulateFirstHalf(home: SimTeam, away: SimTeam): HalfTimeState {
+  const ctx: SimContext = {
+    events: [],
+    homeGoals: 0,
+    awayGoals: 0,
+    stats: { home: emptyStats(), away: emptyStats() },
+    yellowBook: new Map(),
+    homeStrength: home.strength,
+    awayStrength: away.strength,
+  };
+  ctx.events.push({ minute: 1, type: 'anpfiff', text: 'Kick-off! The match is under way.' });
+  simulateRange(ctx, home, away, 1, 45);
+  ctx.events.push({
+    minute: 45,
+    type: 'halbzeit',
+    text: `Half-time. The score is ${ctx.homeGoals}:${ctx.awayGoals}.`,
+  });
+  return {
+    homeGoals: ctx.homeGoals,
+    awayGoals: ctx.awayGoals,
+    events: ctx.events,
+    stats: ctx.stats,
+    yellow: [...ctx.yellowBook.entries()],
+    homeStrengthFactor: ctx.homeStrength / home.strength,
+    awayStrengthFactor: ctx.awayStrength / away.strength,
+  };
+}
+
+/**
+ * Zweite Halbzeit simulieren (V5): home/away dürfen sich gegenüber der
+ * ersten Hälfte unterscheiden (Auswechslungen → neue Stärke/Kader, neue
+ * Taktik). Rote-Karten-Malusse aus Hälfte 1 wirken weiter.
+ */
+export function simulateSecondHalf(home: SimTeam, away: SimTeam, half: HalfTimeState): SimResult {
+  const ctx: SimContext = {
+    events: half.events,
+    homeGoals: half.homeGoals,
+    awayGoals: half.awayGoals,
+    stats: half.stats,
+    yellowBook: new Map(half.yellow),
+    homeStrength: home.strength * half.homeStrengthFactor,
+    awayStrength: away.strength * half.awayStrengthFactor,
+  };
+  simulateRange(ctx, home, away, 46, 90);
+
+  ctx.events.push({
     minute: 90,
     type: 'abpfiff',
-    text: `Full-time! Final score ${homeGoals}:${awayGoals}.`,
+    text: `Full-time! Final score ${ctx.homeGoals}:${ctx.awayGoals}.`,
   });
 
   // Ballbesitz aus dem Stärkeverhältnis (plus etwas Rauschen), 30–70 %
   const possHome = Math.round(
     Math.min(70, Math.max(30, 50 + ((home.strength - away.strength) / (home.strength + away.strength)) * 60 + (Math.random() * 8 - 4))),
   );
-  stats.home.possession = possHome;
-  stats.away.possession = 100 - possHome;
-  stats.home.xg = Math.round(stats.home.xg * 10) / 10;
-  stats.away.xg = Math.round(stats.away.xg * 10) / 10;
+  ctx.stats.home.possession = possHome;
+  ctx.stats.away.possession = 100 - possHome;
+  ctx.stats.home.xg = Math.round(ctx.stats.home.xg * 10) / 10;
+  ctx.stats.away.xg = Math.round(ctx.stats.away.xg * 10) / 10;
 
-  const motm = computeMotm(home, away, events, stats, homeGoals, awayGoals);
-  return { homeGoals, awayGoals, events, stats, motm };
+  const motm = computeMotm(home, away, ctx.events, ctx.stats, ctx.homeGoals, ctx.awayGoals);
+  return {
+    homeGoals: ctx.homeGoals,
+    awayGoals: ctx.awayGoals,
+    events: ctx.events,
+    stats: ctx.stats,
+    motm,
+  };
+}
+
+/** Komplettes Spiel in einem Schritt (NPC-Spiele ohne Halbzeit-Pause). */
+export function simulateMatch(home: SimTeam, away: SimTeam): SimResult {
+  return simulateSecondHalf(home, away, simulateFirstHalf(home, away));
 }

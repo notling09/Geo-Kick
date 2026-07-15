@@ -13,6 +13,7 @@ export type RootStackParamList = {
   Help: undefined;
   Passport: undefined;
   Shootout: undefined;
+  SeasonReview: undefined;
 };
 
 export type MainTabParamList = {

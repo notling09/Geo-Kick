@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import { PITCH_BATTLE, USER_CLUB_ID } from '../core/domain/constants';
 import type { Spot } from '../core/domain/types';
 import { generateNpcRoster } from '../core/engine/league';
-import { simulateMatch } from '../core/engine/matchSim';
+import { simulateFirstHalf, simulateSecondHalf, type SimTeam } from '../core/engine/matchSim';
 import {
   dayKey, pitchOpponent, specialSpotIdForDay, type PitchOpponent,
 } from '../core/engine/pitchBattle';
@@ -12,6 +12,7 @@ import { distanceMeters } from '../core/services/geo';
 import * as metaRepo from '../core/db/repositories/metaRepo';
 import { useGameStore } from './gameStore';
 import { useLeagueStore, type PlayedUserMatch } from './leagueStore';
+import { setHalftimeResume } from './matchFlow';
 
 /**
  * Platz-Kämpfe (V4): An jedem Platz wartet ein Gegner-Team – herausfordern
@@ -22,7 +23,7 @@ import { useLeagueStore, type PlayedUserMatch } from './leagueStore';
  */
 
 export type BattleResult =
-  | { ok: true; played: PlayedUserMatch; won: boolean }
+  | { ok: true }
   | {
       ok: false;
       reason: 'permission' | 'mocked' | 'too_far' | 'already_fought' | 'no_location' | 'no_club';
@@ -42,12 +43,23 @@ export interface ShootoutSetup {
 interface BattleState {
   day: string;
   foughtSpotIds: string[];
+  /** Der Gold-/Boss-Platz des Tages (immer im Umkreis des Nutzers, V5) */
+  specialSpotId: string | null;
   /** Steht ein Elfmeterschießen aus (Kampf endete 90 Min unentschieden)? */
   pendingShootout: ShootoutSetup | null;
 
   hydrate: () => Promise<void>;
-  /** Der besondere Boss-/Gold-Platz des heutigen Tages. */
-  specialSpotId: (spots: Spot[]) => string | null;
+  /**
+   * Gold-Platz bestimmen/aktualisieren (V5): unter den Plätzen im Umkreis
+   * von ~20 km um die aktuelle Position. Reist der Nutzer weiter weg (z. B.
+   * Bern → Genf), wird ein neuer Gold-Platz in der neuen Umgebung gewählt.
+   * Der gewählte Platz wird gespeichert, damit auch der Session-Check-out
+   * (doppelte Coins) denselben Platz benutzt.
+   */
+  ensureSpecialSpot: (
+    spots: Spot[],
+    myPos: { latitude: number; longitude: number } | null,
+  ) => Promise<void>;
   opponentFor: (spot: Spot, isBoss: boolean) => PitchOpponent;
   canFight: (spotId: string) => boolean;
   fight: (spot: Spot, isBoss: boolean) => Promise<BattleResult>;
@@ -73,9 +85,13 @@ function rolledOver(state: { day: string; foughtSpotIds: string[] }): {
   return state.day === today ? state : { day: today, foughtSpotIds: [] };
 }
 
+/** Umkreis, in dem der Gold-Platz des Tages liegen muss (V5) */
+const SPECIAL_RANGE_M = 20000;
+
 export const useBattleStore = create<BattleState>((set, get) => ({
   day: dayKey(),
   foughtSpotIds: [],
+  specialSpotId: null,
   pendingShootout: null,
 
   hydrate: async () => {
@@ -89,14 +105,37 @@ export const useBattleStore = create<BattleState>((set, get) => ({
         // kaputter Eintrag: frisch starten
       }
     }
-    set(state);
+    // Gespeicherten Gold-Platz laden (gilt nur für heute)
+    let specialSpotId: string | null = null;
+    try {
+      const stored = JSON.parse((await metaRepo.getMeta('specialSpot')) || 'null') as
+        | { day: string; spotId: string }
+        | null;
+      if (stored && stored.day === dayKey()) specialSpotId = stored.spotId;
+    } catch {
+      specialSpotId = null;
+    }
+    set({ ...state, specialSpotId });
   },
 
-  specialSpotId: (spots) =>
-    specialSpotIdForDay(
-      spots.map((s) => s.id),
-      dayKey(),
-    ),
+  ensureSpecialSpot: async (spots, myPos) => {
+    if (spots.length === 0) return;
+    const today = dayKey();
+    const inRange = (s: Spot) =>
+      !myPos ||
+      distanceMeters(myPos.latitude, myPos.longitude, s.latitude, s.longitude) <= SPECIAL_RANGE_M;
+    const candidates = spots.filter(inRange);
+    const current = get().specialSpotId;
+    const currentSpot = spots.find((s) => s.id === current);
+    // Aktueller Gold-Platz bleibt gültig, solange er heute gewählt wurde und
+    // (noch) in der Nähe liegt
+    if (get().day === today && currentSpot && inRange(currentSpot)) return;
+    const pickFrom = candidates.length > 0 ? candidates : spots;
+    const specialSpotId = specialSpotIdForDay(pickFrom.map((s) => s.id), today);
+    if (!specialSpotId) return;
+    await metaRepo.setMeta('specialSpot', JSON.stringify({ day: today, spotId: specialSpotId }));
+    set({ specialSpotId });
+  },
 
   opponentFor: (spot, isBoss) => {
     const game = useGameStore.getState();
@@ -138,93 +177,127 @@ export const useBattleStore = create<BattleState>((set, get) => ({
 
     const opponent = get().opponentFor(spot, isBoss);
     const lineup = game.lineupPlayers();
-    const userRoster = lineup
-      .filter((p): p is NonNullable<typeof p> => p !== null)
-      .map((p) => ({ name: p.pool.name, position: p.pool.position }));
     const oppRoster = generateNpcRoster();
-
-    const result = simulateMatch(
-      {
-        name: club.name,
-        strength: teamStrength(lineup, club.formation),
-        tactic: club.tactic,
-        roster: userRoster,
-      },
-      {
-        name: opponent.name,
-        strength: opponent.strength,
-        tactic: 'ausgewogen',
-        roster: oppRoster,
-      },
-    );
+    const oppTeam: SimTeam = {
+      name: opponent.name,
+      strength: opponent.strength,
+      tactic: 'ausgewogen',
+      roster: oppRoster,
+    };
+    const userTeam: SimTeam = {
+      name: club.name,
+      strength: teamStrength(lineup, club.formation),
+      tactic: club.tactic,
+      roster: lineup
+        .filter((p): p is NonNullable<typeof p> => p !== null)
+        .map((p) => ({ name: p.pool.name, position: p.pool.position })),
+    };
 
     // Versuch verbraucht – unabhängig vom Ausgang (1 Kampf pro Platz und Tag)
     const foughtSpotIds = [...state.foughtSpotIds, spot.id];
     await persist(state.day, foughtSpotIds);
-    set({ day: state.day, foughtSpotIds });
+    set({ day: state.day, foughtSpotIds, pendingShootout: null });
 
-    // Belohnung: Sieg = Session-Pack (Boss: Coins+Punkte), Niederlage = nichts.
-    // Remis gibt es nicht: nach 90 Minuten geht es ins Elfmeterschießen.
-    const won = result.homeGoals > result.awayGoals;
-    const draw = result.homeGoals === result.awayGoals;
-    let coinReward: PlayedUserMatch['coinReward'];
-    if (won && isBoss) {
-      const reward = PITCH_BATTLE.bossWinReward;
-      await game.addCoins(reward);
-      await game.addLevelPoints(reward);
-      coinReward = {
-        total: reward,
-        breakdown: [`Boss beaten +${reward} coins`, `+${reward} level-up points`],
+    // V5: erst die 1. Halbzeit – zur Pause sind Wechsel/Taktikwechsel möglich
+    const half = simulateFirstHalf(userTeam, oppTeam);
+    const baseMatch = {
+      id: 0,
+      season: 0,
+      division: 0,
+      round: 0,
+      homeId: USER_CLUB_ID,
+      awayId: `battle-${spot.id}`,
+    };
+    useLeagueStore.setState({
+      lastPlayedMatch: {
+        match: {
+          ...baseMatch,
+          homeGoals: half.homeGoals,
+          awayGoals: half.awayGoals,
+          played: false,
+          events: half.events,
+        },
+        homeName: club.name,
+        awayName: opponent.name,
+        homeCrest: club.crest,
+        awayCrest: 'crest-7',
+        userIsHome: true,
+        halftimePending: true,
+      },
+    });
+
+    setHalftimeResume(async (secondHalfTactic) => {
+      const g2 = useGameStore.getState();
+      await g2.setTactic(secondHalfTactic);
+      const lineup2 = g2.lineupPlayers();
+      const userTeam2: SimTeam = {
+        name: club.name,
+        strength: teamStrength(lineup2, g2.club?.formation ?? club.formation),
+        tactic: secondHalfTactic,
+        roster: lineup2
+          .filter((p): p is NonNullable<typeof p> => p !== null)
+          .map((p) => ({ name: p.pool.name, position: p.pool.position })),
       };
-    } else if (won) {
-      await game.grantPack('session');
-      coinReward = { total: 0, breakdown: ['Pitch battle won: +1 session pack'] };
-    }
+      const result = simulateSecondHalf(userTeam2, oppTeam, half);
 
-    if (draw) {
-      // Schützen fürs Elfmeterschießen: eigene Elf nach Abschluss sortiert,
-      // Gegner mit denselben Namen wie im Ticker
-      const userShooters = lineup
-        .filter((p): p is NonNullable<typeof p> => p !== null)
-        .sort((a, b) => b.pool.abschluss - a.pool.abschluss)
-        .map((p) => p.pool.name);
-      set({
-        pendingShootout: {
-          isBoss,
-          opponentName: opponent.name,
-          userShooters: userShooters.length > 0 ? userShooters : ['Your player'],
-          oppShooters: oppRoster.map((r) => r.name),
+      // Belohnung: Sieg = Session-Pack (Boss: Coins+Punkte), Niederlage = nichts.
+      // Remis gibt es nicht: nach 90 Minuten geht es ins Elfmeterschießen.
+      const won = result.homeGoals > result.awayGoals;
+      const draw = result.homeGoals === result.awayGoals;
+      let coinReward: PlayedUserMatch['coinReward'];
+      if (won && isBoss) {
+        const reward = PITCH_BATTLE.bossWinReward;
+        await g2.addCoins(reward);
+        await g2.addLevelPoints(reward);
+        coinReward = {
+          total: reward,
+          breakdown: [`Boss beaten +${reward} coins`, `+${reward} level-up points`],
+        };
+      } else if (won) {
+        await g2.grantPack('session');
+        coinReward = { total: 0, breakdown: ['Pitch battle won: +1 session pack'] };
+      }
+
+      if (draw) {
+        // Schützen fürs Elfmeterschießen: aktuelle Elf nach Abschluss sortiert,
+        // Gegner mit denselben Namen wie im Ticker
+        const userShooters = lineup2
+          .filter((p): p is NonNullable<typeof p> => p !== null)
+          .sort((a, b) => b.pool.abschluss - a.pool.abschluss)
+          .map((p) => p.pool.name);
+        set({
+          pendingShootout: {
+            isBoss,
+            opponentName: opponent.name,
+            userShooters: userShooters.length > 0 ? userShooters : ['Your player'],
+            oppShooters: oppRoster.map((r) => r.name),
+          },
+        });
+      }
+
+      useLeagueStore.setState({
+        lastPlayedMatch: {
+          match: {
+            ...baseMatch,
+            homeGoals: result.homeGoals,
+            awayGoals: result.awayGoals,
+            played: true,
+            events: result.events,
+          },
+          homeName: club.name,
+          awayName: opponent.name,
+          homeCrest: club.crest,
+          awayCrest: 'crest-7',
+          userIsHome: true,
+          stats: result.stats,
+          coinReward,
+          motm: result.motm,
+          halftimePending: false,
         },
       });
-    } else {
-      set({ pendingShootout: null });
-    }
+    });
 
-    const played: PlayedUserMatch = {
-      match: {
-        id: 0,
-        season: 0,
-        division: 0,
-        round: 0,
-        homeId: USER_CLUB_ID,
-        awayId: `battle-${spot.id}`,
-        homeGoals: result.homeGoals,
-        awayGoals: result.awayGoals,
-        played: true,
-        events: result.events,
-      },
-      homeName: club.name,
-      awayName: opponent.name,
-      homeCrest: club.crest,
-      awayCrest: 'crest-7',
-      userIsHome: true,
-      stats: result.stats,
-      coinReward,
-      motm: result.motm,
-    };
-    // Live-Ticker-Replay über den bestehenden MatchLive-Screen
-    useLeagueStore.setState({ lastPlayedMatch: played });
-    return { ok: true, played, won };
+    return { ok: true };
   },
 
   resolveShootout: async (won) => {

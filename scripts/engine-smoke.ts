@@ -1,4 +1,4 @@
-﻿import { simulateMatch } from '../src/core/engine/matchSim';
+﻿import { simulateFirstHalf, simulateMatch, simulateSecondHalf } from '../src/core/engine/matchSim';
 import { generateSchedule, computeStandings, generateNpcClubs, resolveSeason } from '../src/core/engine/league';
 import { generatePlayerPool, generateFillerSquad, overallOf } from '../src/core/engine/playerGen';
 import { drawEggPlayer, drawPackContent, rollPackBonus } from '../src/core/engine/packGen';
@@ -210,6 +210,31 @@ for (let i = 0; i < N; i++) {
 console.log(`avg goals/match: ${(goalsTotal / N).toFixed(2)}, strong team winrate: ${(strongWins / N * 100).toFixed(1)}%`);
 check('avg goals plausible (1.5-5.5)', goalsTotal / N > 1.5 && goalsTotal / N < 5.5);
 check('strong team wins >55%', strongWins / N > 0.55);
+
+// V5: Halbzeit-Split – 1. Hälfte endet bei 45, 2. Hälfte führt konsistent fort
+const teamA = { name: 'A', strength: 600, tactic: 'ausgewogen' as const };
+const teamB = { name: 'B', strength: 600, tactic: 'ausgewogen' as const };
+const half = simulateFirstHalf(teamA, teamB);
+check('first half ends at 45 with halftime event',
+  half.events.every(e => e.minute <= 45) && half.events.some(e => e.type === 'halbzeit'));
+const full = simulateSecondHalf(teamA, teamB, half);
+check('second half continues the first',
+  full.homeGoals >= half.homeGoals && full.awayGoals >= half.awayGoals
+  && full.events.some(e => e.minute > 45) && full.events.some(e => e.type === 'abpfiff'));
+check('split sim stats consistent', full.stats.home.goals === full.homeGoals && full.stats.away.goals === full.awayGoals);
+
+// V5: Taktik wirkt spürbar – offensiv erzeugt deutlich mehr Chancen als defensiv
+let offShots = 0;
+let defShots = 0;
+for (let i = 0; i < 300; i++) {
+  const r = simulateMatch(
+    { name: 'Off', strength: 600, tactic: 'offensiv' },
+    { name: 'Def', strength: 600, tactic: 'defensiv' },
+  );
+  offShots += r.stats.home.shots;
+  defShots += r.stats.away.shots;
+}
+check('offensive tactic creates far more chances', offShots > defShots * 1.5, `${offShots} vs ${defShots}`);
 
 // Standings + season resolution
 const playedMatches = schedule.map(m => ({

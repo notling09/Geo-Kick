@@ -13,7 +13,7 @@ aufsteigst. Komplett offline, kein Backend, kein Echtgeld.
 - **GPS-Check-in/Check-out** mit Coin-Belohnung: ab 5 Min. 50 Coins, linear bis
   150 Coins bei 15 Min., plus genau 1 Pack pro Session; dazu 3 zufällige
   Session-Objectives (Mini-Aufgaben, Ehrensystem, Bonus-Coins)
-- **Anti-Cheat**: Geofencing bei Check-in und Check-out (75-m-Radius),
+- **Anti-Cheat**: Geofencing bei Check-in und Check-out (100-m-Radius),
   Mock-Location-Erkennung, Pflicht-Check-out, 30 Min Cooldown pro Platz,
   Bewegungssensor-Prüfung (Kapitel 6.2: ein komplett regungsloses Gerät
   bekommt keine Belohnung)
@@ -37,8 +37,10 @@ aufsteigst. Komplett offline, kein Backend, kein Echtgeld.
   Taktikwahl vor Anpfiff, Minuten-Live-Ticker mit Torschützen, gelben/roten Karten
   (rote Karte = Sperre fürs nächste Spiel) und Endstatistik (xG, Schüsse,
   Ballbesitz, Ecken, Fouls, Karten, Paraden) samt Man of the Match mit Note
-  bis 10; am Saisonende wird der Spieler der Saison gekürt (Tore, Assists,
-  Notenschnitt); Liga-Coins (Sieg 10 / Remis 5, Captain-Boni,
+  bis 10; Halbzeit-Pause mit Auswechslungen und Taktikwechsel, die wirklich
+  auf die zweite Hälfte wirken, plus Live-Ballbesitz-Balken; am Saisonende
+  eine animierte Rückblick-Show (Abschlusstabelle, Auf-/Abstieg mit Prämie,
+  Spieler der Saison, alle Saisonnoten); Liga-Coins (Sieg 10 / Remis 5, Captain-Boni,
   Saisonprämien je Division) und Pokal-Feier beim Meistertitel;
   Auf-/Abstieg am Saisonende
 - **Captain-System**: Der gewählte Starter ist der erste Captain (wechselbar im
@@ -47,7 +49,9 @@ aufsteigst. Komplett offline, kein Backend, kein Echtgeld.
   Abzeichen (5/10/25/50 Plätze), tägliche Check-in-Serie mit wachsendem Bonus
   und ein Heimplatz (meistbesuchter Platz: blauer Pin, Level, Bonus-Coins)
 - **Platz-Kämpfe**: an jedem Platz wartet ein fiktives Gegner-Team, das man nur
-  vor Ort herausfordern kann (1x pro Platz und Tag; Sieg = Session-Pack); kein
+  vor Ort herausfordern kann - auch während einer laufenden Session (1x pro
+  Platz und Tag; Sieg = Session-Pack); der tägliche Gold-Platz wird immer im
+  Umkreis der aktuellen Position gewählt; kein
   Remis - nach 90 Minuten folgt ein interaktives Elfmeterschießen (Ecke wählen
   beim Schießen UND Halten, Best-of-5 mit Sudden Death); einmal am Tag ist ein
   Platz der Gold-Platz mit starkem Boss-Team, großer Belohnung und doppelten

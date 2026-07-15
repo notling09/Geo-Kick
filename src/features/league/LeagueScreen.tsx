@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useIsFocused } from '@react-navigation/native';
@@ -36,6 +36,22 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
     hydrate, matchReady, msUntilNextMatch, playUserMatchday, acknowledgeSeasonMessage,
     acknowledgeCelebration, clubName, clubCrest,
   } = useLeagueStore();
+  const seasonReview = useLeagueStore((s) => s.seasonReview);
+  const pendingCelebration = useLeagueStore((s) => s.pendingCelebration);
+
+  // Saison-Rückblick-Show (V5): startet automatisch, sobald der Liga-Tab
+  // nach dem letzten Spieltag wieder sichtbar ist (nach der Meister-Feier)
+  const reviewShown = useRef(false);
+  useEffect(() => {
+    if (!seasonReview) {
+      reviewShown.current = false;
+      return;
+    }
+    if (isFocused && !championCelebration && !pendingCelebration && !reviewShown.current) {
+      reviewShown.current = true;
+      navigation.navigate('SeasonReview');
+    }
+  }, [isFocused, seasonReview, championCelebration, pendingCelebration, navigation]);
 
   const celebrationCaptain =
     championCelebration?.captainPlayerId != null

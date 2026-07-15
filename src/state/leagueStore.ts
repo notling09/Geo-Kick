@@ -1,18 +1,26 @@
 import { create } from 'zustand';
 import { BALANCING, LEAGUE, LEAGUE_REWARDS, USER_CLUB_ID } from '../core/domain/constants';
-import type { Match, MatchStats, NpcClub, StandingRow, Tactic } from '../core/domain/types';
+import type { Match, MatchStats, NpcClub, OwnedPlayer, StandingRow, Tactic } from '../core/domain/types';
 import { computeStandings, generateNpcRoster, resolveSeason } from '../core/engine/league';
-import { simulateMatch, type MatchMotm, type SimTeam } from '../core/engine/matchSim';
+import {
+  simulateFirstHalf, simulateMatch, simulateSecondHalf, type MatchMotm, type SimTeam,
+} from '../core/engine/matchSim';
 import { teamStrength } from '../core/engine/strength';
 import * as leagueRepo from '../core/db/repositories/leagueRepo';
 import * as metaRepo from '../core/db/repositories/metaRepo';
 import { clubList, createSeason, loadLeagueData, seasonFinished } from '../core/services/seasonService';
 import { useGameStore } from './gameStore';
+import { setHalftimeResume } from './matchFlow';
 import { pick } from '../core/engine/random';
 
 /**
  * Liga-Zustand: Spielplan, Tabelle, Spieltakt (1 Spiel / 30 Min) und
  * Saisonwechsel mit Auf-/Abstieg (Kapitel 3.4).
+ *
+ * V5: Das Nutzer-Spiel läuft in zwei Hälften – zur Halbzeit pausiert der
+ * Ticker, Auswechslungen und ein Taktikwechsel wirken auf die 2. Hälfte.
+ * Persistiert wird erst nach dem Abpfiff (stirbt die App in der Pause,
+ * kann der Spieltag neu angepfiffen werden).
  */
 
 export interface PlayedUserMatch {
@@ -28,14 +36,31 @@ export interface PlayedUserMatch {
   coinReward?: { total: number; breakdown: string[] };
   /** Man of the Match (V4): Note bis 10 + Kurzbegründung */
   motm?: MatchMotm;
+  /** V5: erst die 1. Halbzeit ist simuliert – Pause für Wechsel/Taktik */
+  halftimePending?: boolean;
 }
 
 /** Saison-Statistik der eigenen Spieler (V4): für den "Spieler der Saison". */
-interface SeasonPlayerStat {
+export interface SeasonPlayerStat {
   goals: number;
   assists: number;
   ratingSum: number;
   matches: number;
+}
+
+/** Daten für die Saison-Rückblick-Show (V5): Tabelle, Auf-/Abstieg, Bester. */
+export interface SeasonReviewData {
+  season: number;
+  oldDivision: number;
+  newDivision: number;
+  finalRank: number;
+  promoted: boolean;
+  relegated: boolean;
+  /** Saisonprämie in Coins (0 = kein Podium) */
+  prize: number;
+  standings: StandingRow[];
+  best: { name: string; goals: number; assists: number; avg: number; matches: number } | null;
+  squadStats: Record<string, SeasonPlayerStat>;
 }
 
 /** Ein Spieler ist für genau dieses (Saison, Runde)-Paar gesperrt. */
@@ -53,7 +78,7 @@ interface LeagueStateStore {
   npcs: NpcClub[];
   matches: Match[];
   standings: StandingRow[];
-  /** Meldung nach Saisonende (Aufstieg/Abstieg), bis sie quittiert wird */
+  /** Meldung nach Saisonende (Alt-Spielstände; V5 nutzt seasonReview) */
   seasonMessage: string | null;
   /** Zuletzt gespieltes Nutzer-Match für die Live-Ansicht */
   lastPlayedMatch: PlayedUserMatch | null;
@@ -67,15 +92,21 @@ interface LeagueStateStore {
    * nach dem Spiel (revealCelebration beim Verlassen der Live-Ansicht).
    */
   pendingCelebration: LeagueStateStore['championCelebration'];
+  /** Steht die Saison-Rückblick-Show noch aus? (V5) */
+  seasonReview: SeasonReviewData | null;
 
   hydrate: () => Promise<void>;
   acknowledgeCelebration: () => void;
   revealCelebration: () => void;
   matchReady: () => boolean;
   msUntilNextMatch: () => number;
-  /** Simuliert den kompletten Spieltag und persistiert ihn; Live-Ansicht spielt danach ab. */
+  /**
+   * Spieltag anpfeifen: NPC-Spiele komplett, das eigene Spiel nur bis zur
+   * Halbzeit (V5). Die 2. Hälfte startet der Live-Ticker über matchFlow.
+   */
   playUserMatchday: (tactic: Tactic) => Promise<PlayedUserMatch | null>;
   acknowledgeSeasonMessage: () => Promise<void>;
+  finishSeasonReview: () => Promise<void>;
   clubName: (clubId: string) => string;
   clubCrest: (clubId: string) => string;
 }
@@ -101,6 +132,16 @@ async function loadSuspensions(): Promise<Suspension[]> {
   }
 }
 
+async function loadSeasonReview(): Promise<SeasonReviewData | null> {
+  const raw = await metaRepo.getMeta('seasonReview');
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as SeasonReviewData;
+  } catch {
+    return null;
+  }
+}
+
 export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
   season: 1,
   round: 1,
@@ -113,6 +154,7 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
   suspensions: [],
   championCelebration: null,
   pendingCelebration: null,
+  seasonReview: null,
 
   acknowledgeCelebration: () => set({ championCelebration: null }),
 
@@ -143,6 +185,7 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       standings: recomputeStandings(data.matches, data.npcs),
       seasonMessage: seasonMessage || null,
       suspensions: await loadSuspensions(),
+      seasonReview: await loadSeasonReview(),
     });
   },
 
@@ -172,12 +215,12 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       (s) => s.season === season && s.round === round,
     );
     const suspendedIds = new Set(activeSuspensions.map((s) => s.playerId));
-    const lineupPlayers = game
+    const startingLineup = game
       .lineupPlayers()
       .map((p) => (p && suspendedIds.has(p.id) ? null : p));
-    const userStrength = teamStrength(lineupPlayers, club.formation);
+    const userStrength = teamStrength(startingLineup, club.formation);
     // Aufgestellte Spieler für namentliche Ticker-Events (Torschütze usw.)
-    const userRoster = lineupPlayers
+    const userRoster = startingLineup
       .filter((p): p is NonNullable<typeof p> => p !== null)
       .map((p) => ({ name: p.pool.name, position: p.pool.position }));
     const npcTactics: Tactic[] = ['offensiv', 'ausgewogen', 'defensiv'];
@@ -197,40 +240,99 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       roster: clubId === USER_CLUB_ID ? userRoster : npcById.get(clubId)?.roster,
     });
 
-    // Alle Spiele der Runde simulieren und speichern (Nutzer-Match zuerst gemerkt)
+    // NPC-Spiele der Runde sofort komplett simulieren und speichern
     const roundMatches = matches.filter((m) => m.round === round && !m.played);
-    let userMatch: Match | null = null;
-    let userStats: MatchStats | undefined;
-    let userMotm: MatchMotm | undefined;
+    let userFixture: Match | null = null;
     for (const m of roundMatches) {
-      const isUserMatch = m.homeId === USER_CLUB_ID || m.awayId === USER_CLUB_ID;
-      const homeTactic = m.homeId === USER_CLUB_ID ? tactic : pick(npcTactics);
-      const awayTactic = m.awayId === USER_CLUB_ID ? tactic : pick(npcTactics);
-      const result = simulateMatch(simTeamFor(m.homeId, homeTactic), simTeamFor(m.awayId, awayTactic));
-      await leagueRepo.saveMatchResult(m.id, result.homeGoals, result.awayGoals, result.events);
-      if (isUserMatch) {
-        userMatch = { ...m, homeGoals: result.homeGoals, awayGoals: result.awayGoals, played: true, events: result.events };
-        userStats = result.stats;
-        userMotm = result.motm;
+      if (m.homeId === USER_CLUB_ID || m.awayId === USER_CLUB_ID) {
+        userFixture = m;
+        continue;
       }
+      const result = simulateMatch(
+        simTeamFor(m.homeId, pick(npcTactics)),
+        simTeamFor(m.awayId, pick(npcTactics)),
+      );
+      await leagueRepo.saveMatchResult(m.id, result.homeGoals, result.awayGoals, result.events);
     }
+    if (!userFixture) return null;
+    const fixture = userFixture;
+    const userIsHome = fixture.homeId === USER_CLUB_ID;
 
-    // Saison-Statistik der eigenen Elf fortschreiben (V4): Tore, Assists und
-    // eine Spielnote je Einsatz – Grundlage für den "Spieler der Saison"
-    if (userMatch) {
-      const userSide = userMatch.homeId === USER_CLUB_ID ? 'home' : 'away';
-      const userGoalsFor = userSide === 'home' ? userMatch.homeGoals : userMatch.awayGoals;
-      const userGoalsAgainst = userSide === 'home' ? userMatch.awayGoals : userMatch.homeGoals;
-      const resultBonus =
-        userGoalsFor > userGoalsAgainst ? 0.4 : userGoalsFor === userGoalsAgainst ? 0.1 : -0.3;
+    // Nutzer-Spiel (V5): erst NUR die 1. Halbzeit – zur Pause sind Wechsel
+    // und ein Taktikwechsel möglich, dann folgt die 2. Hälfte
+    const oppTactic = pick(npcTactics);
+    const homeTeam = simTeamFor(fixture.homeId, userIsHome ? tactic : oppTactic);
+    const awayTeam = simTeamFor(fixture.awayId, userIsHome ? oppTactic : tactic);
+    const half = simulateFirstHalf(homeTeam, awayTeam);
+    const startingXI = startingLineup.filter(
+      (p): p is NonNullable<typeof p> => p !== null,
+    );
+
+    const provisional: PlayedUserMatch = {
+      match: {
+        ...fixture,
+        homeGoals: half.homeGoals,
+        awayGoals: half.awayGoals,
+        played: false,
+        events: half.events,
+      },
+      homeName: nameOf(fixture.homeId),
+      awayName: nameOf(fixture.awayId),
+      homeCrest: crestOf(fixture.homeId),
+      awayCrest: crestOf(fixture.awayId),
+      userIsHome,
+      halftimePending: true,
+    };
+    set({ lastPlayedMatch: provisional });
+
+    // Fortsetzung nach der Halbzeit-Pause: 2. Hälfte simulieren und ALLES
+    // finalisieren (Speichern, Coins, Sperren, Runde, Saisonende)
+    setHalftimeResume(async (secondHalfTactic) => {
+      const g2 = useGameStore.getState();
+      await g2.setTactic(secondHalfTactic);
+      const secondLineup = g2
+        .lineupPlayers()
+        .map((p) => (p && suspendedIds.has(p.id) ? null : p));
+      const userTeam2: SimTeam = {
+        name: club.name,
+        strength: teamStrength(secondLineup, g2.club?.formation ?? club.formation),
+        tactic: secondHalfTactic,
+        roster: secondLineup
+          .filter((p): p is NonNullable<typeof p> => p !== null)
+          .map((p) => ({ name: p.pool.name, position: p.pool.position })),
+      };
+      const result = simulateSecondHalf(
+        userIsHome ? userTeam2 : homeTeam,
+        userIsHome ? awayTeam : userTeam2,
+        half,
+      );
+      await leagueRepo.saveMatchResult(fixture.id, result.homeGoals, result.awayGoals, result.events);
+      const userMatch: Match = {
+        ...fixture,
+        homeGoals: result.homeGoals,
+        awayGoals: result.awayGoals,
+        played: true,
+        events: result.events,
+      };
+      const userSide: 'home' | 'away' = userIsHome ? 'home' : 'away';
+      const userGoals = userIsHome ? userMatch.homeGoals : userMatch.awayGoals;
+      const oppGoals = userIsHome ? userMatch.awayGoals : userMatch.homeGoals;
+
+      // Saison-Statistik (V4/V5): Startelf UND Eingewechselte bekommen eine
+      // Spielnote – Grundlage für den "Spieler der Saison"
+      const participants = new Map<number, OwnedPlayer>();
+      startingXI.forEach((p) => participants.set(p.id, p));
+      secondLineup
+        .filter((p): p is NonNullable<typeof p> => p !== null)
+        .forEach((p) => participants.set(p.id, p));
+      const resultBonus = userGoals > oppGoals ? 0.4 : userGoals === oppGoals ? 0.1 : -0.3;
       let seasonStats: Record<string, SeasonPlayerStat> = {};
       try {
         seasonStats = JSON.parse((await metaRepo.getMeta('seasonSquadStats')) || '{}');
       } catch {
         seasonStats = {};
       }
-      const xi = lineupPlayers.filter((p): p is NonNullable<typeof p> => p !== null);
-      for (const p of xi) {
+      for (const p of participants.values()) {
         const name = p.pool.name;
         const goals = userMatch.events.filter(
           (e) => e.type === 'tor' && e.team === userSide && e.player === name,
@@ -239,9 +341,7 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
           (e) => e.type === 'tor' && e.team === userSide && e.assist === name,
         ).length;
         const cleanSheetBonus =
-          userGoalsAgainst === 0 && (p.pool.position === 'TW' || p.pool.position === 'ABW')
-            ? 0.6
-            : 0;
+          oppGoals === 0 && (p.pool.position === 'TW' || p.pool.position === 'ABW') ? 0.6 : 0;
         const rating = Math.min(
           10,
           Math.max(4, 6.5 + goals * 1.2 + assists * 0.6 + resultBonus + cleanSheetBonus),
@@ -254,15 +354,8 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
         seasonStats[name] = entry;
       }
       await metaRepo.setMeta('seasonSquadStats', JSON.stringify(seasonStats));
-    }
 
-    // Liga-Coins (V2): Sieg/Remis plus Captain-Boni – auch bei Niederlage
-    let coinReward: PlayedUserMatch['coinReward'];
-    if (userMatch) {
-      const userIsHome = userMatch.homeId === USER_CLUB_ID;
-      const userSide = userIsHome ? 'home' : 'away';
-      const userGoals = userIsHome ? userMatch.homeGoals : userMatch.awayGoals;
-      const oppGoals = userIsHome ? userMatch.awayGoals : userMatch.homeGoals;
+      // Liga-Coins (V2): Sieg/Remis plus Captain-Boni – auch bei Niederlage
       const breakdown: string[] = [];
       let total = 0;
       if (userGoals > oppGoals) {
@@ -272,7 +365,7 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
         total += LEAGUE_REWARDS.draw;
         breakdown.push(`Draw +${LEAGUE_REWARDS.draw}`);
       }
-      const captain = game.players.find((p) => p.id === game.captainPlayerId);
+      const captain = g2.players.find((p) => p.id === g2.captainPlayerId);
       if (captain) {
         const captainGoals = userMatch.events.filter(
           (e) => e.type === 'tor' && e.team === userSide && e.player === captain.pool.name,
@@ -289,21 +382,18 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
           breakdown.push(`Captain assist x${captainAssists} +${captainAssists * LEAGUE_REWARDS.captainAssist}`);
         }
       }
-      if (total > 0) await game.addCoins(total);
-      coinReward = { total, breakdown };
-    }
+      if (total > 0) await g2.addCoins(total);
+      const coinReward = { total, breakdown };
 
-    // Rote Karten eigener Spieler: Sperre für das nächste Ligaspiel;
-    // abgelaufene Sperren gleichzeitig aufräumen
-    const nextSuspRound = round + 1 > LEAGUE.roundsPerSeason ? 1 : round + 1;
-    const nextSuspSeason = round + 1 > LEAGUE.roundsPerSeason ? season + 1 : season;
-    const newSuspensions: Suspension[] = [];
-    if (userMatch) {
-      const userSide = userMatch.homeId === USER_CLUB_ID ? 'home' : 'away';
+      // Rote Karten eigener Spieler: Sperre für das nächste Ligaspiel;
+      // abgelaufene Sperren gleichzeitig aufräumen
+      const nextSuspRound = round + 1 > LEAGUE.roundsPerSeason ? 1 : round + 1;
+      const nextSuspSeason = round + 1 > LEAGUE.roundsPerSeason ? season + 1 : season;
+      const newSuspensions: Suspension[] = [];
       userMatch.events
         .filter((e) => e.type === 'rot' && e.team === userSide && e.player)
         .forEach((e) => {
-          const owned = game.players.find((p) => p.pool.name === e.player);
+          const owned = g2.players.find((p) => p.pool.name === e.player);
           if (owned && !newSuspensions.some((s) => s.playerId === owned.id)) {
             newSuspensions.push({
               playerId: owned.id,
@@ -313,123 +403,135 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
             });
           }
         });
-    }
-    const keptSuspensions = get().suspensions.filter(
-      (s) => s.season > season || (s.season === season && s.round > round),
-    );
-    const suspensions = [...keptSuspensions, ...newSuspensions];
-    await metaRepo.setMeta('suspensions', JSON.stringify(suspensions));
+      const keptSuspensions = get().suspensions.filter(
+        (s) => s.season > season || (s.season === season && s.round > round),
+      );
+      const suspensions = [...keptSuspensions, ...newSuspensions];
+      await metaRepo.setMeta('suspensions', JSON.stringify(suspensions));
 
-    // Spieltakt fortschreiben (siehe BALANCING.matchIntervalMs)
-    const newRound = round + 1;
-    await metaRepo.setMeta('round', String(newRound));
-    await metaRepo.setMeta('nextMatchAt', String(Date.now() + BALANCING.matchIntervalMs));
+      // Spieltakt fortschreiben (siehe BALANCING.matchIntervalMs)
+      const newRound = round + 1;
+      await metaRepo.setMeta('round', String(newRound));
+      await metaRepo.setMeta('nextMatchAt', String(Date.now() + BALANCING.matchIntervalMs));
 
-    let updatedMatches = await leagueRepo.getMatches(season);
-    let updatedNpcs = npcs;
-    let updatedSeason = season;
-    let updatedRound = newRound;
+      let updatedMatches = await leagueRepo.getMatches(season);
+      let updatedNpcs = npcs;
+      let updatedSeason = season;
+      let updatedRound = newRound;
 
-    // Saisonende: Auf-/Abstieg auflösen und neue Saison anlegen
-    if (seasonFinished(newRound)) {
-      const finalStandings = recomputeStandings(updatedMatches, npcs);
-      const outcome = resolveSeason(finalStandings, club.division);
-      let message = `Season ${season} finished - you placed ${outcome.finalRank}.`;
-      if (outcome.promoted) message += ` Promoted to Division ${outcome.newDivision}!`;
-      else if (outcome.relegated) message += ` Relegated to Division ${outcome.newDivision}.`;
-      else message += ` You stay in Division ${club.division}.`;
+      // Saisonende: Auf-/Abstieg auflösen, Rückblick-Show vorbereiten (V5)
+      // und neue Saison anlegen
+      if (seasonFinished(newRound)) {
+        const finalStandings = recomputeStandings(updatedMatches, npcs);
+        const outcome = resolveSeason(finalStandings, club.division);
 
-      // Saisonprämie (V2): Platz 1/2, gestaffelt nach Division
-      const [firstPrize, secondPrize] = LEAGUE_REWARDS.seasonByDivision[club.division];
-      if (outcome.finalRank === 1) {
-        await game.addCoins(firstPrize);
-        message += ` Season prize: ${firstPrize} coins!`;
-        // Meister: Pokal-Animation mit dem Captain – aber erst NACH dem
-        // Live-Ticker zeigen (revealCelebration in der Live-Ansicht)
-        set({
-          pendingCelebration: {
-            clubName: club.name,
-            division: club.division,
-            captainPlayerId: game.captainPlayerId,
-          },
-        });
-      } else if (outcome.finalRank === 2) {
-        await game.addCoins(secondPrize);
-        message += ` Season prize: ${secondPrize} coins!`;
-      }
+        // Saisonprämie (V2): Platz 1/2, gestaffelt nach Division
+        const [firstPrize, secondPrize] = LEAGUE_REWARDS.seasonByDivision[club.division];
+        let prize = 0;
+        if (outcome.finalRank === 1) {
+          prize = firstPrize;
+          await g2.addCoins(prize);
+          // Meister: Pokal-Animation mit dem Captain – aber erst NACH dem
+          // Live-Ticker zeigen (revealCelebration in der Live-Ansicht)
+          set({
+            pendingCelebration: {
+              clubName: club.name,
+              division: club.division,
+              captainPlayerId: g2.captainPlayerId,
+            },
+          });
+        } else if (outcome.finalRank === 2) {
+          prize = secondPrize;
+          await g2.addCoins(prize);
+        }
 
-      // Spieler der Saison (V4): bester Notenschnitt über die Saison,
-      // bei Gleichstand entscheiden die Tore
-      try {
-        const seasonStats = JSON.parse(
-          (await metaRepo.getMeta('seasonSquadStats')) || '{}',
-        ) as Record<string, SeasonPlayerStat>;
-        const best = Object.entries(seasonStats)
+        // Spieler der Saison: bester Notenschnitt, bei Gleichstand die Tore
+        const bestEntry = Object.entries(seasonStats)
           .filter(([, s]) => s.matches > 0)
           .sort(
             ([, a], [, b]) =>
               b.ratingSum / b.matches - a.ratingSum / a.matches || b.goals - a.goals,
           )[0];
-        if (best) {
-          const [name, s] = best;
-          const avg = (s.ratingSum / s.matches).toFixed(1);
-          message += ` Player of the season: ${name} - ${s.goals} goal${s.goals === 1 ? '' : 's'}, ${s.assists} assist${s.assists === 1 ? '' : 's'}, average rating ${avg}/10 over ${s.matches} matches.`;
+        const best = bestEntry
+          ? {
+              name: bestEntry[0],
+              goals: bestEntry[1].goals,
+              assists: bestEntry[1].assists,
+              avg: Math.round((bestEntry[1].ratingSum / bestEntry[1].matches) * 10) / 10,
+              matches: bestEntry[1].matches,
+            }
+          : null;
+
+        const review: SeasonReviewData = {
+          season,
+          oldDivision: club.division,
+          newDivision: outcome.newDivision,
+          finalRank: outcome.finalRank,
+          promoted: outcome.promoted,
+          relegated: outcome.relegated,
+          prize,
+          standings: finalStandings,
+          best,
+          squadStats: seasonStats,
+        };
+        await metaRepo.setMeta('seasonReview', JSON.stringify(review));
+        await metaRepo.setMeta('seasonSquadStats', '{}');
+
+        await metaRepo.setMeta('division', String(outcome.newDivision));
+        // Beste erreichte Division für Erfolge festhalten
+        const bestDivision = await metaRepo.getMetaNumber('bestDivision', 4);
+        if (outcome.newDivision < bestDivision) {
+          await metaRepo.setMeta('bestDivision', String(outcome.newDivision));
         }
-      } catch {
-        // kaputte Statistik: einfach ohne Spieler der Saison weitermachen
+
+        updatedSeason = season + 1;
+        await createSeason(updatedSeason, outcome.newDivision);
+        updatedMatches = await leagueRepo.getMatches(updatedSeason);
+        updatedNpcs = await leagueRepo.getNpcClubs(updatedSeason);
+        updatedRound = 1;
+
+        useGameStore.setState((s) => ({
+          club: s.club ? { ...s.club, division: outcome.newDivision } : s.club,
+        }));
+        set({ seasonReview: review });
       }
-      await metaRepo.setMeta('seasonSquadStats', '{}');
 
-      await metaRepo.setMeta('seasonMessage', message);
-      await metaRepo.setMeta('division', String(outcome.newDivision));
-      // Beste erreichte Division für Erfolge festhalten
-      const bestDivision = await metaRepo.getMetaNumber('bestDivision', 4);
-      if (outcome.newDivision < bestDivision) {
-        await metaRepo.setMeta('bestDivision', String(outcome.newDivision));
-      }
+      const played: PlayedUserMatch = {
+        match: userMatch,
+        homeName: nameOf(userMatch.homeId),
+        awayName: nameOf(userMatch.awayId),
+        homeCrest: crestOf(userMatch.homeId),
+        awayCrest: crestOf(userMatch.awayId),
+        userIsHome,
+        stats: result.stats,
+        coinReward,
+        motm: result.motm,
+        halftimePending: false,
+      };
 
-      updatedSeason = season + 1;
-      await createSeason(updatedSeason, outcome.newDivision);
-      updatedMatches = await leagueRepo.getMatches(updatedSeason);
-      updatedNpcs = await leagueRepo.getNpcClubs(updatedSeason);
-      updatedRound = 1;
-
-      useGameStore.setState((s) => ({
-        club: s.club ? { ...s.club, division: outcome.newDivision } : s.club,
-      }));
-      set({ seasonMessage: message });
-    }
-
-    const played: PlayedUserMatch | null = userMatch
-      ? {
-          match: userMatch,
-          homeName: nameOf(userMatch.homeId),
-          awayName: nameOf(userMatch.awayId),
-          homeCrest: crestOf(userMatch.homeId),
-          awayCrest: crestOf(userMatch.awayId),
-          userIsHome: userMatch.homeId === USER_CLUB_ID,
-          stats: userStats,
-          coinReward,
-          motm: userMotm,
-        }
-      : null;
-
-    set({
-      season: updatedSeason,
-      round: updatedRound,
-      nextMatchAt: await metaRepo.getMetaNumber('nextMatchAt', 0),
-      matches: updatedMatches,
-      npcs: updatedNpcs,
-      standings: recomputeStandings(updatedMatches, updatedNpcs),
-      lastPlayedMatch: played,
-      suspensions,
+      set({
+        season: updatedSeason,
+        round: updatedRound,
+        nextMatchAt: await metaRepo.getMetaNumber('nextMatchAt', 0),
+        matches: updatedMatches,
+        npcs: updatedNpcs,
+        standings: recomputeStandings(updatedMatches, updatedNpcs),
+        lastPlayedMatch: played,
+        suspensions,
+      });
     });
-    return played;
+
+    return provisional;
   },
 
   acknowledgeSeasonMessage: async () => {
     await metaRepo.setMeta('seasonMessage', '');
     set({ seasonMessage: null });
+  },
+
+  finishSeasonReview: async () => {
+    await metaRepo.setMeta('seasonReview', '');
+    set({ seasonReview: null });
   },
 
   clubName: (clubId) => {
@@ -442,5 +544,3 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
     return get().npcs.find((n) => String(n.id) === clubId)?.crest ?? 'crest-0';
   },
 }));
-
-export { LEAGUE };

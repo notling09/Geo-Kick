@@ -17,8 +17,8 @@ export const BALANCING = {
   packsPerSession: 1,
   /** Cooldown pro Platz (nach Nutzertests schrittweise auf 30 Min gesenkt) */
   spotCooldownMs: 30 * 60 * 1000,
-  /** Default-Check-in-Radius um einen Platz (m) */
-  defaultSpotRadius: 75,
+  /** Default-Check-in-Radius um einen Platz (m); V5: 100, ein Feld ist groß */
+  defaultSpotRadius: 100,
   /** 1 simuliertes Ligaspiel alle 10 Min (nach Nutzertests von 24 h gesenkt) */
   matchIntervalMs: 10 * 60 * 1000,
   /** Spieler pro Pack */
@@ -384,10 +384,13 @@ export const MATCH_SIM = {
    * landen wir bei realistischeren ~2,9 (Feinjustierung, Kapitel 8/10).
    */
   goalConversion: 0.75,
-  /** Offensive Taktik: eigener Angriff +10 %, eigene Abwehr −10 % (defensiv umgekehrt) */
-  tacticModifier: 0.1,
-  /** Offensive Taktik erhöht die eigene Chancenhäufigkeit um diesen Anteil */
-  tacticChanceModifier: 0.25,
+  /**
+   * Offensive Taktik: eigener Angriff +15 %, eigene Abwehr −15 % (defensiv
+   * umgekehrt). V5 verstärkt, damit die Wahl spürbar ist.
+   */
+  tacticModifier: 0.15,
+  /** Offensive Taktik erhöht die eigene Chancenhäufigkeit um diesen Anteil (V5: 50 %) */
+  tacticChanceModifier: 0.5,
   /** Anteil der Fouls, die eine gelbe Karte geben */
   yellowPerFoul: 0.35,
   /** Anteil der Fouls, die eine glatte rote Karte geben */

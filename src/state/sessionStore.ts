@@ -5,7 +5,7 @@ import {
   OBJECTIVE_BONUS_COINS, SKILL_OBJECTIVES, SKILL_OBJECTIVES_PER_SESSION,
 } from '../core/domain/constants';
 import type { Session, Spot } from '../core/domain/types';
-import { dayKey, specialSpotIdForDay } from '../core/engine/pitchBattle';
+import { dayKey } from '../core/engine/pitchBattle';
 import { shuffle } from '../core/engine/random';
 import { calculateReward } from '../core/engine/rewards';
 import { distanceMeters } from '../core/services/geo';
@@ -149,6 +149,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   homeSpotId: '',
 
   hydrate: async () => {
+    // V5-Migration: Check-in-Radius aller gespeicherten Plätze auf 100 m anheben
+    if ((await metaRepo.getMeta('radius100')) !== '1') {
+      await spotRepo.raiseMinRadius(BALANCING.defaultSpotRadius);
+      await metaRepo.setMeta('radius100', '1');
+    }
     const activeSession = await sessionRepo.getActiveSession();
     // Alle anderen offenen Sessions sind verwaist (App-Kill/Reload) → schließen
     await sessionRepo.voidOrphanOpenSessions(activeSession?.id);
@@ -324,9 +329,17 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       return achieved ? sum + o.bonus : sum;
     }, 0);
 
-    // V4: Session am besonderen Platz des Tages → Basis-Coins verdoppelt
-    const specialId = specialSpotIdForDay(get().spots.map((s) => s.id), dayKey());
-    const doubled = session.spotId === specialId;
+    // V4/V5: Session am Gold-Platz des Tages → Basis-Coins verdoppelt.
+    // Der Gold-Platz wird von der Karte im Umkreis bestimmt und gespeichert.
+    let doubled = false;
+    try {
+      const stored = JSON.parse((await metaRepo.getMeta('specialSpot')) || 'null') as
+        | { day: string; spotId: string }
+        | null;
+      doubled = !!stored && stored.day === dayKey() && stored.spotId === session.spotId;
+    } catch {
+      doubled = false;
+    }
     const baseCoins = reward.coins * (doubled ? DISCOVERY.specialDoubleFactor : 1);
 
     // V4 Platz-Pass: erste belohnte Session an einem neuen Platz
