@@ -149,9 +149,15 @@ export function HelpScreen({ navigation }: RootScreenProps<'Help'>) {
             the opposite. A win pays {LEAGUE_REWARDS.win} coins, a draw {LEAGUE_REWARDS.draw}.
           </Text>
           <Text style={styles.text}>
-            At half-time the match pauses: make substitutions and change your tactic -
-            both really affect the second half. A live possession bar (green = you)
-            runs during the match.
+            At half-time the match pauses: arrange your team on the pitch (bench swaps
+            AND position swaps) and change your tactic - both really affect the second
+            half. A live momentum bar (green = you) shows who is on top, updated every
+            5 match minutes.
+          </Text>
+          <Text style={styles.text}>
+            Sometimes a penalty is awarded during a match (light blue = your team,
+            orange = opponent). You take it yourself: pick a corner to shoot - or the
+            dive of your keeper when the opponent steps up.
           </Text>
           <Text style={styles.text}>
             After the last matchday the season review shows the final table, your

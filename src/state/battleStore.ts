@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import { PITCH_BATTLE, USER_CLUB_ID } from '../core/domain/constants';
 import type { Spot } from '../core/domain/types';
 import { generateNpcRoster } from '../core/engine/league';
-import { simulateFirstHalf, simulateSecondHalf, type SimTeam } from '../core/engine/matchSim';
+import type { SimTeam } from '../core/engine/matchSim';
 import {
   dayKey, pitchOpponent, specialSpotIdForDay, type PitchOpponent,
 } from '../core/engine/pitchBattle';
@@ -12,7 +12,7 @@ import { distanceMeters } from '../core/services/geo';
 import * as metaRepo from '../core/db/repositories/metaRepo';
 import { useGameStore } from './gameStore';
 import { useLeagueStore, type PlayedUserMatch } from './leagueStore';
-import { setHalftimeResume } from './matchFlow';
+import { runUserMatch } from './matchFlow';
 
 /**
  * Platz-Kämpfe (V4): An jedem Platz wartet ein Gegner-Team – herausfordern
@@ -176,7 +176,6 @@ export const useBattleStore = create<BattleState>((set, get) => ({
     }
 
     const opponent = get().opponentFor(spot, isBoss);
-    const lineup = game.lineupPlayers();
     const oppRoster = generateNpcRoster();
     const oppTeam: SimTeam = {
       name: opponent.name,
@@ -184,22 +183,12 @@ export const useBattleStore = create<BattleState>((set, get) => ({
       tactic: 'ausgewogen',
       roster: oppRoster,
     };
-    const userTeam: SimTeam = {
-      name: club.name,
-      strength: teamStrength(lineup, club.formation),
-      tactic: club.tactic,
-      roster: lineup
-        .filter((p): p is NonNullable<typeof p> => p !== null)
-        .map((p) => ({ name: p.pool.name, position: p.pool.position })),
-    };
 
     // Versuch verbraucht – unabhängig vom Ausgang (1 Kampf pro Platz und Tag)
     const foughtSpotIds = [...state.foughtSpotIds, spot.id];
     await persist(state.day, foughtSpotIds);
     set({ day: state.day, foughtSpotIds, pendingShootout: null });
 
-    // V5: erst die 1. Halbzeit – zur Pause sind Wechsel/Taktikwechsel möglich
-    const half = simulateFirstHalf(userTeam, oppTeam);
     const baseMatch = {
       id: 0,
       season: 0,
@@ -208,93 +197,102 @@ export const useBattleStore = create<BattleState>((set, get) => ({
       homeId: USER_CLUB_ID,
       awayId: `battle-${spot.id}`,
     };
-    useLeagueStore.setState({
-      lastPlayedMatch: {
-        match: {
-          ...baseMatch,
-          homeGoals: half.homeGoals,
-          awayGoals: half.awayGoals,
-          played: false,
-          events: half.events,
-        },
-        homeName: club.name,
-        awayName: opponent.name,
-        homeCrest: club.crest,
-        awayCrest: 'crest-7',
-        userIsHome: true,
-        halftimePending: true,
-      },
-    });
-
-    setHalftimeResume(async (secondHalfTactic) => {
-      const g2 = useGameStore.getState();
-      await g2.setTactic(secondHalfTactic);
-      const lineup2 = g2.lineupPlayers();
-      const userTeam2: SimTeam = {
+    const buildUserTeam = async (t: Parameters<typeof game.setTactic>[0]): Promise<SimTeam> => {
+      const g = useGameStore.getState();
+      await g.setTactic(t);
+      const lineupNow = g.lineupPlayers();
+      return {
         name: club.name,
-        strength: teamStrength(lineup2, g2.club?.formation ?? club.formation),
-        tactic: secondHalfTactic,
-        roster: lineup2
+        strength: teamStrength(lineupNow, g.club?.formation ?? club.formation),
+        tactic: t,
+        roster: lineupNow
           .filter((p): p is NonNullable<typeof p> => p !== null)
           .map((p) => ({ name: p.pool.name, position: p.pool.position })),
       };
-      const result = simulateSecondHalf(userTeam2, oppTeam, half);
+    };
 
-      // Belohnung: Sieg = Session-Pack (Boss: Coins+Punkte), Niederlage = nichts.
-      // Remis gibt es nicht: nach 90 Minuten geht es ins Elfmeterschießen.
-      const won = result.homeGoals > result.awayGoals;
-      const draw = result.homeGoals === result.awayGoals;
-      let coinReward: PlayedUserMatch['coinReward'];
-      if (won && isBoss) {
-        const reward = PITCH_BATTLE.bossWinReward;
-        await g2.addCoins(reward);
-        await g2.addLevelPoints(reward);
-        coinReward = {
-          total: reward,
-          breakdown: [`Boss beaten +${reward} coins`, `+${reward} level-up points`],
-        };
-      } else if (won) {
-        await g2.grantPack('session');
-        coinReward = { total: 0, breakdown: ['Pitch battle won: +1 session pack'] };
-      }
+    // Live-Spiel (V5): pausiert bei Elfmetern und zur Halbzeit
+    await runUserMatch({
+      userIsHome: true,
+      opponent: oppTeam,
+      initialTactic: club.tactic,
+      buildUserTeam,
+      publish: (st, pause) =>
+        useLeagueStore.setState({
+          lastPlayedMatch: {
+            match: {
+              ...baseMatch,
+              homeGoals: st.homeGoals,
+              awayGoals: st.awayGoals,
+              played: false,
+              events: st.events,
+            },
+            homeName: club.name,
+            awayName: opponent.name,
+            homeCrest: club.crest,
+            awayCrest: 'crest-7',
+            userIsHome: true,
+            pause,
+          },
+        }),
+      finalize: async (result) => {
+        const g2 = useGameStore.getState();
+        // Belohnung: Sieg = Session-Pack (Boss: Coins+Punkte), Niederlage =
+        // nichts. Remis gibt es nicht: es folgt das Elfmeterschießen.
+        const won = result.homeGoals > result.awayGoals;
+        const draw = result.homeGoals === result.awayGoals;
+        let coinReward: PlayedUserMatch['coinReward'];
+        if (won && isBoss) {
+          const reward = PITCH_BATTLE.bossWinReward;
+          await g2.addCoins(reward);
+          await g2.addLevelPoints(reward);
+          coinReward = {
+            total: reward,
+            breakdown: [`Boss beaten +${reward} coins`, `+${reward} level-up points`],
+          };
+        } else if (won) {
+          await g2.grantPack('session');
+          coinReward = { total: 0, breakdown: ['Pitch battle won: +1 session pack'] };
+        }
 
-      if (draw) {
-        // Schützen fürs Elfmeterschießen: aktuelle Elf nach Abschluss sortiert,
-        // Gegner mit denselben Namen wie im Ticker
-        const userShooters = lineup2
-          .filter((p): p is NonNullable<typeof p> => p !== null)
-          .sort((a, b) => b.pool.abschluss - a.pool.abschluss)
-          .map((p) => p.pool.name);
-        set({
-          pendingShootout: {
-            isBoss,
-            opponentName: opponent.name,
-            userShooters: userShooters.length > 0 ? userShooters : ['Your player'],
-            oppShooters: oppRoster.map((r) => r.name),
+        if (draw) {
+          // Schützen fürs Elfmeterschießen: aktuelle Elf nach Abschluss
+          // sortiert, Gegner mit denselben Namen wie im Ticker
+          const userShooters = g2
+            .lineupPlayers()
+            .filter((p): p is NonNullable<typeof p> => p !== null)
+            .sort((a, b) => b.pool.abschluss - a.pool.abschluss)
+            .map((p) => p.pool.name);
+          set({
+            pendingShootout: {
+              isBoss,
+              opponentName: opponent.name,
+              userShooters: userShooters.length > 0 ? userShooters : ['Your player'],
+              oppShooters: (oppTeam.roster ?? oppRoster).map((r) => r.name),
+            },
+          });
+        }
+
+        useLeagueStore.setState({
+          lastPlayedMatch: {
+            match: {
+              ...baseMatch,
+              homeGoals: result.homeGoals,
+              awayGoals: result.awayGoals,
+              played: true,
+              events: result.events,
+            },
+            homeName: club.name,
+            awayName: opponent.name,
+            homeCrest: club.crest,
+            awayCrest: 'crest-7',
+            userIsHome: true,
+            stats: result.stats,
+            coinReward,
+            motm: result.motm,
           },
         });
-      }
-
-      useLeagueStore.setState({
-        lastPlayedMatch: {
-          match: {
-            ...baseMatch,
-            homeGoals: result.homeGoals,
-            awayGoals: result.awayGoals,
-            played: true,
-            events: result.events,
-          },
-          homeName: club.name,
-          awayName: opponent.name,
-          homeCrest: club.crest,
-          awayCrest: 'crest-7',
-          userIsHome: true,
-          stats: result.stats,
-          coinReward,
-          motm: result.motm,
-          halftimePending: false,
-        },
-      });
+      },
     });
 
     return { ok: true };

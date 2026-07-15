@@ -2,15 +2,13 @@ import { create } from 'zustand';
 import { BALANCING, LEAGUE, LEAGUE_REWARDS, USER_CLUB_ID } from '../core/domain/constants';
 import type { Match, MatchStats, NpcClub, OwnedPlayer, StandingRow, Tactic } from '../core/domain/types';
 import { computeStandings, generateNpcRoster, resolveSeason } from '../core/engine/league';
-import {
-  simulateFirstHalf, simulateMatch, simulateSecondHalf, type MatchMotm, type SimTeam,
-} from '../core/engine/matchSim';
+import { simulateMatch, type MatchMotm, type SimTeam } from '../core/engine/matchSim';
 import { teamStrength } from '../core/engine/strength';
 import * as leagueRepo from '../core/db/repositories/leagueRepo';
 import * as metaRepo from '../core/db/repositories/metaRepo';
 import { clubList, createSeason, loadLeagueData, seasonFinished } from '../core/services/seasonService';
 import { useGameStore } from './gameStore';
-import { setHalftimeResume } from './matchFlow';
+import { runUserMatch, type MatchPause } from './matchFlow';
 import { pick } from '../core/engine/random';
 
 /**
@@ -36,8 +34,8 @@ export interface PlayedUserMatch {
   coinReward?: { total: number; breakdown: string[] };
   /** Man of the Match (V4): Note bis 10 + Kurzbegründung */
   motm?: MatchMotm;
-  /** V5: erst die 1. Halbzeit ist simuliert – Pause für Wechsel/Taktik */
-  halftimePending?: boolean;
+  /** V5: die Live-Simulation pausiert gerade (Halbzeit oder Elfmeter) */
+  pause?: MatchPause;
 }
 
 /** Saison-Statistik der eigenen Spieler (V4): für den "Spieler der Saison". */
@@ -258,54 +256,52 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
     const fixture = userFixture;
     const userIsHome = fixture.homeId === USER_CLUB_ID;
 
-    // Nutzer-Spiel (V5): erst NUR die 1. Halbzeit – zur Pause sind Wechsel
-    // und ein Taktikwechsel möglich, dann folgt die 2. Hälfte
-    const oppTactic = pick(npcTactics);
-    const homeTeam = simTeamFor(fixture.homeId, userIsHome ? tactic : oppTactic);
-    const awayTeam = simTeamFor(fixture.awayId, userIsHome ? oppTactic : tactic);
-    const half = simulateFirstHalf(homeTeam, awayTeam);
-    const startingXI = startingLineup.filter(
-      (p): p is NonNullable<typeof p> => p !== null,
-    );
-
-    const provisional: PlayedUserMatch = {
-      match: {
-        ...fixture,
-        homeGoals: half.homeGoals,
-        awayGoals: half.awayGoals,
-        played: false,
-        events: half.events,
-      },
-      homeName: nameOf(fixture.homeId),
-      awayName: nameOf(fixture.awayId),
-      homeCrest: crestOf(fixture.homeId),
-      awayCrest: crestOf(fixture.awayId),
-      userIsHome,
-      halftimePending: true,
-    };
-    set({ lastPlayedMatch: provisional });
-
-    // Fortsetzung nach der Halbzeit-Pause: 2. Hälfte simulieren und ALLES
-    // finalisieren (Speichern, Coins, Sperren, Runde, Saisonende)
-    setHalftimeResume(async (secondHalfTactic) => {
-      const g2 = useGameStore.getState();
-      await g2.setTactic(secondHalfTactic);
-      const secondLineup = g2
+    // Live-Spiel (V5): Simulation pausiert bei Elfmetern und zur Halbzeit;
+    // Wechsel und Taktik wirken auf die 2. Hälfte (matchFlow.runUserMatch)
+    const opponent = simTeamFor(userIsHome ? fixture.awayId : fixture.homeId, pick(npcTactics));
+    // Für die Saisonnoten: Startelf UND Eingewechselte
+    const participants = new Map<number, NonNullable<ReturnType<typeof game.lineupPlayers>[number]>>();
+    const buildUserTeam = async (t: Tactic): Promise<SimTeam> => {
+      const g = useGameStore.getState();
+      await g.setTactic(t);
+      const lineupNow = g
         .lineupPlayers()
         .map((p) => (p && suspendedIds.has(p.id) ? null : p));
-      const userTeam2: SimTeam = {
+      const xi = lineupNow.filter((p): p is NonNullable<typeof p> => p !== null);
+      xi.forEach((p) => participants.set(p.id, p));
+      return {
         name: club.name,
-        strength: teamStrength(secondLineup, g2.club?.formation ?? club.formation),
-        tactic: secondHalfTactic,
-        roster: secondLineup
-          .filter((p): p is NonNullable<typeof p> => p !== null)
-          .map((p) => ({ name: p.pool.name, position: p.pool.position })),
+        strength: teamStrength(lineupNow, g.club?.formation ?? club.formation),
+        tactic: t,
+        roster: xi.map((p) => ({ name: p.pool.name, position: p.pool.position })),
       };
-      const result = simulateSecondHalf(
-        userIsHome ? userTeam2 : homeTeam,
-        userIsHome ? awayTeam : userTeam2,
-        half,
-      );
+    };
+
+    await runUserMatch({
+      userIsHome,
+      opponent,
+      initialTactic: tactic,
+      buildUserTeam,
+      publish: (st, pause) =>
+        set({
+          lastPlayedMatch: {
+            match: {
+              ...fixture,
+              homeGoals: st.homeGoals,
+              awayGoals: st.awayGoals,
+              played: false,
+              events: st.events,
+            },
+            homeName: nameOf(fixture.homeId),
+            awayName: nameOf(fixture.awayId),
+            homeCrest: crestOf(fixture.homeId),
+            awayCrest: crestOf(fixture.awayId),
+            userIsHome,
+            pause,
+          },
+        }),
+      finalize: async (result) => {
+      const g2 = useGameStore.getState();
       await leagueRepo.saveMatchResult(fixture.id, result.homeGoals, result.awayGoals, result.events);
       const userMatch: Match = {
         ...fixture,
@@ -318,13 +314,9 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       const userGoals = userIsHome ? userMatch.homeGoals : userMatch.awayGoals;
       const oppGoals = userIsHome ? userMatch.awayGoals : userMatch.homeGoals;
 
-      // Saison-Statistik (V4/V5): Startelf UND Eingewechselte bekommen eine
-      // Spielnote – Grundlage für den "Spieler der Saison"
-      const participants = new Map<number, OwnedPlayer>();
-      startingXI.forEach((p) => participants.set(p.id, p));
-      secondLineup
-        .filter((p): p is NonNullable<typeof p> => p !== null)
-        .forEach((p) => participants.set(p.id, p));
+      // Saison-Statistik (V4/V5): Startelf UND Eingewechselte (participants
+      // wird in buildUserTeam gefüllt) bekommen eine Spielnote –
+      // Grundlage für den "Spieler der Saison"
       const resultBonus = userGoals > oppGoals ? 0.4 : userGoals === oppGoals ? 0.1 : -0.3;
       let seasonStats: Record<string, SeasonPlayerStat> = {};
       try {
@@ -506,7 +498,6 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
         stats: result.stats,
         coinReward,
         motm: result.motm,
-        halftimePending: false,
       };
 
       set({
@@ -519,9 +510,10 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
         lastPlayedMatch: played,
         suspensions,
       });
+      },
     });
 
-    return provisional;
+    return get().lastPlayedMatch;
   },
 
   acknowledgeSeasonMessage: async () => {

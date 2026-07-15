@@ -1,13 +1,13 @@
 import { create } from 'zustand';
-import type { Position } from '../core/domain/types';
-import { simulateFirstHalf, simulateSecondHalf, type SimTeam } from '../core/engine/matchSim';
+import type { Position, Tactic } from '../core/domain/types';
+import type { SimTeam } from '../core/engine/matchSim';
 import { teamStrength } from '../core/engine/strength';
 import { getSupabase, type CloudClub } from '../core/services/cloud';
 import * as metaRepo from '../core/db/repositories/metaRepo';
 import { useCloudStore } from './cloudStore';
 import { useGameStore } from './gameStore';
 import { useLeagueStore, type PlayedUserMatch } from './leagueStore';
-import { setHalftimeResume } from './matchFlow';
+import { runUserMatch } from './matchFlow';
 
 /**
  * Friendlies (Stufe 3+4): Freunde per Code hinzufügen und gegen ihren
@@ -151,7 +151,6 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
     }
     if (!friend) return null;
 
-    const lineup = game.lineupPlayers();
     const friendRoster = (friend.squad ?? []).map((p) => ({
       name: p.name,
       position: p.position as Position,
@@ -162,17 +161,6 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
       tactic: 'ausgewogen',
       roster: friendRoster.length > 0 ? friendRoster : undefined,
     };
-    const userTeam: SimTeam = {
-      name: club.name,
-      strength: teamStrength(lineup, club.formation),
-      tactic: club.tactic,
-      roster: lineup
-        .filter((p): p is NonNullable<typeof p> => p !== null)
-        .map((p) => ({ name: p.pool.name, position: p.pool.position })),
-    };
-
-    // V5: erst die 1. Halbzeit – zur Pause sind Wechsel/Taktikwechsel möglich
-    const half = simulateFirstHalf(userTeam, friendTeam);
     const baseMatch = {
       id: 0,
       season: 0,
@@ -181,68 +169,76 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
       homeId: 'user',
       awayId: friendId,
     };
-    const provisional: PlayedUserMatch = {
-      match: {
-        ...baseMatch,
-        homeGoals: half.homeGoals,
-        awayGoals: half.awayGoals,
-        played: false,
-        events: half.events,
-      },
-      homeName: club.name,
-      awayName: friend.club_name,
-      homeCrest: club.crest,
-      awayCrest: friend.crest,
-      userIsHome: true,
-      halftimePending: true,
-    };
-    useLeagueStore.setState({ lastPlayedMatch: provisional });
-
-    setHalftimeResume(async (secondHalfTactic) => {
-      const g2 = useGameStore.getState();
-      await g2.setTactic(secondHalfTactic);
-      const lineup2 = g2.lineupPlayers();
-      const userTeam2: SimTeam = {
+    const buildUserTeam = async (t: Tactic): Promise<SimTeam> => {
+      const g = useGameStore.getState();
+      await g.setTactic(t);
+      const lineupNow = g.lineupPlayers();
+      return {
         name: club.name,
-        strength: teamStrength(lineup2, g2.club?.formation ?? club.formation),
-        tactic: secondHalfTactic,
-        roster: lineup2
+        strength: teamStrength(lineupNow, g.club?.formation ?? club.formation),
+        tactic: t,
+        roster: lineupNow
           .filter((p): p is NonNullable<typeof p> => p !== null)
           .map((p) => ({ name: p.pool.name, position: p.pool.position })),
       };
-      const result = simulateSecondHalf(userTeam2, friendTeam, half);
+    };
 
-      // Lokale Siegbilanz fortschreiben (kein Coin-/Pack-Reward: Ehrensache)
-      const records = { ...get().records };
-      const rec = records[friendId] ?? { w: 0, d: 0, l: 0 };
-      if (result.homeGoals > result.awayGoals) rec.w++;
-      else if (result.homeGoals < result.awayGoals) rec.l++;
-      else rec.d++;
-      records[friendId] = rec;
-      await metaRepo.setMeta('friendlyRecords', JSON.stringify(records));
-      set({ records });
-
-      useLeagueStore.setState({
-        lastPlayedMatch: {
-          match: {
-            ...baseMatch,
-            homeGoals: result.homeGoals,
-            awayGoals: result.awayGoals,
-            played: true,
-            events: result.events,
+    // Live-Spiel (V5): pausiert bei Elfmetern und zur Halbzeit
+    await runUserMatch({
+      userIsHome: true,
+      opponent: friendTeam,
+      initialTactic: club.tactic,
+      buildUserTeam,
+      publish: (st, pause) =>
+        useLeagueStore.setState({
+          lastPlayedMatch: {
+            match: {
+              ...baseMatch,
+              homeGoals: st.homeGoals,
+              awayGoals: st.awayGoals,
+              played: false,
+              events: st.events,
+            },
+            homeName: club.name,
+            awayName: friend.club_name,
+            homeCrest: club.crest,
+            awayCrest: friend.crest,
+            userIsHome: true,
+            pause,
           },
-          homeName: club.name,
-          awayName: friend.club_name,
-          homeCrest: club.crest,
-          awayCrest: friend.crest,
-          userIsHome: true,
-          stats: result.stats,
-          motm: result.motm,
-          halftimePending: false,
-        },
-      });
+        }),
+      finalize: async (result) => {
+        // Lokale Siegbilanz fortschreiben (kein Coin-/Pack-Reward: Ehrensache)
+        const records = { ...get().records };
+        const rec = records[friendId] ?? { w: 0, d: 0, l: 0 };
+        if (result.homeGoals > result.awayGoals) rec.w++;
+        else if (result.homeGoals < result.awayGoals) rec.l++;
+        else rec.d++;
+        records[friendId] = rec;
+        await metaRepo.setMeta('friendlyRecords', JSON.stringify(records));
+        set({ records });
+
+        useLeagueStore.setState({
+          lastPlayedMatch: {
+            match: {
+              ...baseMatch,
+              homeGoals: result.homeGoals,
+              awayGoals: result.awayGoals,
+              played: true,
+              events: result.events,
+            },
+            homeName: club.name,
+            awayName: friend.club_name,
+            homeCrest: club.crest,
+            awayCrest: friend.crest,
+            userIsHome: true,
+            stats: result.stats,
+            motm: result.motm,
+          },
+        });
+      },
     });
 
-    return provisional;
+    return useLeagueStore.getState().lastPlayedMatch;
   },
 }));

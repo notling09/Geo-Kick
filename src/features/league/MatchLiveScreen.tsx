@@ -7,11 +7,14 @@ import { effectiveOverall } from '../../core/engine/playerGen';
 import { useBattleStore } from '../../state/battleStore';
 import { useGameStore } from '../../state/gameStore';
 import { useLeagueStore } from '../../state/leagueStore';
-import { resumeSecondHalf } from '../../state/matchFlow';
+import { resolveLivePenalty, resumeSecondHalf } from '../../state/matchFlow';
 import { GKButton, Card } from '../../ui/components';
 import { Crest } from '../../ui/Crest';
+import { FormationPitch } from '../../ui/FormationPitch';
+import { PenaltyGoal } from '../../ui/PenaltyGoal';
 import {
-  IconBall, IconCard, IconFlag, IconFlash, IconPause, IconWhistle, type IconProps,
+  IconBall, IconCard, IconCheck, IconFlag, IconFlash, IconPause, IconSwap, IconWhistle,
+  type IconProps,
 } from '../../ui/icons';
 import { colors, font, radius, spacing } from '../../ui/theme';
 import { playSound } from '../../core/services/sound';
@@ -21,10 +24,11 @@ import type { RootScreenProps } from '../../navigation/types';
  * Live view of the match simulation (chapter 3.4): the timer visibly runs
  * along and events/goals pop in at their minute - like a live ticker.
  *
- * V5: Zur Halbzeit pausiert das Spiel (Pfiff). In der Pause kann man
- * auswechseln und die Taktik ändern - erst dann wird die zweite Hälfte
- * simuliert (matchFlow.resumeSecondHalf). Dazu läuft ein Ballbesitz-Balken
- * (grün = eigenes Team, rot = Gegner) live mit.
+ * V5: Die Simulation pausiert live an zwei Stellen:
+ *  - Elfmeter: der Nutzer schießt bzw. hält selbst (Minispiel)
+ *  - Halbzeit: Auswechslungen auf dem Formations-Feld + Taktikwechsel
+ * Dazu läuft ein Momentum-Balken (grün = eigenes Team, rot = Gegner),
+ * der sich alle 5 Spielminuten aktualisiert.
  */
 
 const MS_PER_MINUTE = 350; // 90 minutes in ~32 seconds
@@ -39,6 +43,9 @@ const EVENT_ICON: Record<MatchEvent['type'], React.ComponentType<IconProps>> = {
   anpfiff: IconWhistle,
   halbzeit: IconPause,
   abpfiff: IconWhistle,
+  wechsel: IconSwap,
+  elfmeter: IconWhistle,
+  parade: IconCheck,
 };
 
 const TACTICS: Tactic[] = ['offensiv', 'ausgewogen', 'defensiv'];
@@ -58,28 +65,31 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
   const played = useLeagueStore((s) => s.lastPlayedMatch);
   const insets = useSafeAreaInsets();
   const [minute, setMinute] = useState(0);
-  const [skipped, setSkipped] = useState(false);
   const [resuming, setResuming] = useState(false);
   const [subsOpen, setSubsOpen] = useState(false);
-  const [selectedOutId, setSelectedOutId] = useState<number | null>(null);
+  const [penaltyOpen, setPenaltyOpen] = useState(false);
+  const [selection, setSelection] = useState<
+    { type: 'slot'; slot: number } | { type: 'bench'; id: number } | null
+  >(null);
+  const skippedRef = useRef(false);
   const listRef = useRef<FlatList<MatchEvent>>(null);
 
   const game = useGameStore();
   const [halftimeTactic, setHalftimeTactic] = useState<Tactic>(game.club?.tactic ?? 'ausgewogen');
 
   const events = played?.match.events ?? [];
-  const halftimePending = played?.halftimePending === true;
+  const pause = played?.pause ?? null;
 
   // Wartende Meister-Feier erst freigeben, wenn die Live-Ansicht zugeht
-  // (Continue-Button oder Hardware-Back) – nie schon vor dem Abpfiff
   useEffect(() => () => useLeagueStore.getState().revealCelebration(), []);
 
-  // Ticker: läuft bis zur Halbzeit (45, solange die 2. Hälfte aussteht)
+  // Ticker: läuft bis zur nächsten Pause (Elfmeter-Minute, Halbzeit 45)
   // bzw. bis zum Abpfiff (90)
   useEffect(() => {
     const t = setInterval(() => {
       setMinute((m) => {
-        const cap = useLeagueStore.getState().lastPlayedMatch?.halftimePending ? 45 : 90;
+        const p = useLeagueStore.getState().lastPlayedMatch?.pause;
+        const cap = p ? (p.type === 'penalty' ? p.minute : 45) : 90;
         return m >= cap ? m : m + 1;
       });
     }, MS_PER_MINUTE);
@@ -97,7 +107,7 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
     }
   }, [visibleEvents.length]);
 
-  // V3-Sounds: eigenes Tor und Gegentor im Ticker + Abpfiff (nicht beim Skip-Sprung)
+  // Sounds: eigenes Tor und Gegentor im Ticker (nicht beim Skip-Sprung)
   const prevUserGoals = useRef(0);
   const prevOppGoals = useRef(0);
   useEffect(() => {
@@ -105,20 +115,20 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
     const side = played.userIsHome ? 'home' : 'away';
     const userGoals = visibleEvents.filter((e) => e.type === 'tor' && e.team === side).length;
     const oppGoals = visibleEvents.filter((e) => e.type === 'tor' && e.team !== side).length;
-    if (userGoals > prevUserGoals.current && !skipped) playSound('goal');
-    if (oppGoals > prevOppGoals.current && !skipped) playSound('goalConceded');
+    if (userGoals > prevUserGoals.current && !skippedRef.current) playSound('goal');
+    if (oppGoals > prevOppGoals.current && !skippedRef.current) playSound('goalConceded');
     prevUserGoals.current = userGoals;
     prevOppGoals.current = oppGoals;
-  }, [visibleEvents, played, skipped]);
+  }, [visibleEvents, played]);
 
-  // Pfiffe: Halbzeit (V5) und Abpfiff
+  // Pfiffe: Halbzeit und Abpfiff (kein Pfiff beim Resume, V5)
   const halftimeWhistled = useRef(false);
   useEffect(() => {
-    if (minute >= 45 && halftimePending && !halftimeWhistled.current) {
+    if (minute >= 45 && pause?.type === 'halftime' && !halftimeWhistled.current) {
       halftimeWhistled.current = true;
       playSound('fulltime');
     }
-  }, [minute, halftimePending]);
+  }, [minute, pause]);
 
   const fulltimeSoundPlayed = useRef(false);
   useEffect(() => {
@@ -128,9 +138,8 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
     }
   }, [minute]);
 
-  // Platz-Kampf endete unentschieden (V4): nach dem Abpfiff automatisch
-  // weiter ins Elfmeterschießen (kein Remis bei Platz-Kämpfen). Gilt NUR
-  // für Platz-Kampf-Matches, nie für Liga-Spiele oder Friendlies.
+  // Platz-Kampf endete unentschieden: nach dem Abpfiff automatisch weiter
+  // ins Elfmeterschießen (nur für Platz-Kampf-Matches)
   const isBattleMatch = played?.match.awayId.startsWith('battle-') ?? false;
   const isLeagueMatch = (played?.match.season ?? 0) > 0;
   const pendingShootoutRaw = useBattleStore((s) => s.pendingShootout);
@@ -156,27 +165,43 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
   const { match, homeName, awayName, homeCrest, awayCrest, userIsHome, stats, coinReward, motm } = played;
   const homeGoals = visibleEvents.filter((e) => e.type === 'tor' && e.team === 'home').length;
   const awayGoals = visibleEvents.filter((e) => e.type === 'tor' && e.team === 'away').length;
-  const atHalftime = minute >= 45 && halftimePending;
-  const finished = minute >= 90 && !halftimePending;
   const userSide: 'home' | 'away' = userIsHome ? 'home' : 'away';
+  const atHalftime = pause?.type === 'halftime' && minute >= 45;
+  const atPenalty = pause?.type === 'penalty' && minute >= pause.minute;
+  const finished = match.played && minute >= 90;
+  const ownPenalty = pause?.type === 'penalty' && pause.side === userSide;
 
-  // Live-Ballbesitz (V5): aus den bisher sichtbaren Aktionen beider Teams;
-  // nach dem Abpfiff der exakte Wert aus der Statistik
-  const userTouches = visibleEvents.filter(
-    (e) => e.team === userSide && (e.type === 'tor' || e.type === 'chance' || e.type === 'ecke'),
-  ).length;
-  const oppTouches = visibleEvents.filter(
-    (e) => e.team && e.team !== userSide && (e.type === 'tor' || e.type === 'chance' || e.type === 'ecke'),
-  ).length;
-  const userPossession = finished && stats
-    ? (userIsHome ? stats.home.possession : stats.away.possession)
-    : Math.round(Math.min(70, Math.max(30, 50 + (userTouches - oppTouches) * 3)));
+  // Momentum (V5): Wer spielt gerade besser? Aus den Aktionen der letzten
+  // ~15 Minuten, aktualisiert in 5-Minuten-Schritten.
+  const bucketMinute = Math.floor(minute / 5) * 5;
+  const windowEvents = events.filter(
+    (e) => e.minute > bucketMinute - 15 && e.minute <= bucketMinute,
+  );
+  const momentumScore = (side: 'home' | 'away') =>
+    windowEvents.reduce((sum, e) => {
+      if (e.team !== side) return sum;
+      if (e.type === 'tor') return sum + 4;
+      if (e.type === 'elfmeter') return sum + 3;
+      if (e.type === 'chance') return sum + 2;
+      if (e.type === 'ecke') return sum + 1;
+      return sum;
+    }, 0);
+  const userMomentumRaw = momentumScore(userSide);
+  const oppMomentumRaw = momentumScore(userSide === 'home' ? 'away' : 'home');
+  const userMomentum =
+    userMomentumRaw + oppMomentumRaw === 0
+      ? 50
+      : Math.round(20 + (userMomentumRaw / (userMomentumRaw + oppMomentumRaw)) * 60);
 
-  // Ticker-Farben: eigenes Tor grün, Gegentor rot; Karten gelb/rot
+  // Ticker-Farben: eigenes Tor grün, Gegentor rot; Karten gelb/rot;
+  // Elfmeter hellblau (eigenes Team) bzw. orange (Gegner)
   const eventColor = (e: MatchEvent): string => {
     if (e.type === 'tor') return e.team === userSide ? colors.pitch : colors.danger;
     if (e.type === 'gelb') return colors.gold;
     if (e.type === 'rot') return colors.danger;
+    if (e.type === 'elfmeter') return e.team === userSide ? colors.sky : colors.accent;
+    if (e.type === 'wechsel') return colors.sky;
+    if (e.type === 'parade') return e.team === userSide ? colors.pitch : colors.danger;
     return colors.inkSoft;
   };
 
@@ -186,26 +211,26 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
     setResuming(true);
     try {
       setSubsOpen(false);
-      playSound('fulltime');
       await resumeSecondHalf(halftimeTactic);
-      setSkipped(false);
+      skippedRef.current = false;
     } finally {
       setResuming(false);
     }
   };
 
   const onSkip = () => {
-    setSkipped(true);
-    setMinute(halftimePending ? 45 : 90);
+    skippedRef.current = true;
+    const cap = pause ? (pause.type === 'penalty' ? pause.minute : 45) : 90;
+    setMinute(cap);
   };
 
-  // Auswechslungen (V5): aktuelle Elf + Bank; gesperrte Spieler (Liga)
-  // dürfen nicht eingewechselt werden
+  // Auswechslungen (V5): frei tauschen – Elf gegen Bank ODER Elf gegen Elf
+  // (Positionswechsel), Auswahl in beliebiger Reihenfolge
   const lineupIds = game.lineup;
-  const xi = lineupIds
-    .map((id, slot) => ({ slot, player: game.players.find((p) => p.id === id) ?? null }))
-    .filter((e): e is { slot: number; player: NonNullable<typeof e.player> } => e.player !== null);
-  const bench = game.players.filter((p) => !lineupIds.includes(p.id));
+  const lineupList = game.lineupPlayers();
+  const bench = game.players
+    .filter((p) => !lineupIds.includes(p.id))
+    .sort((a, b) => effectiveOverall(b.pool, b.level) - effectiveOverall(a.pool, a.level));
   const leagueState = useLeagueStore.getState();
   const suspendedIds = new Set(
     isLeagueMatch
@@ -215,12 +240,37 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
       : [],
   );
 
-  const onSubIn = async (benchId: number) => {
-    if (selectedOutId === null) return;
-    const slot = lineupIds.indexOf(selectedOutId);
-    if (slot < 0) return;
-    await game.setLineupSlot(slot, benchId);
-    setSelectedOutId(null);
+  const onSlotTap = async (slot: number) => {
+    if (selection?.type === 'bench') {
+      await game.setLineupSlot(slot, selection.id);
+      setSelection(null);
+      return;
+    }
+    if (selection?.type === 'slot' && selection.slot !== slot) {
+      // Elf gegen Elf: Positionen der beiden Slots tauschen
+      const a = lineupIds[selection.slot];
+      const b = lineupIds[slot];
+      if (a !== null && b !== null) {
+        await game.setLineupSlot(selection.slot, b);
+        await game.setLineupSlot(slot, a);
+      } else if (a !== null) {
+        await game.setLineupSlot(slot, a);
+      } else if (b !== null) {
+        await game.setLineupSlot(selection.slot, b);
+      }
+      setSelection(null);
+      return;
+    }
+    setSelection({ type: 'slot', slot });
+  };
+
+  const onBenchTap = async (benchId: number) => {
+    if (selection?.type === 'slot') {
+      await game.setLineupSlot(selection.slot, benchId);
+      setSelection(null);
+      return;
+    }
+    setSelection({ type: 'bench', id: benchId });
   };
 
   return (
@@ -246,15 +296,16 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
         </View>
       </View>
 
-      {/* Ballbesitz live (V5): grün = eigenes Team, rot = Gegner */}
+      {/* Momentum (V5): grün = eigenes Team spielt besser, rot = Gegner */}
       <View style={styles.possessionWrap}>
-        <Text style={[styles.possessionValue, { color: '#7CE97C' }]}>{userPossession}%</Text>
+        <Text style={[styles.possessionValue, { color: '#7CE97C' }]}>{userMomentum}%</Text>
         <View style={styles.possessionBar}>
-          <View style={[styles.possessionUser, { flex: userPossession }]} />
-          <View style={[styles.possessionOpp, { flex: 100 - userPossession }]} />
+          <View style={[styles.possessionUser, { flex: userMomentum }]} />
+          <View style={[styles.possessionOpp, { flex: 100 - userMomentum }]} />
         </View>
-        <Text style={[styles.possessionValue, { color: '#FF6B5E' }]}>{100 - userPossession}%</Text>
+        <Text style={[styles.possessionValue, { color: '#FF6B5E' }]}>{100 - userMomentum}%</Text>
       </View>
+      <Text style={styles.momentumLabel}>Momentum</Text>
 
       {finished && stats && (
         <Card style={styles.statsCard}>
@@ -290,11 +341,12 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
         contentContainerStyle={styles.ticker}
         renderItem={({ item }) => {
           const EventIcon = EVENT_ICON[item.type];
+          const highlight = item.type === 'tor' || item.type === 'parade';
           return (
-            <Card style={[styles.eventCard, item.type === 'tor' && styles.goalCard]}>
+            <Card style={[styles.eventCard, highlight && styles.goalCard]}>
               <Text style={styles.eventMinute}>{item.minute}'</Text>
               <EventIcon size={18} color={eventColor(item)} />
-              <Text style={[styles.eventText, item.type === 'tor' && styles.goalText]}>
+              <Text style={[styles.eventText, highlight && styles.goalText]}>
                 {item.text}
               </Text>
             </Card>
@@ -302,8 +354,19 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
         }}
       />
 
-      {/* Halbzeit-Pause (V5): Taktik ändern, wechseln, dann weiter */}
-      {atHalftime ? (
+      {/* Elfmeter (V5): die Simulation wartet auf den Nutzer */}
+      {atPenalty && pause?.type === 'penalty' ? (
+        <Card style={styles.halftimeCard}>
+          <Text style={[styles.halftimeTitle, { color: ownPenalty ? colors.sky : colors.accentDark }]}>
+            PENALTY {ownPenalty ? 'for your team!' : `for ${userIsHome ? awayName : homeName}!`}
+          </Text>
+          <GKButton
+            title={ownPenalty ? 'Take the penalty!' : 'Save the penalty!'}
+            variant="secondary"
+            onPress={() => setPenaltyOpen(true)}
+          />
+        </Card>
+      ) : atHalftime ? (
         <Card style={styles.halftimeCard}>
           <Text style={styles.halftimeTitle}>Half-time - {homeGoals}:{awayGoals}</Text>
           <Text style={styles.halftimeHint}>
@@ -358,59 +421,81 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
         </View>
       )}
 
-      {/* Auswechslungen: Spieler der Elf antippen, dann Bank-Spieler */}
-      <Modal visible={subsOpen} transparent animationType="slide">
-        <View style={styles.modalBackdrop}>
-          <View style={[styles.modalSheet, { paddingBottom: insets.bottom + spacing.md }]}>
-            <Text style={styles.subsTitle}>
-              {selectedOutId === null
-                ? 'Tap the player to take OFF'
-                : 'Now tap the bench player to bring ON'}
-            </Text>
-            <ScrollView style={styles.subsList}>
-              <Text style={styles.subsSection}>On the pitch</Text>
-              {xi.map(({ player }) => (
+      {/* Elfmeter-Minispiel */}
+      <Modal visible={penaltyOpen} transparent animationType="fade">
+        <View style={styles.penaltyBackdrop}>
+          {pause?.type === 'penalty' && (
+            <PenaltyGoal
+              mode={ownPenalty ? 'shoot' : 'save'}
+              shooter={pause.shooter}
+              keeper={pause.keeper}
+              onDone={async (scored) => {
+                setPenaltyOpen(false);
+                await resolveLivePenalty(scored);
+              }}
+            />
+          )}
+        </View>
+      </Modal>
+
+      {/* Auswechslungen auf dem Formations-Feld (V5) */}
+      <Modal visible={subsOpen} animationType="slide">
+        <SafeAreaView style={styles.subsSafe} edges={['top', 'bottom']}>
+          <Text style={styles.subsTitle}>Half-time - arrange your team</Text>
+          <Text style={styles.subsHint}>
+            {selection === null
+              ? 'Tap a player on the pitch or on the bench, then tap where he should go.'
+              : selection.type === 'slot'
+                ? 'Now tap a bench player to bring him ON - or another pitch player to swap positions.'
+                : 'Now tap the pitch player he should replace.'}
+          </Text>
+          <View style={styles.subsPitch}>
+            <FormationPitch
+              formation={game.club?.formation ?? '4-4-2'}
+              lineup={lineupList}
+              onPlayerPress={(playerId) => {
+                const slot = lineupIds.indexOf(playerId);
+                if (slot >= 0) void onSlotTap(slot);
+              }}
+              onSwapPress={(slot) => void onSlotTap(slot)}
+              captainId={game.captainPlayerId}
+              suspendedIds={suspendedIds}
+            />
+          </View>
+          <Text style={styles.subsSection}>Bench</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.benchRow}>
+            {bench.map((player) => {
+              const suspended = suspendedIds.has(player.id);
+              const selected = selection?.type === 'bench' && selection.id === player.id;
+              return (
                 <Pressable
                   key={player.id}
-                  style={[styles.subsRow, selectedOutId === player.id && styles.subsRowSelected]}
-                  onPress={() => setSelectedOutId(player.id)}
+                  style={[styles.benchChip, selected && styles.benchChipSelected, suspended && styles.benchChipDisabled]}
+                  disabled={suspended}
+                  onPress={() => void onBenchTap(player.id)}
                 >
-                  <Text style={styles.subsName} numberOfLines={1}>
-                    {player.pool.name}
+                  <Text style={styles.benchName} numberOfLines={1}>
+                    {player.pool.name.split(' ').slice(-1)[0]}
                   </Text>
-                  <Text style={styles.subsMeta}>
-                    {POSITION_SHORT[player.pool.position]} · {effectiveOverall(player.pool, player.level)}
+                  <Text style={styles.benchMeta}>
+                    {suspended
+                      ? 'suspended'
+                      : `${POSITION_SHORT[player.pool.position]} · ${effectiveOverall(player.pool, player.level)}`}
                   </Text>
                 </Pressable>
-              ))}
-              <Text style={styles.subsSection}>Bench</Text>
-              {bench.length === 0 && (
-                <Text style={styles.subsMeta}>No bench players available.</Text>
-              )}
-              {bench.map((player) => {
-                const suspended = suspendedIds.has(player.id);
-                return (
-                  <Pressable
-                    key={player.id}
-                    style={[styles.subsRow, suspended && styles.subsRowDisabled]}
-                    disabled={suspended || selectedOutId === null}
-                    onPress={() => onSubIn(player.id)}
-                  >
-                    <Text style={styles.subsName} numberOfLines={1}>
-                      {player.pool.name}
-                    </Text>
-                    <Text style={styles.subsMeta}>
-                      {suspended
-                        ? 'suspended'
-                        : `${POSITION_SHORT[player.pool.position]} · ${effectiveOverall(player.pool, player.level)}`}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-            <GKButton title="Done" variant="secondary" onPress={() => { setSubsOpen(false); setSelectedOutId(null); }} />
+              );
+            })}
+          </ScrollView>
+          <View style={{ paddingBottom: insets.bottom }}>
+            <GKButton
+              title="Done"
+              onPress={() => {
+                setSubsOpen(false);
+                setSelection(null);
+              }}
+            />
           </View>
-        </View>
+        </SafeAreaView>
       </Modal>
     </SafeAreaView>
   );
@@ -463,7 +548,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
   },
   possessionBar: {
     flex: 1,
@@ -483,6 +567,13 @@ const styles = StyleSheet.create({
     fontSize: font.small,
     width: 38,
     textAlign: 'center',
+  },
+  momentumLabel: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 10,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: spacing.xs,
   },
   ticker: {
     padding: spacing.md,
@@ -564,6 +655,12 @@ const styles = StyleSheet.create({
   halftimeBtn: {
     flex: 1,
   },
+  penaltyBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,20,45,0.93)',
+    justifyContent: 'center',
+    padding: spacing.md,
+  },
   statsCard: {
     marginHorizontal: spacing.md,
     marginBottom: spacing.sm,
@@ -613,64 +710,64 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     textAlign: 'center',
   },
-  modalBackdrop: {
+  subsSafe: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    justifyContent: 'flex-end',
-  },
-  modalSheet: {
-    backgroundColor: colors.background,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
+    backgroundColor: colors.pitchDark,
     padding: spacing.md,
-    maxHeight: '85%',
   },
   subsTitle: {
     fontSize: font.h2,
     fontWeight: '900',
-    color: colors.ink,
+    color: '#fff',
     textAlign: 'center',
-    marginBottom: spacing.sm,
   },
-  subsList: {
-    maxHeight: 380,
-    marginBottom: spacing.sm,
+  subsHint: {
+    fontSize: font.small,
+    color: 'rgba(255,255,255,0.75)',
+    textAlign: 'center',
+    marginVertical: spacing.sm,
+  },
+  subsPitch: {
+    flex: 1,
+    borderRadius: radius.md,
+    overflow: 'hidden',
   },
   subsSection: {
     fontWeight: '900',
-    color: colors.pitchDark,
+    color: '#fff',
     fontSize: font.small,
     marginTop: spacing.sm,
     marginBottom: 4,
   },
-  subsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: colors.card,
+  benchRow: {
+    maxHeight: 74,
+    marginBottom: spacing.sm,
+  },
+  benchChip: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
     borderWidth: 2,
-    borderColor: colors.line,
+    borderColor: 'transparent',
     borderRadius: radius.sm,
     paddingHorizontal: spacing.sm,
-    paddingVertical: 8,
-    marginBottom: 4,
-  },
-  subsRowSelected: {
-    borderColor: colors.accent,
-    backgroundColor: '#FFF3E0',
-  },
-  subsRowDisabled: {
-    opacity: 0.5,
-  },
-  subsName: {
-    flex: 1,
-    fontWeight: '700',
-    color: colors.ink,
+    paddingVertical: 6,
     marginRight: spacing.sm,
+    minWidth: 86,
   },
-  subsMeta: {
+  benchChipSelected: {
+    borderColor: colors.accent,
+    backgroundColor: 'rgba(255,143,0,0.25)',
+  },
+  benchChipDisabled: {
+    opacity: 0.45,
+  },
+  benchName: {
+    color: '#fff',
+    fontWeight: '800',
     fontSize: font.small,
-    color: colors.inkSoft,
+  },
+  benchMeta: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 11,
     fontWeight: '700',
   },
 });

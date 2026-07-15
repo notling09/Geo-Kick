@@ -88,7 +88,9 @@ export interface NpcClub {
 }
 
 export type MatchEventType =
-  | 'tor' | 'chance' | 'ecke' | 'foul' | 'gelb' | 'rot' | 'anpfiff' | 'halbzeit' | 'abpfiff';
+  | 'tor' | 'chance' | 'ecke' | 'foul' | 'gelb' | 'rot' | 'anpfiff' | 'halbzeit' | 'abpfiff'
+  /** V5: Auswechslung, Elfmeterpfiff und gehaltener Elfmeter */
+  | 'wechsel' | 'elfmeter' | 'parade';
 
 /** Team-Statistiken eines simulierten Spiels (für die Endauswertung). */
 export interface TeamStats {

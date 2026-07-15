@@ -37,8 +37,10 @@ aufsteigst. Komplett offline, kein Backend, kein Echtgeld.
   Taktikwahl vor Anpfiff, Minuten-Live-Ticker mit Torschützen, gelben/roten Karten
   (rote Karte = Sperre fürs nächste Spiel) und Endstatistik (xG, Schüsse,
   Ballbesitz, Ecken, Fouls, Karten, Paraden) samt Man of the Match mit Note
-  bis 10; Halbzeit-Pause mit Auswechslungen und Taktikwechsel, die wirklich
-  auf die zweite Hälfte wirken, plus Live-Ballbesitz-Balken; am Saisonende
+  bis 10; Halbzeit-Pause mit Auswechslungen auf dem Formations-Feld und
+  Taktikwechsel, die wirklich auf die zweite Hälfte wirken; interaktive
+  Elfmeter im Spielverlauf (selbst schießen bzw. halten) und ein
+  Momentum-Balken im 5-Minuten-Takt; am Saisonende
   eine animierte Rückblick-Show (Abschlusstabelle, Auf-/Abstieg mit Prämie,
   Spieler der Saison, alle Saisonnoten); Liga-Coins (Sieg 10 / Remis 5, Captain-Boni,
   Saisonprämien je Division) und Pokal-Feier beim Meistertitel;

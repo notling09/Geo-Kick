@@ -388,6 +388,12 @@ export function MapScreen({ navigation }: TabScreenProps<'Map'>) {
         </View>
       </View>
 
+      {/*
+        V5: Die Info-Boxen liegen ÜBER der Karte (absolute) statt darunter im
+        Layout – so wird die Karten-Oberfläche beim Auswählen eines Platzes
+        nicht mehr verkleinert (das verursachte den kurzen schwarzen Blitz).
+      */}
+      <View style={styles.bottomOverlay} pointerEvents="box-none">
       {/* Nur blockierend anzeigen, wenn wirklich keine Plätze (auch keine gecachten) da sind */}
       {osmError && spots.length === 0 && !activeSession && !selectedSpot ? (
         <Card style={styles.bottomCard}>
@@ -496,6 +502,7 @@ export function MapScreen({ navigation }: TabScreenProps<'Map'>) {
           </Text>
         </Card>
       )}
+      </View>
 
       <Modal visible={newSpotCoords !== null} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
@@ -566,6 +573,12 @@ const styles = StyleSheet.create({
     left: spacing.sm,
     top: spacing.sm,
     gap: spacing.sm,
+  },
+  bottomOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   bottomCard: {
     margin: spacing.sm,

@@ -231,12 +231,98 @@ interface SimContext {
   awayStrength: number;
 }
 
+/** Elfmeter im laufenden Spiel (V5): selten, aber spürbar. */
+const PENALTY_PER_MINUTE = 0.005; // ~0,45 Elfmeter pro Spiel
+const PENALTY_GOAL_PROB = 0.8;
+
+/**
+ * Elfmeter ausführen (mutiert ctx): Tor oder Parade samt Ticker-Event.
+ * Wird sowohl automatisch (NPC-Spiele) als auch nach der interaktiven
+ * Eingabe des Nutzers benutzt.
+ */
+function executePenalty(
+  ctx: SimContext,
+  home: SimTeam,
+  away: SimTeam,
+  side: 'home' | 'away',
+  minute: number,
+  scored: boolean,
+  shooter: string,
+  keeper: string,
+): void {
+  const atk = side === 'home' ? home : away;
+  const def = side === 'home' ? away : home;
+  const defSide: 'home' | 'away' = side === 'home' ? 'away' : 'home';
+  ctx.stats[side].shots++;
+  ctx.stats[side].xg += 0.79; // übliche Elfmeter-Torwahrscheinlichkeit
+  if (scored) {
+    if (side === 'home') ctx.homeGoals++;
+    else ctx.awayGoals++;
+    ctx.stats[side].goals++;
+    ctx.events.push({
+      minute,
+      type: 'tor',
+      team: side,
+      player: shooter,
+      text: `GOAL! ${shooter} (${atk.name}) buries the penalty! ${ctx.homeGoals}:${ctx.awayGoals}`,
+    });
+  } else {
+    ctx.stats[defSide].saves++;
+    ctx.events.push({
+      minute,
+      type: 'parade',
+      team: defSide,
+      player: keeper,
+      text: `PENALTY SAVED! ${keeper} (${def.name}) denies ${shooter}!`,
+    });
+  }
+}
+
+/** Anstehender Elfmeter, wenn die Live-Simulation pausiert (V5). */
+export interface PenaltyPause {
+  side: 'home' | 'away';
+  minute: number;
+  shooter: string;
+  keeper: string;
+}
+
 /** Die Minuten-Schleife für einen Spielabschnitt (mutiert ctx). */
-function simulateRange(ctx: SimContext, home: SimTeam, away: SimTeam, from: number, to: number): void {
+function simulateRange(
+  ctx: SimContext,
+  home: SimTeam,
+  away: SimTeam,
+  from: number,
+  to: number,
+  pauseOnPenalty = false,
+): { penalty?: PenaltyPause } {
   const homeChanceRate = tacticChanceRate(home.tactic);
   const awayChanceRate = tacticChanceRate(away.tactic);
 
   for (let minute = from; minute <= to; minute++) {
+    // Elfmeter (V5): Pfiff, dann pausieren (Nutzer schießt/hält selbst)
+    // oder automatisch ausführen (NPC-Spiele)
+    if (Math.random() < PENALTY_PER_MINUTE) {
+      const side = pickWeighted<'home' | 'away'>([
+        { value: 'home', weight: ctx.homeStrength },
+        { value: 'away', weight: ctx.awayStrength },
+      ]);
+      const atk = side === 'home' ? home : away;
+      const def = side === 'home' ? away : home;
+      ctx.events.push({
+        minute,
+        type: 'elfmeter',
+        team: side,
+        text: `PENALTY! Foul in the box - spot kick for ${atk.name}!`,
+      });
+      const shooter = pickPlayerName(atk, SCORER_WEIGHTS);
+      const keeper = keeperName(def);
+      if (pauseOnPenalty) {
+        return { penalty: { side, minute, shooter, keeper } };
+      }
+      executePenalty(ctx, home, away, side, minute, Math.random() < PENALTY_GOAL_PROB, shooter, keeper);
+      continue;
+    }
+
     const roll = Math.random();
     if (roll < homeChanceRate + awayChanceRate) {
       // Wer hat die Chance? Gewichtet nach (taktik-modifizierter) Chancenrate und Stärke
@@ -357,6 +443,7 @@ function simulateRange(ctx: SimContext, home: SimTeam, away: SimTeam, from: numb
       }
     }
   }
+  return {};
 }
 
 /** Erste Halbzeit simulieren (V5): endet mit dem Halbzeit-Zwischenstand. */
@@ -433,4 +520,143 @@ export function simulateSecondHalf(home: SimTeam, away: SimTeam, half: HalfTimeS
 /** Komplettes Spiel in einem Schritt (NPC-Spiele ohne Halbzeit-Pause). */
 export function simulateMatch(home: SimTeam, away: SimTeam): SimResult {
   return simulateSecondHalf(home, away, simulateFirstHalf(home, away));
+}
+
+/* ------------------------------------------------------------------ */
+/* Live-Spiel des Nutzers (V5): pausiert bei Elfmetern und zur Halbzeit */
+/* ------------------------------------------------------------------ */
+
+/** Fortsetzbarer Live-Zustand zwischen zwei Pausen. */
+export interface LiveMatchState {
+  minute: number;
+  half: 1 | 2;
+  homeGoals: number;
+  awayGoals: number;
+  events: MatchEvent[];
+  stats: MatchStats;
+  yellow: Array<[string, number]>;
+  homeStrengthFactor: number;
+  awayStrengthFactor: number;
+}
+
+export type LiveOutcome =
+  | { kind: 'penalty'; penalty: PenaltyPause }
+  | { kind: 'halftime' }
+  | { kind: 'fulltime'; result: SimResult };
+
+function liveCtx(home: SimTeam, away: SimTeam, state: LiveMatchState): SimContext {
+  return {
+    events: state.events,
+    homeGoals: state.homeGoals,
+    awayGoals: state.awayGoals,
+    stats: state.stats,
+    yellowBook: new Map(state.yellow),
+    homeStrength: home.strength * state.homeStrengthFactor,
+    awayStrength: away.strength * state.awayStrengthFactor,
+  };
+}
+
+function saveCtx(ctx: SimContext, home: SimTeam, away: SimTeam, state: LiveMatchState, minute: number): void {
+  state.minute = minute;
+  state.homeGoals = ctx.homeGoals;
+  state.awayGoals = ctx.awayGoals;
+  state.yellow = [...ctx.yellowBook.entries()];
+  state.homeStrengthFactor = ctx.homeStrength / home.strength;
+  state.awayStrengthFactor = ctx.awayStrength / away.strength;
+}
+
+export function beginLiveMatch(home: SimTeam, away: SimTeam): { state: LiveMatchState; outcome: LiveOutcome } {
+  const state: LiveMatchState = {
+    minute: 0,
+    half: 1,
+    homeGoals: 0,
+    awayGoals: 0,
+    events: [{ minute: 1, type: 'anpfiff', text: 'Kick-off! The match is under way.' }],
+    stats: { home: emptyStats(), away: emptyStats() },
+    yellow: [],
+    homeStrengthFactor: 1,
+    awayStrengthFactor: 1,
+  };
+  return { state, outcome: continueLiveMatch(home, away, state) };
+}
+
+/** Bis zur nächsten Pause simulieren (Elfmeter, Halbzeit oder Abpfiff). */
+export function continueLiveMatch(home: SimTeam, away: SimTeam, state: LiveMatchState): LiveOutcome {
+  const ctx = liveCtx(home, away, state);
+  const to = state.half === 1 ? 45 : 90;
+  const from = Math.max(state.minute + 1, state.half === 2 ? 46 : 1);
+  const r = simulateRange(ctx, home, away, from, to, true);
+  if (r.penalty) {
+    saveCtx(ctx, home, away, state, r.penalty.minute);
+    return { kind: 'penalty', penalty: r.penalty };
+  }
+  if (state.half === 1) {
+    ctx.events.push({
+      minute: 45,
+      type: 'halbzeit',
+      text: `Half-time. The score is ${ctx.homeGoals}:${ctx.awayGoals}.`,
+    });
+    saveCtx(ctx, home, away, state, 45);
+    state.half = 2;
+    return { kind: 'halftime' };
+  }
+  ctx.events.push({
+    minute: 90,
+    type: 'abpfiff',
+    text: `Full-time! Final score ${ctx.homeGoals}:${ctx.awayGoals}.`,
+  });
+  const possHome = Math.round(
+    Math.min(70, Math.max(30, 50 + ((home.strength - away.strength) / (home.strength + away.strength)) * 60 + (Math.random() * 8 - 4))),
+  );
+  ctx.stats.home.possession = possHome;
+  ctx.stats.away.possession = 100 - possHome;
+  ctx.stats.home.xg = Math.round(ctx.stats.home.xg * 10) / 10;
+  ctx.stats.away.xg = Math.round(ctx.stats.away.xg * 10) / 10;
+  saveCtx(ctx, home, away, state, 90);
+  const motm = computeMotm(home, away, ctx.events, ctx.stats, ctx.homeGoals, ctx.awayGoals);
+  return {
+    kind: 'fulltime',
+    result: {
+      homeGoals: ctx.homeGoals,
+      awayGoals: ctx.awayGoals,
+      events: ctx.events,
+      stats: ctx.stats,
+      motm,
+    },
+  };
+}
+
+/** Interaktiven Elfmeter anwenden (Ergebnis kommt vom Nutzer-Minispiel). */
+export function applyPenaltyResult(
+  home: SimTeam,
+  away: SimTeam,
+  state: LiveMatchState,
+  penalty: PenaltyPause,
+  scored: boolean,
+): void {
+  const ctx = liveCtx(home, away, state);
+  executePenalty(ctx, home, away, penalty.side, penalty.minute, scored, penalty.shooter, penalty.keeper);
+  saveCtx(ctx, home, away, state, penalty.minute);
+}
+
+/**
+ * NPC-Auswechslungen zur Halbzeit (V5): 0-2 frische fiktive Spieler ersetzen
+ * Kader-Einträge (mutiert den Kader, damit Torschützen konsistent bleiben).
+ */
+export function applyNpcHalftimeSubs(team: SimTeam): Array<{ out: string; into: string }> {
+  if (!team.roster || team.roster.length === 0 || Math.random() > 0.6) return [];
+  const count = Math.random() < 0.35 ? 2 : 1;
+  const subs: Array<{ out: string; into: string }> = [];
+  const candidates = team.roster.filter((p) => p.position !== 'TW');
+  for (let i = 0; i < count && candidates.length > 0; i++) {
+    const idx = Math.floor(Math.random() * candidates.length);
+    const out = candidates.splice(idx, 1)[0];
+    const into = `${pick(FIRST_NAMES)} ${pick(LAST_NAMES)}`;
+    const rosterIdx = team.roster.findIndex((p) => p.name === out.name);
+    if (rosterIdx >= 0) {
+      team.roster[rosterIdx] = { name: into, position: out.position };
+      subs.push({ out: out.name, into });
+    }
+  }
+  return subs;
 }
