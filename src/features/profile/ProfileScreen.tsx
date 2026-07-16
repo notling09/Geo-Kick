@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import {
@@ -9,6 +9,7 @@ import {
 import {
   computeAchievements, type Achievement, type AchievementIcon,
 } from '../../core/services/achievements';
+import { getMeta, setMeta } from '../../core/db/repositories/metaRepo';
 import { useCloudStore } from '../../state/cloudStore';
 import { useGameStore } from '../../state/gameStore';
 import { useLeagueStore } from '../../state/leagueStore';
@@ -46,6 +47,18 @@ export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
   const [stats, setStats] = useState<SessionStats | null>(null);
   const [visited, setVisited] = useState<VisitedSpot[]>([]);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
+  const [themeMode, setThemeMode] = useState<'light' | 'dark'>('light');
+
+  /** Theme wechseln (V6.1): wird beim nächsten App-Start angewendet. */
+  const onThemeChange = async (mode: 'light' | 'dark') => {
+    if (mode === themeMode) return;
+    setThemeMode(mode);
+    await setMeta('themeMode', mode);
+    Alert.alert(
+      'Theme saved',
+      `${mode === 'dark' ? 'Dark' : 'Light'} mode will be applied the next time you start the app.`,
+    );
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -53,6 +66,7 @@ export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
         const s = await getSessionStats();
         setStats(s);
         setVisited(await getVisitedSpots());
+        setThemeMode((await getMeta('themeMode')) === 'dark' ? 'dark' : 'light');
         setAchievements(
           await computeAchievements({
             stats: s,
@@ -180,6 +194,27 @@ export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
           </Text>
         </Card>
 
+        <SectionTitle>Settings</SectionTitle>
+        <Card>
+          <Text style={styles.infoRow}>Theme</Text>
+          <View style={styles.themeRow}>
+            {(['light', 'dark'] as const).map((mode) => (
+              <Pressable
+                key={mode}
+                style={[styles.themeBtn, themeMode === mode && styles.themeBtnActive]}
+                onPress={() => void onThemeChange(mode)}
+              >
+                <Text style={[styles.themeText, themeMode === mode && styles.themeTextActive]}>
+                  {mode === 'light' ? 'Light' : 'Dark'}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={styles.aboutText}>
+            The new theme is applied the next time you start the app.
+          </Text>
+        </Card>
+
         <SectionTitle>Help</SectionTitle>
         <Card>
           <Text style={styles.aboutText}>
@@ -283,6 +318,31 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: colors.ink,
     fontSize: font.body,
+  },
+  themeRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginVertical: spacing.sm,
+  },
+  themeBtn: {
+    flex: 1,
+    borderWidth: 2,
+    borderColor: colors.line,
+    borderRadius: radius.sm,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  themeBtnActive: {
+    borderColor: colors.pitch,
+    backgroundColor: colors.grass,
+  },
+  themeText: {
+    fontWeight: '800',
+    fontSize: font.small,
+    color: colors.inkSoft,
+  },
+  themeTextActive: {
+    color: colors.pitchDark,
   },
   visitedMeta: {
     fontSize: font.small,

@@ -44,7 +44,7 @@ export function StartScreen({ navigation }: RootScreenProps<'Start'>) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.pitchDark,
+    backgroundColor: '#1B5E20',
   },
   overlay: {
     flex: 1,

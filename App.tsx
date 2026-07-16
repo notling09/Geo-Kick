@@ -3,14 +3,15 @@ import { LogBox } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { RootNavigator } from './src/navigation/RootNavigator';
 import { navigationRef } from './src/navigation/navigationRef';
 import { LoadingScreen } from './src/features/start/LoadingScreen';
+import { getMeta } from './src/core/db/repositories/metaRepo';
 import { useCloudStore } from './src/state/cloudStore';
 import { useEggStore } from './src/state/eggStore';
 import { useGameStore } from './src/state/gameStore';
 import { useLeagueStore } from './src/state/leagueStore';
 import { useSessionStore } from './src/state/sessionStore';
+import { applyTheme } from './src/ui/theme';
 
 // Bekannte, harmlose Warnungen nicht als gelbes LogBox-Banner anzeigen
 // (im Metro-Terminal bleiben sie sichtbar):
@@ -23,16 +24,28 @@ LogBox.ignoreLogs([/MapLibre Native/, /\[overpass\]/]);
  * 1. Loading-Screen, während SQLite initialisiert und Stores hydriert werden
  * 2. Start-Screen mit "Click to Start"
  * 3. Onboarding (Ersteinstieg) bzw. Haupt-Tabs
+ *
+ * V6.1: Das gespeicherte Theme (Hell/Dunkel) wird VOR dem Laden der Screens
+ * angewendet – der Navigator wird deshalb erst nach der Initialisierung
+ * per require geladen (die StyleSheets frieren die Farben beim Laden ein).
  */
 export default function App() {
   const [ready, setReady] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
+  const [Root, setRoot] = useState<React.ComponentType | null>(null);
 
   useEffect(() => {
     (async () => {
       // Mindestanzeigedauer, damit der Loading-Screen sichtbar bleibt (Kapitel 2.3)
       const minSplash = new Promise((resolve) => setTimeout(resolve, 1800));
       try {
+        // Theme zuerst: alle danach geladenen Screens übernehmen die Palette
+        const themeMode = await getMeta('themeMode');
+        applyTheme(themeMode === 'dark' ? 'dark' : 'light');
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const nav = require('./src/navigation/RootNavigator') as typeof import('./src/navigation/RootNavigator');
+        setRoot(() => nav.RootNavigator);
+
         await useGameStore.getState().init();
         if (useGameStore.getState().onboarded) {
           await Promise.all([
@@ -58,11 +71,11 @@ export default function App() {
     <SafeAreaProvider>
       <StatusBar style="light" />
       {ready ? (
-        initError ? (
-          <LoadingScreen errorText={`Startup failed: ${initError}`} />
+        initError || !Root ? (
+          <LoadingScreen errorText={`Startup failed: ${initError ?? 'could not load app'}`} />
         ) : (
           <NavigationContainer ref={navigationRef}>
-            <RootNavigator />
+            <Root />
           </NavigationContainer>
         )
       ) : (

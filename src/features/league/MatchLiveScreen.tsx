@@ -180,6 +180,13 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
     }
   }, [minute, isOnlineMatch, onlinePhase, navigation]);
 
+  // Online-Spiel abgebrochen (Gegner weg / Absage): Ticker sauber verlassen
+  useEffect(() => {
+    if (isOnlineMatch && onlinePhase === 'idle' && navigation.isFocused()) {
+      navigation.goBack();
+    }
+  }, [isOnlineMatch, onlinePhase, navigation]);
+
   if (!played) {
     return (
       <SafeAreaView style={styles.safe}>
@@ -323,15 +330,23 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
         </View>
       </View>
 
-      {/* Momentum (V5): grün = eigenes Team spielt besser, rot = Gegner */}
-      <View style={styles.possessionWrap}>
-        <Text style={[styles.possessionValue, { color: '#7CE97C' }]}>{userMomentum}%</Text>
-        <View style={styles.possessionBar}>
-          <View style={[styles.possessionUser, { flex: userMomentum }]} />
-          <View style={[styles.possessionOpp, { flex: 100 - userMomentum }]} />
-        </View>
-        <Text style={[styles.possessionValue, { color: '#FF6B5E' }]}>{100 - userMomentum}%</Text>
-      </View>
+      {/* Momentum (V5): grün = eigenes Team, rot = Gegner – die Seiten folgen
+          der Anzeige oben (Heim links, Auswärts rechts, V6-Fix) */}
+      {(() => {
+        const homeMomentum = userIsHome ? userMomentum : 100 - userMomentum;
+        const leftColor = userIsHome ? '#7CE97C' : '#FF6B5E';
+        const rightColor = userIsHome ? '#FF6B5E' : '#7CE97C';
+        return (
+          <View style={styles.possessionWrap}>
+            <Text style={[styles.possessionValue, { color: leftColor }]}>{homeMomentum}%</Text>
+            <View style={styles.possessionBar}>
+              <View style={{ flex: homeMomentum, backgroundColor: leftColor }} />
+              <View style={{ flex: 100 - homeMomentum, backgroundColor: rightColor }} />
+            </View>
+            <Text style={[styles.possessionValue, { color: rightColor }]}>{100 - homeMomentum}%</Text>
+          </View>
+        );
+      })()}
       <Text style={styles.momentumLabel}>Momentum</Text>
 
       {finished && stats && (
@@ -414,7 +429,7 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
           </View>
           <View style={styles.halftimeButtons}>
             <GKButton
-              title="Substitutions"
+              title="Substitution"
               variant="secondary"
               style={styles.halftimeBtn}
               onPress={() => setSubsOpen(true)}
@@ -437,12 +452,20 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
                 variant="secondary"
                 onPress={() => navigation.replace('Shootout')}
               />
+            ) : isOnlineMatch && onlinePhase === 'shootout' ? (
+              // Online-Remis: KEIN Continue (das würde das Spiel abbrechen),
+              // stattdessen direkt zum Elfmeterschießen
+              <GKButton
+                title="Penalty shootout!"
+                variant="secondary"
+                onPress={() => navigation.replace('OnlineShootout')}
+              />
             ) : (
               <GKButton
                 title={`Continue (final score ${match.homeGoals}:${match.awayGoals})`}
                 onPress={() => {
-                  if (isOnlineMatch) useOnlineStore.getState().leave();
                   navigation.goBack();
+                  if (isOnlineMatch) useOnlineStore.getState().leave();
                 }}
               />
             )
@@ -535,7 +558,7 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: colors.pitchDark,
+    backgroundColor: '#1B5E20',
   },
   scoreboard: {
     flexDirection: 'row',
@@ -743,7 +766,7 @@ const styles = StyleSheet.create({
   },
   subsSafe: {
     flex: 1,
-    backgroundColor: colors.pitchDark,
+    backgroundColor: '#1B5E20',
     padding: spacing.md,
   },
   subsTitle: {

@@ -160,6 +160,11 @@ export const useOnlineStore = create<OnlineState>((set, get) => {
     soKicks = [];
     soShot = null;
     recordsDone = false;
+    // Abgebrochenes Online-Spiel nicht im Ticker weiterlaufen lassen
+    const last = useLeagueStore.getState().lastPlayedMatch;
+    if (last && (last.match.homeId === 'online' || last.match.awayId === 'online') && !last.match.played) {
+      useLeagueStore.setState({ lastPlayedMatch: null });
+    }
     // Aufstellung von vor dem Online-Spiel wiederherstellen (wie offline)
     if (lineupSnapshot) {
       const snap = lineupSnapshot;
@@ -182,8 +187,9 @@ export const useOnlineStore = create<OnlineState>((set, get) => {
     const phase = get().phase;
     if (phase === 'idle' || phase === 'done') return;
     Alert.alert('Opponent left', 'The connection to your opponent was lost - match cancelled.');
+    // Keine Store-Navigation: die Screens reagieren selbst auf phase 'idle'
+    // (sonst kommt es zu doppelten Back-Sprüngen)
     void cleanup();
-    navigate('Friendlies');
   };
 
   /** Spielstand für den Live-Ticker veröffentlichen (eigene Perspektive). */
@@ -418,12 +424,18 @@ export const useOnlineStore = create<OnlineState>((set, get) => {
         if (payload.senderId === myUserId) return;
         Alert.alert('Declined', 'Your friend declined the challenge.');
         void cleanup();
-        navigate('Friendlies');
       })
       .on('broadcast', { event: 'ready' }, ({ payload }) => {
         if (payload.senderId === myUserId) return;
         if (payload.stage === 'lobby') {
-          set({ oppReady: true });
+          // Ready überträgt den Klub inkl. der in der Lobby gewählten Taktik
+          const club = payload.club as OnlineClub | undefined;
+          if (club) {
+            set({ oppReady: true, opponent: club });
+            if (get().myRole === 'host') guestClubStart = club;
+          } else {
+            set({ oppReady: true });
+          }
           hostTryStart();
         } else {
           const club = payload.club as OnlineClub;
@@ -457,6 +469,10 @@ export const useOnlineStore = create<OnlineState>((set, get) => {
       .on('broadcast', { event: 'so-dive' }, ({ payload }) => {
         if (payload.senderId === myUserId) return;
         if (get().myRole === 'host') hostResolveKick(payload.target as TargetId);
+      })
+      .on('broadcast', { event: 'so-result' }, ({ payload }) => {
+        if (payload.senderId === myUserId) return;
+        handleSoResult(payload);
       })
       .on('presence', { event: 'leave' }, ({ leftPresences }) => {
         const left = leftPresences as Array<Record<string, unknown>>;
@@ -606,7 +622,7 @@ export const useOnlineStore = create<OnlineState>((set, get) => {
     setReady: () => {
       if (get().myReady) return;
       set({ myReady: true });
-      send('ready', { stage: 'lobby' });
+      send('ready', { stage: 'lobby', club: myClub() });
       hostTryStart();
     },
 

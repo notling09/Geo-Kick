@@ -195,13 +195,6 @@ export function FriendliesScreen({ navigation }: RootScreenProps<'Friendlies'>) 
                 );
               })
             )}
-            <Text style={styles.footnote}>
-              Friendlies are played against your friend’s latest synced XI. No coins or
-              packs - just bragging rights.{'\n'}
-              Play online: both of you need the app open - you play the SAME match live,
-              with half-time changes on both sides and a player-vs-player penalty
-              shootout if it ends level.
-            </Text>
           </>
         )}
 

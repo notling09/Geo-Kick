@@ -574,7 +574,7 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.pitchDark,
+    backgroundColor: '#1B5E20',
   },
   safe: {
     flex: 1,

@@ -284,7 +284,7 @@ export function SeasonReviewScreen({ navigation }: RootScreenProps<'SeasonReview
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: colors.pitchDark,
+    backgroundColor: '#1B5E20',
   },
   stepWrap: {
     flex: 1,
