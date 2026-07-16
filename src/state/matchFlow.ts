@@ -3,6 +3,7 @@ import {
   type LiveMatchState, type LiveOutcome, type SimResult, type SimTeam,
 } from '../core/engine/matchSim';
 import type { Tactic } from '../core/domain/types';
+import { useGameStore } from './gameStore';
 
 /**
  * Live-Spielsteuerung (V5): Nutzer-Spiele (Liga, Platz-Kampf, Friendly)
@@ -37,6 +38,7 @@ export interface UserMatchHooks {
 
 let halftimeFn: ((tactic: Tactic) => Promise<void>) | null = null;
 let penaltyFn: ((scored: boolean) => Promise<void>) | null = null;
+let restoreLineupFn: (() => Promise<void>) | null = null;
 
 export async function resumeSecondHalf(tactic: Tactic): Promise<void> {
   const fn = halftimeFn;
@@ -50,10 +52,44 @@ export async function resolveLivePenalty(scored: boolean): Promise<void> {
   if (fn) await fn(scored);
 }
 
+/**
+ * Externe Pausen-Handler registrieren (V6, Online-Spiele): der Online-Store
+ * routet Resume/Elfmeter über das Netz statt in die lokale Simulation.
+ */
+export function registerPauseHandlers(handlers: {
+  halftime?: (tactic: Tactic) => Promise<void>;
+  penalty?: (scored: boolean) => Promise<void>;
+}): void {
+  if (handlers.halftime) halftimeFn = handlers.halftime;
+  if (handlers.penalty) penaltyFn = handlers.penalty;
+}
+
+/**
+ * Laufendes lokales Spiel abbrechen (z. B. Ticker in einer Pause verlassen):
+ * Handler verwerfen und die Vor-Spiel-Aufstellung wiederherstellen.
+ */
+export async function abandonLiveMatch(): Promise<void> {
+  halftimeFn = null;
+  penaltyFn = null;
+  const restore = restoreLineupFn;
+  restoreLineupFn = null;
+  if (restore) await restore();
+}
+
 /** Ein Nutzer-Spiel starten und bis zum Abpfiff durch alle Pausen führen. */
 export async function runUserMatch(hooks: UserMatchHooks): Promise<void> {
   halftimeFn = null;
   penaltyFn = null;
+  // Aufstellung sichern (V5-Fix): Halbzeit-Wechsel gelten nur für DIESES
+  // Spiel – nach dem Abpfiff (oder Abbruch) kommt die Elf von vorher zurück
+  const lineupSnapshot = [...useGameStore.getState().lineup];
+  const restoreLineup = async () => {
+    const g = useGameStore.getState();
+    if (lineupSnapshot.some((id, slot) => g.lineup[slot] !== id)) {
+      await g.restoreLineup(lineupSnapshot);
+    }
+  };
+  restoreLineupFn = restoreLineup;
   let userTeam = await hooks.buildUserTeam(hooks.initialTactic);
   const home = () => (hooks.userIsHome ? userTeam : hooks.opponent);
   const away = () => (hooks.userIsHome ? hooks.opponent : userTeam);
@@ -63,6 +99,8 @@ export async function runUserMatch(hooks: UserMatchHooks): Promise<void> {
 
   const handle = async (outcome: LiveOutcome): Promise<void> => {
     if (outcome.kind === 'fulltime') {
+      restoreLineupFn = null;
+      await restoreLineup();
       await hooks.finalize(outcome.result);
       return;
     }

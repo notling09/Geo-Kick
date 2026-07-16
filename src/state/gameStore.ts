@@ -42,6 +42,8 @@ interface GameState {
   setFormation: (formation: FormationId) => Promise<void>;
   setTactic: (tactic: Tactic) => Promise<void>;
   setLineupSlot: (slot: number, playerId: number | null) => Promise<void>;
+  /** Komplette Aufstellung setzen (V5: Halbzeit-Wechsel gelten nur im Spiel) */
+  restoreLineup: (lineup: Array<number | null>) => Promise<void>;
   autoLineup: () => Promise<void>;
   addCoins: (amount: number) => Promise<void>;
   addLevelPoints: (amount: number) => Promise<void>;
@@ -353,6 +355,11 @@ export const useGameStore = create<GameState>((set, get) => ({
     lineup[slot] = playerId;
     await playerRepo.setLineupSlot(slot, playerId);
     set({ lineup });
+  },
+
+  restoreLineup: async (lineup) => {
+    await playerRepo.replaceLineup(lineup.map((id, slot) => [slot, id]));
+    set({ lineup: [...lineup] });
   },
 
   autoLineup: async () => {

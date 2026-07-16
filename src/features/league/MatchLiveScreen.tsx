@@ -7,7 +7,7 @@ import { effectiveOverall } from '../../core/engine/playerGen';
 import { useBattleStore } from '../../state/battleStore';
 import { useGameStore } from '../../state/gameStore';
 import { useLeagueStore } from '../../state/leagueStore';
-import { resolveLivePenalty, resumeSecondHalf } from '../../state/matchFlow';
+import { abandonLiveMatch, resolveLivePenalty, resumeSecondHalf } from '../../state/matchFlow';
 import { GKButton, Card } from '../../ui/components';
 import { Crest } from '../../ui/Crest';
 import { FormationPitch } from '../../ui/FormationPitch';
@@ -80,8 +80,15 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
   const events = played?.match.events ?? [];
   const pause = played?.pause ?? null;
 
-  // Wartende Meister-Feier erst freigeben, wenn die Live-Ansicht zugeht
-  useEffect(() => () => useLeagueStore.getState().revealCelebration(), []);
+  // Wartende Meister-Feier erst freigeben, wenn die Live-Ansicht zugeht;
+  // wird ein Spiel in einer Pause verlassen, Zustand + Aufstellung aufräumen
+  useEffect(
+    () => () => {
+      if (useLeagueStore.getState().lastPlayedMatch?.pause) void abandonLiveMatch();
+      useLeagueStore.getState().revealCelebration();
+    },
+    [],
+  );
 
   // Ticker: läuft bis zur nächsten Pause (Elfmeter-Minute, Halbzeit 45)
   // bzw. bis zum Abpfiff (90)
