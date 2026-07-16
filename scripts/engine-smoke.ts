@@ -3,6 +3,7 @@ import { generateSchedule, computeStandings, generateNpcClubs, resolveSeason } f
 import { generatePlayerPool, generateFillerSquad, overallOf } from '../src/core/engine/playerGen';
 import { drawEggPlayer, drawPackContent, rollPackBonus } from '../src/core/engine/packGen';
 import { dayKey, hashString, pitchOpponent, specialSpotIdForDay } from '../src/core/engine/pitchBattle';
+import { shootoutWinner, type ShootoutKick } from '../src/core/engine/shootout';
 import { EGG_TYPES, LEAGUE_REWARDS, PACK_TYPES, levelUpCost } from '../src/core/domain/constants';
 import { calculateReward } from '../src/core/engine/rewards';
 import type { Match, PoolPlayer } from '../src/core/domain/types';
@@ -145,6 +146,26 @@ check('special spot changes across days', (() => {
   return false;
 })());
 check('hash stable', hashString('geo-kick') === hashString('geo-kick') && hashString('a') !== hashString('b'));
+
+// V6: Elfmeterschießen-Regeln (Best-of-5 + Sudden Death)
+const k = (side: 'A' | 'B', scored: boolean): ShootoutKick => ({ side, scored });
+check('shootout: no winner while open', shootoutWinner([k('A', true), k('B', true)]) === null);
+check('shootout: early decision', shootoutWinner([
+  k('A', true), k('B', false), k('A', true), k('B', false), k('A', true), k('B', false),
+]) === 'A');
+check('shootout: decided after 5 pairs', shootoutWinner([
+  k('A', true), k('B', true), k('A', true), k('B', true), k('A', true),
+  k('B', true), k('A', true), k('B', true), k('A', true), k('B', false),
+]) === 'A');
+check('shootout: sudden death pairwise', (() => {
+  const tied = [
+    k('A', true), k('B', true), k('A', true), k('B', true), k('A', true),
+    k('B', true), k('A', true), k('B', true), k('A', true), k('B', true),
+  ];
+  return shootoutWinner(tied) === null
+    && shootoutWinner([...tied, k('A', true)]) === null
+    && shootoutWinner([...tied, k('A', true), k('B', false)]) === 'A';
+})());
 
 // V3: Saisonprämien Platz 2 gestaffelt 50/75/100/125
 check('season 2nd place 50/75/100/125',

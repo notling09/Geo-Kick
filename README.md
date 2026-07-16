@@ -66,6 +66,11 @@ aufsteigst. Komplett offline, kein Backend, kein Echtgeld.
   6-stelligem Code, Freundschaftsspiele gegen die zuletzt synchronisierte
   Start-Elf der Freunde (kein Coin-Reward, lokale Siegbilanz); ohne
   Konfiguration/Internet laeuft die App unveraendert rein lokal
+- **Online-Friendlies** (Supabase Realtime): einen Freund live herausfordern -
+  Lobby mit beidseitigem Ready, beide sehen exakt dasselbe Spiel, eigene
+  Halbzeit-Umstellungen auf beiden Seiten und bei Remis ein Spieler-gegen-
+  Spieler-Elfmeterschiessen (der Schuetze waehlt zuerst, erst dann darf der
+  Torwart hechten); Verbindungsabbruch bricht das Spiel sauber ab
 
 ## Technischer Stack
 

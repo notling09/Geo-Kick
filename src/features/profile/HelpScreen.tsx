@@ -179,6 +179,12 @@ export function HelpScreen({ navigation }: RootScreenProps<'Help'>) {
             Add friends with their 6-character code (Profile tab) and play friendlies
             against their latest synced XI - just for fun, no coins.
           </Text>
+          <Text style={styles.text}>
+            Play ONLINE: if both of you have the app open, challenge a friend to a live
+            match - you both watch the exact same game, make your own half-time changes,
+            and settle a draw with a player-vs-player penalty shootout: the shooter
+            picks a corner first, only then the keeper picks the dive.
+          </Text>
         </Card>
 
         <GKButton

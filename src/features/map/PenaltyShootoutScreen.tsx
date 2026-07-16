@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Line, Rect } from 'react-native-svg';
+import { shootoutWinner } from '../../core/engine/shootout';
 import { playSound } from '../../core/services/sound';
 import { useBattleStore } from '../../state/battleStore';
 import { useGameStore } from '../../state/gameStore';
@@ -58,22 +59,12 @@ interface ShotResult {
   team: 'user' | 'opp';
 }
 
-/** Best-of-5, danach Sudden Death (Entscheidung nur nach kompletten Paaren). */
-function shootoutWinner(kicks: Kick[]): 'user' | 'opp' | null {
-  const user = kicks.filter((k) => k.team === 'user');
-  const opp = kicks.filter((k) => k.team === 'opp');
-  const ug = user.filter((k) => k.scored).length;
-  const og = opp.filter((k) => k.scored).length;
-  if (user.length <= 5 && opp.length <= 5) {
-    const remU = 5 - user.length;
-    const remO = 5 - opp.length;
-    if (ug > og + remO) return 'user';
-    if (og > ug + remU) return 'opp';
-    if (remU === 0 && remO === 0 && ug !== og) return ug > og ? 'user' : 'opp';
-    return null;
-  }
-  if (user.length === opp.length && ug !== og) return ug > og ? 'user' : 'opp';
-  return null;
+/** Best-of-5, danach Sudden Death (gemeinsame Regeln aus engine/shootout). */
+function winnerOf(kicks: Kick[]): 'user' | 'opp' | null {
+  const side = shootoutWinner(
+    kicks.map((k) => ({ side: k.team === 'user' ? ('A' as const) : ('B' as const), scored: k.scored })),
+  );
+  return side === null ? null : side === 'A' ? 'user' : 'opp';
 }
 
 /** Torwart-Figur (einfach gezeichnet, Comic-Stil). */
@@ -143,7 +134,7 @@ export function PenaltyShootoutScreen({ navigation }: RootScreenProps<'Shootout'
     timer.current = setTimeout(() => {
       const next = [...kicks, { team, scored }];
       setKicks(next);
-      const decided = shootoutWinner(next);
+      const decided = winnerOf(next);
       if (decided) {
         setWinner(decided);
         setPhase('done');

@@ -14,6 +14,8 @@ export type RootStackParamList = {
   Passport: undefined;
   Shootout: undefined;
   SeasonReview: undefined;
+  OnlineLobby: undefined;
+  OnlineShootout: undefined;
 };
 
 export type MainTabParamList = {

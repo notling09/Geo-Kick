@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { RootNavigator } from './src/navigation/RootNavigator';
+import { navigationRef } from './src/navigation/navigationRef';
 import { LoadingScreen } from './src/features/start/LoadingScreen';
 import { useCloudStore } from './src/state/cloudStore';
 import { useEggStore } from './src/state/eggStore';
@@ -60,7 +61,7 @@ export default function App() {
         initError ? (
           <LoadingScreen errorText={`Startup failed: ${initError}`} />
         ) : (
-          <NavigationContainer>
+          <NavigationContainer ref={navigationRef}>
             <RootNavigator />
           </NavigationContainer>
         )

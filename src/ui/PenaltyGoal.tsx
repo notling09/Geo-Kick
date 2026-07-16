@@ -37,28 +37,54 @@ function Keeper({ size = 52 }: { size?: number }) {
   );
 }
 
+export interface PenaltyOutcome {
+  ball: TargetId;
+  dive: TargetId;
+  scored: boolean;
+}
+
 interface Props {
   mode: 'shoot' | 'save';
   shooter: string;
   keeper: string;
-  onDone: (scored: boolean) => void;
+  /** Lokaler Modus: Gegenseite wählt zufällig, Ergebnis nach 1,5 s gemeldet */
+  onDone?: (scored: boolean) => void;
+  /**
+   * Online-Modus (V6): die eigene Wahl wird nur gemeldet – das Ergebnis
+   * (inkl. der Wahl des echten Gegners) kommt später über externalResult.
+   */
+  onPick?: (target: TargetId) => void;
+  externalResult?: PenaltyOutcome | null;
+  /** Auswahl (noch) gesperrt, z. B. Torwart wartet auf den Schützen */
+  locked?: boolean;
 }
 
-export function PenaltyGoal({ mode, shooter, keeper, onDone }: Props) {
-  const [result, setResult] = useState<{ ball: TargetId; dive: TargetId; scored: boolean } | null>(null);
+export type { TargetId };
+
+export function PenaltyGoal({ mode, shooter, keeper, onDone, onPick, externalResult, locked }: Props) {
+  const [localResult, setLocalResult] = useState<PenaltyOutcome | null>(null);
+  const [picked, setPicked] = useState(false);
   const fired = useRef(false);
 
-  const onPick = (target: TargetId) => {
-    if (result) return;
+  const result = externalResult ?? localResult;
+
+  const handlePick = (target: TargetId) => {
+    if (result || picked || locked) return;
+    if (onPick) {
+      // Online: nur melden, Auflösung kommt von außen
+      setPicked(true);
+      onPick(target);
+      return;
+    }
     const random = TARGETS[Math.floor(Math.random() * TARGETS.length)].id;
     const ball = mode === 'shoot' ? target : random;
     const dive = mode === 'shoot' ? random : target;
     const scored = ball !== dive;
-    setResult({ ball, dive, scored });
+    setLocalResult({ ball, dive, scored });
     setTimeout(() => {
       if (fired.current) return;
       fired.current = true;
-      onDone(scored);
+      onDone?.(scored);
     }, 1500);
   };
 
@@ -72,9 +98,13 @@ export function PenaltyGoal({ mode, shooter, keeper, onDone }: Props) {
           ? result.scored
             ? 'GOAL!'
             : 'SAVED!'
-          : mode === 'shoot'
-            ? `${shooter} steps up - tap a corner!`
-            : `${shooter} steps up - tap where ${keeper} dives!`}
+          : picked
+            ? 'Waiting for the opponent...'
+            : locked
+              ? `${shooter} is picking a corner...`
+              : mode === 'shoot'
+                ? `${shooter} steps up - tap a corner!`
+                : `${shooter} steps up - tap where ${keeper} dives!`}
       </Text>
       <View style={styles.imageWrap}>
         <Image source={GOAL_IMAGE} style={styles.image} resizeMode="cover" />
@@ -84,12 +114,12 @@ export function PenaltyGoal({ mode, shooter, keeper, onDone }: Props) {
         {result && (
           <View style={[styles.ball, { left: `${pos(result.ball).x}%`, top: `${pos(result.ball).y}%` }]} />
         )}
-        {!result &&
+        {!result && !picked && !locked &&
           TARGETS.map((t) => (
             <Pressable
               key={t.id}
               style={[styles.target, { left: `${t.x}%`, top: `${t.y}%` }]}
-              onPress={() => onPick(t.id)}
+              onPress={() => handlePick(t.id)}
             >
               <View style={styles.targetRing} />
             </Pressable>

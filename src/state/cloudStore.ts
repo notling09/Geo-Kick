@@ -101,6 +101,10 @@ export const useCloudStore = create<CloudState>((set, get) => ({
       set({ status: 'online', friendCode });
       await get().syncClub();
 
+      // Online-Friendlies (V6): auf Live-Einladungen von Freunden lauschen
+      const { useOnlineStore } = await import('./onlineStore');
+      void useOnlineStore.getState().init();
+
       // Auto-Sync: bei Kader-/Klub-Änderungen (debounced) hochladen
       useGameStore.subscribe(() => {
         if (get().status !== 'online') return;

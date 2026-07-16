@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCloudStore } from '../../state/cloudStore';
 import { useFriendsStore } from '../../state/friendsStore';
+import { useOnlineStore } from '../../state/onlineStore';
 import { GKButton, Card, SectionTitle } from '../../ui/components';
 import { Crest } from '../../ui/Crest';
 import { colors, font, radius, spacing } from '../../ui/theme';
@@ -31,6 +32,23 @@ export function FriendliesScreen({ navigation }: RootScreenProps<'Friendlies'>) 
   const [code, setCode] = useState('');
   const [adding, setAdding] = useState(false);
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [invitingId, setInvitingId] = useState<string | null>(null);
+  const inviteOnline = useOnlineStore((s) => s.invite);
+
+  /** Online-Friendly (V6): Freund einladen und in die Lobby wechseln. */
+  const onPlayOnline = async (friendId: string, friendName: string) => {
+    setInvitingId(friendId);
+    try {
+      const ok = await inviteOnline(friendId, friendName);
+      if (ok) {
+        navigation.navigate('OnlineLobby');
+      } else {
+        Alert.alert('Not possible', 'Could not start an online match. Check your connection.');
+      }
+    } finally {
+      setInvitingId(null);
+    }
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -160,7 +178,14 @@ export function FriendliesScreen({ navigation }: RootScreenProps<'Friendlies'>) 
                         style={{ flex: 1 }}
                       />
                       <GKButton
-                        title="Remove"
+                        title="Play online"
+                        variant="secondary"
+                        onPress={() => onPlayOnline(f.id, f.club_name)}
+                        loading={invitingId === f.id}
+                        style={{ flex: 1 }}
+                      />
+                      <GKButton
+                        title="X"
                         variant="ghost"
                         onPress={() => onRemove(f.id, f.club_name)}
                         style={styles.removeBtn}
@@ -172,7 +197,10 @@ export function FriendliesScreen({ navigation }: RootScreenProps<'Friendlies'>) 
             )}
             <Text style={styles.footnote}>
               Friendlies are played against your friend’s latest synced XI. No coins or
-              packs - just bragging rights.
+              packs - just bragging rights.{'\n'}
+              Play online: both of you need the app open - you play the SAME match live,
+              with half-time changes on both sides and a player-vs-player penalty
+              shootout if it ends level.
             </Text>
           </>
         )}

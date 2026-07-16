@@ -7,6 +7,7 @@ import { effectiveOverall } from '../../core/engine/playerGen';
 import { useBattleStore } from '../../state/battleStore';
 import { useGameStore } from '../../state/gameStore';
 import { useLeagueStore } from '../../state/leagueStore';
+import { useOnlineStore } from '../../state/onlineStore';
 import { abandonLiveMatch, resolveLivePenalty, resumeSecondHalf } from '../../state/matchFlow';
 import { GKButton, Card } from '../../ui/components';
 import { Crest } from '../../ui/Crest';
@@ -82,9 +83,15 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
 
   // Wartende Meister-Feier erst freigeben, wenn die Live-Ansicht zugeht;
   // wird ein Spiel in einer Pause verlassen, Zustand + Aufstellung aufräumen
+  // (Online-Spiele: auch die Verbindung trennen → Gegner wird informiert)
   useEffect(
     () => () => {
-      if (useLeagueStore.getState().lastPlayedMatch?.pause) void abandonLiveMatch();
+      const last = useLeagueStore.getState().lastPlayedMatch;
+      if (last?.pause) {
+        void abandonLiveMatch();
+        const online = last.match.homeId === 'online' || last.match.awayId === 'online';
+        if (online) useOnlineStore.getState().leave();
+      }
       useLeagueStore.getState().revealCelebration();
     },
     [],
@@ -148,6 +155,8 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
   // Platz-Kampf endete unentschieden: nach dem Abpfiff automatisch weiter
   // ins Elfmeterschießen (nur für Platz-Kampf-Matches)
   const isBattleMatch = played?.match.awayId.startsWith('battle-') ?? false;
+  const isOnlineMatch =
+    played?.match.homeId === 'online' || played?.match.awayId === 'online';
   const isLeagueMatch = (played?.match.season ?? 0) > 0;
   const pendingShootoutRaw = useBattleStore((s) => s.pendingShootout);
   const pendingShootout = isBattleMatch ? pendingShootoutRaw : null;
@@ -159,6 +168,17 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
       return () => clearTimeout(t);
     }
   }, [minute, pendingShootout, navigation]);
+
+  // Online-Remis (V6): weiter ins Spieler-gegen-Spieler-Elfmeterschießen
+  const onlinePhase = useOnlineStore((s) => s.phase);
+  const waitingHalf = useOnlineStore((s) => s.waitingHalf);
+  useEffect(() => {
+    if (minute >= 90 && isOnlineMatch && onlinePhase === 'shootout' && !shootoutStarted.current) {
+      shootoutStarted.current = true;
+      const t = setTimeout(() => navigation.replace('OnlineShootout'), 2200);
+      return () => clearTimeout(t);
+    }
+  }, [minute, isOnlineMatch, onlinePhase, navigation]);
 
   if (!played) {
     return (
@@ -400,9 +420,10 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
               onPress={() => setSubsOpen(true)}
             />
             <GKButton
-              title="Resume"
+              title={isOnlineMatch && waitingHalf ? 'Waiting for opponent …' : 'Resume'}
               style={styles.halftimeBtn}
               loading={resuming}
+              disabled={isOnlineMatch && waitingHalf}
               onPress={onResume}
             />
           </View>
@@ -419,7 +440,10 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
             ) : (
               <GKButton
                 title={`Continue (final score ${match.homeGoals}:${match.awayGoals})`}
-                onPress={() => navigation.goBack()}
+                onPress={() => {
+                  if (isOnlineMatch) useOnlineStore.getState().leave();
+                  navigation.goBack();
+                }}
               />
             )
           ) : (
