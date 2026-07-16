@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: radius.round,
-    backgroundColor: 'rgba(255,255,255,0.92)',
+    backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.line,
     alignItems: 'center',

@@ -641,7 +641,8 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   goalCard: {
-    backgroundColor: '#FFF8E1',
+    // Kein heller Fix-Hintergrund mehr: im Dark Mode war heller Text auf
+    // heller Box unlesbar - der Gold-Rahmen hebt Tore in beiden Themes hervor
     borderColor: colors.gold,
     borderWidth: 2,
   },

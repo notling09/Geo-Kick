@@ -158,7 +158,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: -10,
     top: -4,
-    backgroundColor: colors.ink,
+    // Fest dunkel: liegt auf dem grünen Feld, unabhängig vom Theme (V6.2)
+    backgroundColor: '#1A2E1A',
     borderRadius: radius.round,
     paddingHorizontal: 5,
     paddingVertical: 1,
