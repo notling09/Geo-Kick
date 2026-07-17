@@ -1,3 +1,4 @@
+import * as IntentLauncher from 'expo-intent-launcher';
 import * as Location from 'expo-location';
 import { Linking, Platform } from 'react-native';
 
@@ -25,18 +26,54 @@ export async function getPositionWithTimeout(
 }
 
 /**
- * Standort direkt aus der App heraus aktivieren: auf Android öffnet
- * enableNetworkProviderAsync den System-Dialog ("Standort aktivieren?");
- * schlägt das fehl (oder iOS), bleiben nur die App-Einstellungen.
+ * Standort direkt aus der App heraus aktivieren (V6.3.1). Je nach Ursache
+ * passiert etwas anderes – vorher passierte auf manchen Geräten (Samsung)
+ * gar nichts, weil enableNetworkProviderAsync bei bereits aktivem Standort
+ * sofort still zurückkehrt:
+ *  1. Berechtigung fehlt → nachfragen; bei "nicht mehr fragen" die
+ *     App-Einstellungen öffnen (dort sitzt der Berechtigungs-Schalter).
+ *  2. Standortdienste aus → Play-Services-Dialog; klappt der nicht,
+ *     direkt die System-Standorteinstellungen öffnen.
  */
 export async function promptEnableLocation(): Promise<void> {
-  if (Platform.OS === 'android') {
+  // 1) Berechtigung zuerst – der häufigste Grund für "kein Standort"
+  try {
+    const perm = await Location.getForegroundPermissionsAsync();
+    if (!perm.granted) {
+      if (perm.canAskAgain) {
+        const asked = await Location.requestForegroundPermissionsAsync();
+        if (!asked.granted) return;
+      } else {
+        void Linking.openSettings();
+        return;
+      }
+    }
+  } catch {
+    // Weiter zu den Standortdiensten
+  }
+
+  if (Platform.OS !== 'android') {
+    void Linking.openSettings();
+    return;
+  }
+
+  // 2) Standortdienste (GPS-Schalter)
+  let enabled = await Location.hasServicesEnabledAsync().catch(() => false);
+  if (enabled) return;
+  try {
+    await Location.enableNetworkProviderAsync();
+  } catch {
+    // Nutzer hat abgelehnt oder der Dialog ist nicht verfügbar
+  }
+  enabled = await Location.hasServicesEnabledAsync().catch(() => false);
+  if (!enabled) {
+    // Ohne Play-Services-Dialog: die System-Standorteinstellungen öffnen
     try {
-      await Location.enableNetworkProviderAsync();
-      return;
+      await IntentLauncher.startActivityAsync(
+        IntentLauncher.ActivityAction.LOCATION_SOURCE_SETTINGS,
+      );
     } catch {
-      // Nutzer hat abgelehnt oder Dialog nicht verfügbar → Einstellungen
+      void Linking.openSettings();
     }
   }
-  void Linking.openSettings();
 }
