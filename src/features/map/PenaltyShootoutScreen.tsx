@@ -138,12 +138,14 @@ export function PenaltyShootoutScreen({ navigation }: RootScreenProps<'Shootout'
       const decided = winnerOf(next);
       if (decided) {
         setWinner(decided);
-        setPhase('done');
         resolved.current = true;
         void useBattleStore
           .getState()
           .resolveShootout(decided === 'user')
           .then(setRewardText);
+        // Der entscheidende Elfmeter bleibt erst ~2 s sichtbar, bevor die
+        // Ergebnis-Box darüberliegt (V6.3, Nutzerwunsch)
+        timer.current = setTimeout(() => setPhase('done'), 2000);
       } else {
         setLastShot(null);
         setPhase('aim');

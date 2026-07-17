@@ -10,6 +10,7 @@ import {
 } from '../core/engine/pitchBattle';
 import { teamStrength } from '../core/engine/strength';
 import { distanceMeters } from '../core/services/geo';
+import { getPositionWithTimeout } from '../core/services/location';
 import * as metaRepo from '../core/db/repositories/metaRepo';
 import { useGameStore } from './gameStore';
 import { useLeagueStore, type PlayedUserMatch } from './leagueStore';
@@ -116,7 +117,11 @@ export const useBattleStore = create<BattleState>((set, get) => ({
     } catch {
       specialSpotId = null;
     }
-    set({ ...state, specialSpotId });
+    // Race-Fix (V6.3): ensureSpecialSpot kann parallel schon einen neuen
+    // Gold-Platz für heute gewählt haben – den nie mit einem älteren
+    // (gestrigen) Meta-Stand auf null überschreiben, sonst fehlt der Pin
+    // den ganzen Tag
+    set((prev) => ({ ...state, specialSpotId: specialSpotId ?? prev.specialSpotId }));
   },
 
   ensureSpecialSpot: async (spots, myPos) => {
@@ -131,7 +136,20 @@ export const useBattleStore = create<BattleState>((set, get) => ({
     // Aktueller Gold-Platz bleibt gültig, solange er heute gewählt wurde und
     // (noch) in der Nähe liegt
     if (get().day === today && currentSpot && inRange(currentSpot)) return;
-    const pickFrom = candidates.length > 0 ? candidates : spots;
+    // Kein Platz im Umkreis (z. B. gecachte Plätze aus einer anderen Stadt):
+    // dann den nächstgelegenen nehmen, damit der Gold-Pin nie außer
+    // Reichweite liegt (V6.3). Ohne Position bleiben alle Plätze im Topf –
+    // auch selbst hinzugefügte Plätze (source 'user') können golden werden.
+    let pickFrom = candidates;
+    if (pickFrom.length === 0 && myPos) {
+      const nearest = [...spots].sort(
+        (a, b) =>
+          distanceMeters(myPos.latitude, myPos.longitude, a.latitude, a.longitude) -
+          distanceMeters(myPos.latitude, myPos.longitude, b.latitude, b.longitude),
+      )[0];
+      pickFrom = nearest ? [nearest] : spots;
+    }
+    if (pickFrom.length === 0) pickFrom = spots;
     const specialSpotId = specialSpotIdForDay(pickFrom.map((s) => s.id), today);
     if (!specialSpotId) return;
     await metaRepo.setMeta('specialSpot', JSON.stringify({ day: today, spotId: specialSpotId }));
@@ -162,12 +180,9 @@ export const useBattleStore = create<BattleState>((set, get) => ({
     // Vor-Ort-Prüfung: gleiche Regeln wie beim Check-in
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') return { ok: false, reason: 'permission' };
-    let pos: Location.LocationObject;
-    try {
-      pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-    } catch {
-      return { ok: false, reason: 'no_location' };
-    }
+    // Mit Zeitlimit (V6.3): sonst hängt der Kampf-Button bei GPS-Problemen
+    const pos = await getPositionWithTimeout(Location.Accuracy.High);
+    if (!pos) return { ok: false, reason: 'no_location' };
     if (pos.mocked) return { ok: false, reason: 'mocked' };
     const dist = distanceMeters(
       pos.coords.latitude, pos.coords.longitude, spot.latitude, spot.longitude,

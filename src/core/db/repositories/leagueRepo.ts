@@ -1,5 +1,5 @@
 import type { Match, MatchEvent, NpcClub } from '../../domain/types';
-import { getDb } from '../database';
+import { getDb, runExclusive } from '../database';
 
 interface NpcRow {
   id: number;
@@ -29,14 +29,14 @@ export async function getNpcClubs(season: number): Promise<NpcClub[]> {
 
 export async function insertNpcClubs(clubs: Array<Omit<NpcClub, 'id'>>): Promise<void> {
   const db = await getDb();
-  await db.withTransactionAsync(async () => {
+  await runExclusive(() => db.withTransactionAsync(async () => {
     for (const c of clubs) {
       await db.runAsync(
         'INSERT INTO npc_clubs (name, crest, strength, division, season, rosterJson) VALUES (?, ?, ?, ?, ?, ?)',
         c.name, c.crest, c.strength, c.division, c.season, JSON.stringify(c.roster),
       );
     }
-  });
+  }));
 }
 
 /** Nachträglich einen Kader setzen (Migration bestehender NPC-Klubs). */
@@ -84,7 +84,7 @@ export async function getMatches(season: number): Promise<Match[]> {
 
 export async function insertMatches(matches: Array<Omit<Match, 'id'>>): Promise<void> {
   const db = await getDb();
-  await db.withTransactionAsync(async () => {
+  await runExclusive(() => db.withTransactionAsync(async () => {
     for (const m of matches) {
       await db.runAsync(
         `INSERT INTO matches (season, division, round, homeId, awayId, homeGoals, awayGoals, played, eventsJson)
@@ -92,7 +92,7 @@ export async function insertMatches(matches: Array<Omit<Match, 'id'>>): Promise<
         m.season, m.division, m.round, m.homeId, m.awayId,
       );
     }
-  });
+  }));
 }
 
 /** Anzahl gewonnener Nutzer-Spiele über alle Saisons (für Erfolge). */

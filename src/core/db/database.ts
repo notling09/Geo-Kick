@@ -6,14 +6,37 @@ import * as SQLite from 'expo-sqlite';
  * bei Bedarf ein Backend hinter derselben Schnittstelle ergänzt werden kann.
  */
 
-let db: SQLite.SQLiteDatabase | null = null;
+let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
-export async function getDb(): Promise<SQLite.SQLiteDatabase> {
-  if (!db) {
-    db = await SQLite.openDatabaseAsync('geokick.db');
-    await migrate(db);
+export function getDb(): Promise<SQLite.SQLiteDatabase> {
+  // Promise statt Instanz merken: parallele Erst-Aufrufe beim App-Start
+  // öffnen sonst zwei Verbindungen und migrieren doppelt
+  if (!dbPromise) {
+    dbPromise = (async () => {
+      const db = await SQLite.openDatabaseAsync('geokick.db');
+      await migrate(db);
+      return db;
+    })();
   }
-  return db;
+  return dbPromise;
+}
+
+/**
+ * Transaktionen serialisieren (V6.3): expo-sqlite sperrt die Verbindung bei
+ * withTransactionAsync NICHT – überlappen sich zwei Transaktionen (z. B.
+ * OSM-Platz-Import und Liga-Simulation), wirft die zweite "cannot start a
+ * transaction within a transaction" und die Buttons wirken bis zum Neustart
+ * tot. Diese Warteschlange lässt immer nur eine Transaktion gleichzeitig zu.
+ */
+let txQueue: Promise<unknown> = Promise.resolve();
+
+export function runExclusive<T>(fn: () => Promise<T>): Promise<T> {
+  const run = txQueue.then(fn, fn);
+  txQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
 }
 
 const SCHEMA_VERSION = 2;

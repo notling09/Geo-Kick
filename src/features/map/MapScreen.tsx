@@ -26,6 +26,7 @@ import {
 import { t, tf, type TKey } from '../../core/i18n';
 import type { Spot } from '../../core/domain/types';
 import { circlePolygon, distanceMeters } from '../../core/services/geo';
+import { getPositionWithTimeout, promptEnableLocation } from '../../core/services/location';
 import { getMotionStats } from '../../core/services/motion';
 import { useBattleStore, type BattleResult } from '../../state/battleStore';
 import { useEggStore } from '../../state/eggStore';
@@ -112,25 +113,41 @@ export function MapScreen({ navigation }: TabScreenProps<'Map'>) {
 
   const locate = useCallback(async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') return;
-    try {
-      const pos = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      const coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
-      setMyPos(coords);
-      // Ei-Tracking läuft, sobald die Berechtigung da ist (V4)
-      void useEggStore.getState().ensureTracking();
-      cameraRef.current?.easeTo({
-        center: [coords.longitude, coords.latitude],
-        zoom: 14,
-        duration: 600,
-      });
-      return coords;
-    } catch {
-      return undefined;
-    }
+    if (status !== 'granted') return undefined;
+    // Mit Zeitlimit (V6.3): der Button darf bei GPS-Problemen nie hängen
+    const pos = await getPositionWithTimeout(Location.Accuracy.Balanced);
+    if (!pos) return undefined;
+    const coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+    setMyPos(coords);
+    // Ei-Tracking läuft, sobald die Berechtigung da ist (V4)
+    void useEggStore.getState().ensureTracking();
+    cameraRef.current?.easeTo({
+      center: [coords.longitude, coords.latitude],
+      zoom: 14,
+      duration: 600,
+    });
+    return coords;
   }, []);
+
+  /**
+   * Kein Standort (V6.3): statt nur "OK" bietet der Dialog direkt an, den
+   * Standort zu aktivieren (Android-Systemdialog bzw. App-Einstellungen) und
+   * ortet danach erneut.
+   */
+  const alertNoLocation = (message: string) => {
+    Alert.alert(t('mapNoLocationTitle'), message, [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('mapEnableGps'),
+        onPress: () => {
+          void (async () => {
+            await promptEnableLocation();
+            await locate();
+          })();
+        },
+      },
+    ]);
+  };
 
   useEffect(() => {
     hydrate();
@@ -154,9 +171,7 @@ export function MapScreen({ navigation }: TabScreenProps<'Map'>) {
     setLocating(true);
     try {
       const coords = await locate();
-      if (!coords) {
-        Alert.alert(t('mapNoLocationTitle'), t('mapNoLocationGps'));
-      }
+      if (!coords) alertNoLocation(t('mapNoLocationGps'));
     } finally {
       setLocating(false);
     }
@@ -165,7 +180,7 @@ export function MapScreen({ navigation }: TabScreenProps<'Map'>) {
   const onRefreshSpots = async () => {
     const coords = myPos ?? (await locate());
     if (!coords) {
-      Alert.alert(t('mapNoLocationTitle'), t('mapNoLocation'));
+      alertNoLocation(t('mapNoLocation'));
       return;
     }
     const count = await refreshOsmSpots(coords.latitude, coords.longitude, { force: true });
@@ -180,7 +195,13 @@ export function MapScreen({ navigation }: TabScreenProps<'Map'>) {
     const result = await checkIn(spot);
     if (!result.ok) {
       const extra = result.detail ? ` (${result.detail})` : '';
-      Alert.alert(t('ciErrTitle'), t(CHECKIN_ERROR_KEY[result.reason]) + extra);
+      const message = t(CHECKIN_ERROR_KEY[result.reason]) + extra;
+      // GPS aus bzw. Berechtigung fehlt: direkt zum Aktivieren anbieten
+      if (result.reason === 'no_location' || result.reason === 'permission') {
+        alertNoLocation(message);
+      } else {
+        Alert.alert(t('ciErrTitle'), message);
+      }
     }
   };
 

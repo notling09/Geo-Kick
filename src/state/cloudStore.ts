@@ -105,6 +105,11 @@ export const useCloudStore = create<CloudState>((set, get) => ({
       const { useOnlineStore } = await import('./onlineStore');
       void useOnlineStore.getState().init();
 
+      // Online-Status (V6.3): Presence direkt beim Start melden, damit
+      // Freunde sehen, dass die App offen ist
+      const { useFriendsStore } = await import('./friendsStore');
+      void useFriendsStore.getState().ensurePresence();
+
       // Auto-Sync: bei Kader-/Klub-Änderungen (debounced) hochladen
       useGameStore.subscribe(() => {
         if (get().status !== 'online') return;

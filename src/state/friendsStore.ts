@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import type { Position, Tactic } from '../core/domain/types';
 import type { SimTeam } from '../core/engine/matchSim';
 import { teamStrength } from '../core/engine/strength';
@@ -10,9 +11,11 @@ import { useLeagueStore, type PlayedUserMatch } from './leagueStore';
 import { runUserMatch } from './matchFlow';
 
 /**
- * Friendlies (Stufe 3+4): Freunde per Code hinzufügen und gegen ihren
- * zuletzt synchronisierten Kader spielen. Freundschaftsspiele geben keine
- * Coins/Packs – nur Ehre und eine lokale Siegbilanz pro Freund.
+ * Friendlies (Stufe 3+4, V6.3 mit Anfrage-Modell): Eine friendships-Zeile
+ * A -> B heißt "A hat B geaddet". Erst wenn BEIDE Richtungen existieren,
+ * sind zwei Klubs Freunde und können gegeneinander spielen. Einseitige
+ * Zeilen erscheinen beim Empfänger als Anfrage (Annehmen/Ablehnen).
+ * Dazu Online-Status per Realtime-Presence (Kanal gk-online).
  */
 
 export interface FriendlyRecord {
@@ -24,13 +27,26 @@ export interface FriendlyRecord {
 export type AddFriendResult = 'ok' | 'not_found' | 'own_code' | 'already_added' | 'offline';
 
 interface FriendsState {
+  /** Gegenseitige Freundschaften – nur gegen diese kann gespielt werden */
   friends: CloudClub[];
+  /** Haben mich geaddet, ich sie noch nicht (offene Anfragen an mich) */
+  incoming: CloudClub[];
+  /** Von mir geaddet, Gegenseite fehlt noch (gesendete Anfragen) */
+  outgoing: CloudClub[];
+  /** Gerade online (App offen) laut Presence-Kanal */
+  onlineIds: string[];
   records: Record<string, FriendlyRecord>;
   loading: boolean;
 
-  /** Freundesliste + aktuelle Kader vom Server laden. */
+  /** Freunde/Anfragen + aktuelle Kader vom Server laden. */
   loadFriends: () => Promise<void>;
+  /** Eigenen Online-Status senden + Status der Freunde beobachten. */
+  ensurePresence: () => Promise<void>;
   addFriend: (code: string) => Promise<AddFriendResult>;
+  /** Eingehende Anfrage annehmen (Gegenzeile anlegen → Freunde). */
+  acceptRequest: (friendId: string) => Promise<void>;
+  /** Eingehende Anfrage ablehnen (Zeile des Anfragenden löschen). */
+  declineRequest: (friendId: string) => Promise<void>;
   removeFriend: (friendId: string) => Promise<void>;
   /**
    * Freundschaftsspiel gegen den aktuellsten Kader des Freundes simulieren.
@@ -49,8 +65,20 @@ async function loadRecords(): Promise<Record<string, FriendlyRecord>> {
   }
 }
 
+let presenceChannel: RealtimeChannel | null = null;
+
+async function currentUserId(): Promise<string | null> {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+  const { data } = await supabase.auth.getSession();
+  return data.session?.user.id ?? null;
+}
+
 export const useFriendsStore = create<FriendsState>((set, get) => ({
   friends: [],
+  incoming: [],
+  outgoing: [],
+  onlineIds: [],
   records: {},
   loading: false,
 
@@ -59,32 +87,68 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
     if (!supabase || useCloudStore.getState().status !== 'online') return;
     set({ loading: true });
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const userId = sessionData.session?.user.id;
+      const userId = await currentUserId();
       if (!userId) return;
-      // Freundschaften holen, dann die zugehörigen Klubs (inkl. Kader)
-      const { data: friendships, error: fErr } = await supabase
+      void get().ensurePresence();
+      // Beide Richtungen holen: meine Adds + Zeilen, die auf mich zeigen
+      const { data: rows, error: fErr } = await supabase
         .from('friendships')
-        .select('friend_id')
-        .eq('user_id', userId);
+        .select('user_id, friend_id')
+        .or(`user_id.eq.${userId},friend_id.eq.${userId}`);
       if (fErr) throw fErr;
-      const ids = (friendships ?? []).map((f) => f.friend_id as string);
-      let friends: CloudClub[] = [];
-      if (ids.length > 0) {
-        const { data: clubs, error: cErr } = await supabase
-          .from('clubs')
-          .select('*')
-          .in('id', ids);
+      const mine = new Set(
+        (rows ?? []).filter((r) => r.user_id === userId).map((r) => r.friend_id as string),
+      );
+      const theirs = new Set(
+        (rows ?? []).filter((r) => r.friend_id === userId).map((r) => r.user_id as string),
+      );
+      const mutualIds = [...mine].filter((id) => theirs.has(id));
+      const outgoingIds = [...mine].filter((id) => !theirs.has(id));
+      const incomingIds = [...theirs].filter((id) => !mine.has(id));
+
+      const allIds = [...new Set([...mutualIds, ...outgoingIds, ...incomingIds])];
+      let clubs: CloudClub[] = [];
+      if (allIds.length > 0) {
+        const { data, error: cErr } = await supabase.from('clubs').select('*').in('id', allIds);
         if (cErr) throw cErr;
-        friends = (clubs ?? []) as CloudClub[];
-        friends.sort((a, b) => a.club_name.localeCompare(b.club_name));
+        clubs = (data ?? []) as CloudClub[];
       }
-      set({ friends, records: await loadRecords() });
+      const byId = new Map(clubs.map((c) => [c.id, c]));
+      const pickClubs = (ids: string[]) =>
+        ids
+          .map((id) => byId.get(id))
+          .filter((c): c is CloudClub => c !== undefined)
+          .sort((a, b) => a.club_name.localeCompare(b.club_name));
+
+      set({
+        friends: pickClubs(mutualIds),
+        incoming: pickClubs(incomingIds),
+        outgoing: pickClubs(outgoingIds),
+        records: await loadRecords(),
+      });
     } catch (e) {
       console.warn('[friends] load failed:', String(e));
     } finally {
       set({ loading: false });
     }
+  },
+
+  ensurePresence: async () => {
+    const supabase = getSupabase();
+    if (!supabase || presenceChannel) return;
+    const userId = await currentUserId();
+    if (!userId) return;
+    // Ein gemeinsamer Presence-Kanal: wer die App offen hat, ist "online"
+    const channel = supabase.channel('gk-online', {
+      config: { presence: { key: userId } },
+    });
+    presenceChannel = channel;
+    channel.on('presence', { event: 'sync' }, () => {
+      set({ onlineIds: Object.keys(channel.presenceState()) });
+    });
+    channel.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') await channel.track({ at: Date.now() });
+    });
   },
 
   addFriend: async (code) => {
@@ -99,11 +163,13 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
         .eq('friend_code', normalized)
         .maybeSingle();
       if (!club) return 'not_found';
-      if (get().friends.some((f) => f.id === club.id)) return 'already_added';
+      const known = [...get().friends, ...get().outgoing];
+      if (known.some((f) => f.id === club.id)) return 'already_added';
 
-      const { data: sessionData } = await supabase.auth.getSession();
-      const userId = sessionData.session?.user.id;
+      const userId = await currentUserId();
       if (!userId) return 'offline';
+      // Anfrage senden – hat der andere mich schon geaddet, sind wir
+      // damit direkt Freunde (beide Richtungen vorhanden)
       const { error } = await supabase
         .from('friendships')
         .insert({ user_id: userId, friend_id: club.id });
@@ -116,19 +182,60 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
     }
   },
 
+  acceptRequest: async (friendId) => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    try {
+      const userId = await currentUserId();
+      if (!userId) return;
+      const { error } = await supabase
+        .from('friendships')
+        .insert({ user_id: userId, friend_id: friendId });
+      if (error && !String(error.message).includes('duplicate')) throw error;
+      await get().loadFriends();
+    } catch (e) {
+      console.warn('[friends] accept failed:', String(e));
+    }
+  },
+
+  declineRequest: async (friendId) => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    try {
+      const userId = await currentUserId();
+      if (!userId) return;
+      await supabase
+        .from('friendships')
+        .delete()
+        .eq('user_id', friendId)
+        .eq('friend_id', userId);
+      set({ incoming: get().incoming.filter((f) => f.id !== friendId) });
+    } catch (e) {
+      console.warn('[friends] decline failed:', String(e));
+    }
+  },
+
   removeFriend: async (friendId) => {
     const supabase = getSupabase();
     if (!supabase) return;
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const userId = sessionData.session?.user.id;
+      const userId = await currentUserId();
       if (!userId) return;
+      // Beide Richtungen löschen: auch aus der Liste des anderen verschwinden
       await supabase
         .from('friendships')
         .delete()
         .eq('user_id', userId)
         .eq('friend_id', friendId);
-      set({ friends: get().friends.filter((f) => f.id !== friendId) });
+      await supabase
+        .from('friendships')
+        .delete()
+        .eq('user_id', friendId)
+        .eq('friend_id', userId);
+      set({
+        friends: get().friends.filter((f) => f.id !== friendId),
+        outgoing: get().outgoing.filter((f) => f.id !== friendId),
+      });
     } catch (e) {
       console.warn('[friends] remove failed:', String(e));
     }

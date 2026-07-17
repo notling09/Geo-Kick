@@ -29,7 +29,9 @@ create policy "clubs_insert_own" on public.clubs
 create policy "clubs_update_own" on public.clubs
   for update using ((select auth.uid()) = id);
 
--- Freundschaften (einseitig: wer added, sieht den anderen in seiner Liste)
+-- Freundschaften (V6.3: Anfrage-Modell). Eine Zeile A -> B bedeutet
+-- "A hat B geaddet". Existieren beide Richtungen, sind A und B Freunde;
+-- existiert nur A -> B, ist das eine offene Anfrage an B.
 create table public.friendships (
   user_id uuid not null references auth.users (id) on delete cascade,
   friend_id uuid not null references public.clubs (id) on delete cascade,
@@ -39,11 +41,17 @@ create table public.friendships (
 
 alter table public.friendships enable row level security;
 
-create policy "friendships_read_own" on public.friendships
-  for select using ((select auth.uid()) = user_id);
+-- Lesen: eigene Zeilen UND Zeilen, die auf mich zeigen (eingehende Anfragen)
+create policy "friendships_read_own_or_incoming" on public.friendships
+  for select using ((select auth.uid()) = user_id or (select auth.uid()) = friend_id);
 
 create policy "friendships_insert_own" on public.friendships
   for insert with check ((select auth.uid()) = user_id and user_id != friend_id);
 
 create policy "friendships_delete_own" on public.friendships
   for delete using ((select auth.uid()) = user_id);
+
+-- Loeschen eingehender Zeilen: noetig zum Ablehnen einer Anfrage und um
+-- sich beim Entfernen auch aus der Liste des anderen zu streichen
+create policy "friendships_delete_incoming" on public.friendships
+  for delete using ((select auth.uid()) = friend_id);

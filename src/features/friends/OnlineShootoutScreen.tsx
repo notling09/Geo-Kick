@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { t, tf } from '../../core/i18n';
@@ -18,11 +18,24 @@ import type { RootScreenProps } from '../../navigation/types';
 export function OnlineShootoutScreen({ navigation }: RootScreenProps<'OnlineShootout'>) {
   const { phase, myRole, opponent, shootout, sendShot, sendDive, leave } = useOnlineStore();
   const clubName = useGameStore((s) => s.club?.name ?? '');
+  // Ergebnis-Box verzögert zeigen (V6.3): der letzte Elfmeter soll erst
+  // ~2 s sichtbar bleiben, bevor Sieg/Niederlage darüberliegt
+  const [showDone, setShowDone] = useState(false);
 
   // Verbindung weg / abgebrochen → zurück
   useEffect(() => {
     if (phase === 'idle' && navigation.isFocused()) navigation.goBack();
   }, [phase, navigation]);
+
+  const decided = shootout?.winnerRole != null && shootout.stage === 'result';
+  useEffect(() => {
+    if (!decided) {
+      setShowDone(false);
+      return;
+    }
+    const timer = setTimeout(() => setShowDone(true), 2200);
+    return () => clearTimeout(timer);
+  }, [decided]);
 
   if (!shootout || !myRole) {
     return (
@@ -38,7 +51,7 @@ export function OnlineShootoutScreen({ navigation }: RootScreenProps<'OnlineShoo
   const oppKicks = shootout.kicks.filter((k) => k.side !== mySide);
   const myGoals = myKicks.filter((k) => k.scored).length;
   const oppGoals = oppKicks.filter((k) => k.scored).length;
-  const done = shootout.winnerRole !== null && shootout.stage === 'result';
+  const done = shootout.winnerRole !== null && shootout.stage === 'result' && showDone;
   const iWon = shootout.winnerRole === myRole;
 
   const dots = (kicks: typeof myKicks) => {

@@ -1,5 +1,5 @@
 import type { OwnedPlayer, PoolPlayer } from '../../domain/types';
-import { getDb } from '../database';
+import { getDb, runExclusive } from '../database';
 
 interface PoolRow {
   id: number;
@@ -33,7 +33,7 @@ function toPoolPlayer(row: PoolRow): PoolPlayer {
 
 export async function insertPoolPlayers(players: Array<Omit<PoolPlayer, 'id'>>): Promise<void> {
   const db = await getDb();
-  await db.withTransactionAsync(async () => {
+  await runExclusive(() => db.withTransactionAsync(async () => {
     for (const p of players) {
       await db.runAsync(
         `INSERT INTO player_pool
@@ -43,7 +43,7 @@ export async function insertPoolPlayers(players: Array<Omit<PoolPlayer, 'id'>>):
         p.verteidigung, p.kondition, p.isStarterChoice ? 1 : 0, p.isFiller ? 1 : 0,
       );
     }
-  });
+  }));
 }
 
 /** Einzelnen Pool-Spieler einfügen und die neue id zurückgeben (???-Karte). */
@@ -205,10 +205,10 @@ export async function setLineupSlot(slot: number, playerId: number | null): Prom
 
 export async function replaceLineup(entries: Array<[number, number | null]>): Promise<void> {
   const db = await getDb();
-  await db.withTransactionAsync(async () => {
+  await runExclusive(() => db.withTransactionAsync(async () => {
     await db.runAsync('DELETE FROM lineup');
     for (const [slot, playerId] of entries) {
       await db.runAsync('INSERT INTO lineup (slot, playerId) VALUES (?, ?)', slot, playerId);
     }
-  });
+  }));
 }

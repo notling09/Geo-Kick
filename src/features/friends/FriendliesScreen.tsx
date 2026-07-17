@@ -27,8 +27,10 @@ import type { RootScreenProps } from '../../navigation/types';
 export function FriendliesScreen({ navigation }: RootScreenProps<'Friendlies'>) {
   const cloudStatus = useCloudStore((s) => s.status);
   const myCode = useCloudStore((s) => s.friendCode);
-  const { friends, records, loading, loadFriends, addFriend, removeFriend, playFriendly } =
-    useFriendsStore();
+  const {
+    friends, incoming, outgoing, onlineIds, records, loading,
+    loadFriends, addFriend, acceptRequest, declineRequest, removeFriend, playFriendly,
+  } = useFriendsStore();
 
   const [code, setCode] = useState('');
   const [adding, setAdding] = useState(false);
@@ -145,6 +147,39 @@ export function FriendliesScreen({ navigation }: RootScreenProps<'Friendlies'>) 
               <GKButton title={t('add')} onPress={onAdd} loading={adding} style={styles.addBtn} />
             </Card>
 
+            {/* Eingehende Anfragen (V6.3): erst nach Annehmen ist man Freunde */}
+            {incoming.length > 0 && (
+              <>
+                <SectionTitle>{tf('frRequests', { n: incoming.length })}</SectionTitle>
+                {incoming.map((f) => (
+                  <Card key={f.id} style={styles.friendCard}>
+                    <View style={styles.friendHeader}>
+                      <Crest crestId={f.crest} size={40} />
+                      <View style={styles.friendInfo}>
+                        <Text style={styles.friendName} numberOfLines={1}>
+                          {f.club_name}
+                        </Text>
+                        <Text style={styles.friendMeta}>{t('frWantsFriend')}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.friendButtons}>
+                      <GKButton
+                        title={t('onAccept')}
+                        onPress={() => void acceptRequest(f.id)}
+                        style={{ flex: 1 }}
+                      />
+                      <GKButton
+                        title={t('onDecline')}
+                        variant="ghost"
+                        onPress={() => void declineRequest(f.id)}
+                        style={{ flex: 1 }}
+                      />
+                    </View>
+                  </Card>
+                ))}
+              </>
+            )}
+
             <SectionTitle>{tf('frYourFriends', { n: friends.length })}</SectionTitle>
             {friends.length === 0 ? (
               <Card>
@@ -155,14 +190,23 @@ export function FriendliesScreen({ navigation }: RootScreenProps<'Friendlies'>) 
             ) : (
               friends.map((f) => {
                 const rec = records[f.id] ?? { w: 0, d: 0, l: 0 };
+                const isOnline = onlineIds.includes(f.id);
                 return (
                   <Card key={f.id} style={styles.friendCard}>
                     <View style={styles.friendHeader}>
                       <Crest crestId={f.crest} size={40} />
                       <View style={styles.friendInfo}>
-                        <Text style={styles.friendName} numberOfLines={1}>
-                          {f.club_name}
-                        </Text>
+                        <View style={styles.nameRow}>
+                          <View
+                            style={[styles.onlineDot, isOnline ? styles.dotOnline : styles.dotOff]}
+                          />
+                          <Text style={styles.friendName} numberOfLines={1}>
+                            {f.club_name}
+                          </Text>
+                          <Text style={[styles.onlineText, isOnline && styles.onlineTextActive]}>
+                            {isOnline ? t('frOnline') : t('frOffline2')}
+                          </Text>
+                        </View>
                         <Text style={styles.friendMeta}>
                           {tf('frMeta', { div: f.division, str: f.strength, form: f.formation })}
                         </Text>
@@ -181,6 +225,7 @@ export function FriendliesScreen({ navigation }: RootScreenProps<'Friendlies'>) 
                       <GKButton
                         title={t('frPlayOnline')}
                         variant="secondary"
+                        disabled={!isOnline}
                         onPress={() => onPlayOnline(f.id, f.club_name)}
                         loading={invitingId === f.id}
                         style={{ flex: 1 }}
@@ -195,6 +240,32 @@ export function FriendliesScreen({ navigation }: RootScreenProps<'Friendlies'>) 
                   </Card>
                 );
               })
+            )}
+
+            {/* Gesendete Anfragen: warten auf die Gegenseite */}
+            {outgoing.length > 0 && (
+              <>
+                <SectionTitle>{tf('frPendingTitle', { n: outgoing.length })}</SectionTitle>
+                {outgoing.map((f) => (
+                  <Card key={f.id} style={styles.friendCard}>
+                    <View style={styles.friendHeader}>
+                      <Crest crestId={f.crest} size={40} />
+                      <View style={styles.friendInfo}>
+                        <Text style={styles.friendName} numberOfLines={1}>
+                          {f.club_name}
+                        </Text>
+                        <Text style={styles.friendMeta}>{t('frPendingHint')}</Text>
+                      </View>
+                      <GKButton
+                        title="X"
+                        variant="ghost"
+                        onPress={() => onRemove(f.id, f.club_name)}
+                        style={styles.removeBtn}
+                      />
+                    </View>
+                  </Card>
+                ))}
+              </>
             )}
           </>
         )}
@@ -282,6 +353,30 @@ const styles = StyleSheet.create({
   },
   friendInfo: {
     flex: 1,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  onlineDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  dotOnline: {
+    backgroundColor: '#4CAF50',
+  },
+  dotOff: {
+    backgroundColor: colors.line,
+  },
+  onlineText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.inkSoft,
+  },
+  onlineTextActive: {
+    color: '#4CAF50',
   },
   friendName: {
     fontSize: font.h2,

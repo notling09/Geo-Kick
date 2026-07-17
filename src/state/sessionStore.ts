@@ -10,6 +10,7 @@ import { dayKey } from '../core/engine/pitchBattle';
 import { shuffle } from '../core/engine/random';
 import { calculateReward } from '../core/engine/rewards';
 import { distanceMeters } from '../core/services/geo';
+import { getPositionWithTimeout } from '../core/services/location';
 import { startMotionTracking, stopMotionTracking } from '../core/services/motion';
 import { fetchNearbyPitches } from '../core/services/overpass';
 import * as metaRepo from '../core/db/repositories/metaRepo';
@@ -97,16 +98,12 @@ async function getVerifiedPosition(): Promise<
 > {
   const { status } = await Location.requestForegroundPermissionsAsync();
   if (status !== 'granted') return { ok: false, reason: 'permission' };
-  try {
-    const pos = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.High,
-    });
-    // Anti-Cheat: von Android als simuliert markierte Positionen blockieren
-    if (pos.mocked) return { ok: false, reason: 'mocked' };
-    return { ok: true, latitude: pos.coords.latitude, longitude: pos.coords.longitude };
-  } catch {
-    return { ok: false, reason: 'no_location' };
-  }
+  // Mit Zeitlimit (V6.3): sonst hängt der Check-in-Button bei GPS-Problemen
+  const pos = await getPositionWithTimeout(Location.Accuracy.High);
+  if (!pos) return { ok: false, reason: 'no_location' };
+  // Anti-Cheat: von Android als simuliert markierte Positionen blockieren
+  if (pos.mocked) return { ok: false, reason: 'mocked' };
+  return { ok: true, latitude: pos.coords.latitude, longitude: pos.coords.longitude };
 }
 
 async function loadObjectives(): Promise<SessionObjective[]> {

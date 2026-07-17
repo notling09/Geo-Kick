@@ -1,5 +1,5 @@
 import type { Spot } from '../../domain/types';
-import { getDb } from '../database';
+import { getDb, runExclusive } from '../database';
 
 interface SpotRow {
   id: string;
@@ -32,7 +32,7 @@ export async function upsertOsmSpots(
   spots: Array<Omit<Spot, 'cooldownUntil'>>,
 ): Promise<void> {
   const db = await getDb();
-  await db.withTransactionAsync(async () => {
+  await runExclusive(() => db.withTransactionAsync(async () => {
     for (const s of spots) {
       await db.runAsync(
         `INSERT INTO spots (id, name, latitude, longitude, radius, source, cooldownUntil)
@@ -43,7 +43,7 @@ export async function upsertOsmSpots(
         s.id, s.name, s.latitude, s.longitude, s.radius, s.source,
       );
     }
-  });
+  }));
 }
 
 export async function addUserSpot(spot: Omit<Spot, 'cooldownUntil'>): Promise<void> {
