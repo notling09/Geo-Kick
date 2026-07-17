@@ -1,4 +1,18 @@
+import { t, tf, type TKey } from '../i18n';
 import type { FormationId, Position, Rarity, Tactic } from './types';
+
+/**
+ * Label-Records mit Gettern: dieses Modul wird beim App-Start VOR dem Setzen
+ * der Sprache geladen, deshalb dürfen die Texte erst beim Zugriff übersetzt
+ * werden – die Aufrufstellen (z. B. TACTIC_LABEL[tactic]) bleiben unverändert.
+ */
+function lazyLabels<K extends string>(keys: Record<K, TKey>): Record<K, string> {
+  const out = {} as Record<K, string>;
+  (Object.keys(keys) as K[]).forEach((k) => {
+    Object.defineProperty(out, k, { get: () => t(keys[k]), enumerable: true });
+  });
+  return out;
+}
 
 /**
  * Balancing-Eckwerte gemäß Konzeptdokument Kapitel 8.
@@ -37,28 +51,13 @@ export const BALANCING = {
  * Pro Session: 2 Skill-Aufgaben (Ehrensystem) + 1 Fitness-Aufgabe, die der
  * Bewegungssensor automatisch verifiziert (höherer Bonus).
  */
-export const SKILL_OBJECTIVES: string[] = [
-  'Score a goal with your weak foot',
-  'Hit the crossbar from the penalty spot',
-  'Do 20 keepy-uppies without dropping the ball',
-  'Nutmeg someone (or pass through two cones)',
-  'Score a volley',
-  'Hit the post from 20 meters',
-  'Play 10 one-touch passes against a wall or partner',
-  'Dribble through 4 obstacles without losing the ball',
-  'Score from outside the box',
-  'Save three shots as the keeper',
-  'Score a header',
-  'Sprint from box to box 5 times',
-  'Juggle foot - knee - head without dropping',
-  'Score directly from a corner kick',
-  'Chip the keeper (or the empty goal) from the edge of the box',
-  'Try a rainbow flick',
-  'Score with your first touch after a pass',
-  'Win a 1-on-1 duel',
-  'Curl a free kick around an imaginary wall',
-  'Keep possession for 30 seconds against a defender',
-];
+export function skillObjectives(): string[] {
+  const keys: TKey[] = [
+    'obj1', 'obj2', 'obj3', 'obj4', 'obj5', 'obj6', 'obj7', 'obj8', 'obj9', 'obj10',
+    'obj11', 'obj12', 'obj13', 'obj14', 'obj15', 'obj16', 'obj17', 'obj18', 'obj19', 'obj20',
+  ];
+  return keys.map((k) => t(k));
+}
 
 export interface FitnessObjective {
   text: string;
@@ -68,14 +67,16 @@ export interface FitnessObjective {
 }
 
 /** Sensorgeprüfte Fitness-Aufgaben (Accelerometer, App im Vordergrund) */
-export const FITNESS_OBJECTIVES: FitnessObjective[] = [
-  { text: 'Be in motion for at least 3 minutes', kind: 'activeMs', target: 3 * 60 * 1000 },
-  { text: 'Be in motion for at least 5 minutes', kind: 'activeMs', target: 5 * 60 * 1000 },
-  { text: 'Be in motion for at least 8 minutes', kind: 'activeMs', target: 8 * 60 * 1000 },
-  { text: 'Do 3 sprint bursts', kind: 'sprints', target: 3 },
-  { text: 'Do 5 sprint bursts', kind: 'sprints', target: 5 },
-  { text: 'Do 8 sprint bursts', kind: 'sprints', target: 8 },
-];
+export function fitnessObjectives(): FitnessObjective[] {
+  return [
+    { text: tf('objFitMove', { min: 3 }), kind: 'activeMs', target: 3 * 60 * 1000 },
+    { text: tf('objFitMove', { min: 5 }), kind: 'activeMs', target: 5 * 60 * 1000 },
+    { text: tf('objFitMove', { min: 8 }), kind: 'activeMs', target: 8 * 60 * 1000 },
+    { text: tf('objFitSprint', { n: 3 }), kind: 'sprints', target: 3 },
+    { text: tf('objFitSprint', { n: 5 }), kind: 'sprints', target: 5 },
+    { text: tf('objFitSprint', { n: 8 }), kind: 'sprints', target: 8 },
+  ];
+}
 
 /** Coin-Bonus je abgehakter Skill-Aufgabe (Ehrensystem) */
 export const OBJECTIVE_BONUS_COINS = 10;
@@ -140,7 +141,7 @@ export interface EggType {
 export const EGG_TYPES: EggType[] = [
   {
     id: 'egg-1',
-    label: '1 km egg',
+    get label() { return t('egg1'); },
     km: 1,
     weight: 60,
     odds: [
@@ -152,7 +153,7 @@ export const EGG_TYPES: EggType[] = [
   },
   {
     id: 'egg-3',
-    label: '3 km egg',
+    get label() { return t('egg3'); },
     km: 3,
     weight: 30,
     odds: [
@@ -164,7 +165,7 @@ export const EGG_TYPES: EggType[] = [
   },
   {
     id: 'egg-5',
-    label: '5 km egg',
+    get label() { return t('egg5'); },
     km: 5,
     weight: 10,
     odds: [
@@ -228,7 +229,7 @@ export interface PackType {
 export const PACK_TYPES: Record<PackTypeId, PackType> = {
   session: {
     id: 'session',
-    label: 'Session pack',
+    get label() { return t('packSession'); },
     price: null,
     odds: [
       { rarity: 'bronze', weight: 59.5 },
@@ -242,7 +243,7 @@ export const PACK_TYPES: Record<PackTypeId, PackType> = {
   },
   standard: {
     id: 'standard',
-    label: 'Standard pack',
+    get label() { return t('packStandard'); },
     price: 250,
     odds: [
       { rarity: 'bronze', weight: 49 },
@@ -256,7 +257,7 @@ export const PACK_TYPES: Record<PackTypeId, PackType> = {
   },
   rare: {
     id: 'rare',
-    label: 'Rare pack',
+    get label() { return t('packRare'); },
     price: 500,
     odds: [
       { rarity: 'bronze', weight: 28 },
@@ -270,7 +271,7 @@ export const PACK_TYPES: Record<PackTypeId, PackType> = {
   },
   ultimate: {
     id: 'ultimate',
-    label: 'Ultimate pack',
+    get label() { return t('packUltimate'); },
     price: 1000,
     odds: [
       { rarity: 'bronze', weight: 5 },
@@ -323,13 +324,13 @@ export function levelUpCost(currentOverall: number): number | null {
   return null;
 }
 
-export const RARITY_LABEL: Record<Rarity, string> = {
-  bronze: 'Bronze',
-  silber: 'Silver',
-  gold: 'Gold',
-  legendaer: 'Legendary',
-  geheim: '???',
-};
+export const RARITY_LABEL: Record<Rarity, string> = lazyLabels<Rarity>({
+  bronze: 'rarityBronze',
+  silber: 'raritySilber',
+  gold: 'rarityGold',
+  legendaer: 'rarityLegendaer',
+  geheim: 'rarityGeheim',
+});
 
 export const RARITY_COLOR: Record<Rarity, string> = {
   bronze: '#B0743B',
@@ -339,20 +340,20 @@ export const RARITY_COLOR: Record<Rarity, string> = {
   geheim: '#000000',
 };
 
-export const POSITION_LABEL: Record<Position, string> = {
-  TW: 'Goalkeeper',
-  ABW: 'Defence',
-  MF: 'Midfield',
-  ST: 'Attack',
-};
+export const POSITION_LABEL: Record<Position, string> = lazyLabels<Position>({
+  TW: 'posTW',
+  ABW: 'posABW',
+  MF: 'posMF',
+  ST: 'posST',
+});
 
 /** Short position tags for compact UI (stored enum values stay unchanged). */
-export const POSITION_SHORT: Record<Position, string> = {
-  TW: 'GK',
-  ABW: 'DEF',
-  MF: 'MID',
-  ST: 'ATT',
-};
+export const POSITION_SHORT: Record<Position, string> = lazyLabels<Position>({
+  TW: 'posShortTW',
+  ABW: 'posShortABW',
+  MF: 'posShortMF',
+  ST: 'posShortST',
+});
 
 /** Slot-Belegung je Formation: Reihenfolge = Slot-Index 0..10 */
 export const FORMATIONS: Record<FormationId, Position[]> = {
@@ -363,11 +364,11 @@ export const FORMATIONS: Record<FormationId, Position[]> = {
 
 export const FORMATION_IDS: FormationId[] = ['4-4-2', '4-3-3', '4-2-4'];
 
-export const TACTIC_LABEL: Record<Tactic, string> = {
-  offensiv: 'Offensive',
-  ausgewogen: 'Balanced',
-  defensiv: 'Defensive',
-};
+export const TACTIC_LABEL: Record<Tactic, string> = lazyLabels<Tactic>({
+  offensiv: 'tacticOffensiv',
+  ausgewogen: 'tacticAusgewogen',
+  defensiv: 'tacticDefensiv',
+});
 
 /** Match-Simulation (Kapitel 8.2) */
 export const MATCH_SIM = {

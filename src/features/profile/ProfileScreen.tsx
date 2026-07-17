@@ -10,6 +10,7 @@ import {
   computeAchievements, type Achievement, type AchievementIcon,
 } from '../../core/services/achievements';
 import { getMeta, setMeta } from '../../core/db/repositories/metaRepo';
+import { getLanguage, t, tf, type Language } from '../../core/i18n';
 import { useCloudStore } from '../../state/cloudStore';
 import { useGameStore } from '../../state/gameStore';
 import { useLeagueStore } from '../../state/leagueStore';
@@ -48,6 +49,7 @@ export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
   const [visited, setVisited] = useState<VisitedSpot[]>([]);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [themeMode, setThemeMode] = useState<'light' | 'dark'>('light');
+  const [language, setLanguageState] = useState<Language>(getLanguage());
 
   /** Theme wechseln (V6.1): wird beim nächsten App-Start angewendet. */
   const onThemeChange = async (mode: 'light' | 'dark') => {
@@ -55,9 +57,17 @@ export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
     setThemeMode(mode);
     await setMeta('themeMode', mode);
     Alert.alert(
-      'Theme saved',
-      `${mode === 'dark' ? 'Dark' : 'Light'} mode will be applied the next time you start the app.`,
+      t('prThemeSavedTitle'),
+      tf('prThemeSaved', { mode: mode === 'dark' ? t('prDark') : t('prLight') }),
     );
+  };
+
+  /** Sprache wechseln (V6.2): wie das Theme erst beim nächsten Start aktiv. */
+  const onLanguageChange = async (lang: Language) => {
+    if (lang === language) return;
+    setLanguageState(lang);
+    await setMeta('language', lang);
+    Alert.alert(t('prLangSavedTitle'), t('prLangSaved'));
   };
 
   useFocusEffect(
@@ -67,6 +77,10 @@ export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
         setStats(s);
         setVisited(await getVisitedSpots());
         setThemeMode((await getMeta('themeMode')) === 'dark' ? 'dark' : 'light');
+        const savedLang = await getMeta('language');
+        if (savedLang === 'en' || savedLang === 'de' || savedLang === 'pt') {
+          setLanguageState(savedLang);
+        }
         setAchievements(
           await computeAchievements({
             stats: s,
@@ -86,46 +100,46 @@ export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
 
   const cloudLine =
     cloudStatus === 'online'
-      ? `Your friend code: ${friendCode ?? '…'}`
+      ? tf('prCloudCode', { code: friendCode ?? '…' })
       : cloudStatus === 'connecting'
-        ? 'Connecting to the cloud …'
+        ? t('prCloudConnecting')
         : cloudStatus === 'error'
-          ? 'Cloud connection failed - playing offline. Will retry on next app start.'
-          : 'Friendlies are not set up yet (offline mode).';
+          ? t('prCloudError')
+          : t('prCloudOffline');
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.clubHero}>
           <Crest crestId={club?.crest} size={80} />
-          <Text style={styles.clubName}>{club?.name ?? 'My Club'}</Text>
+          <Text style={styles.clubName}>{club?.name ?? t('prClub')}</Text>
           <Text style={styles.clubMeta}>
-            Division {club?.division ?? 4} · Season {season}
+            {tf('prDivision', { n: club?.division ?? 4 })} · {tf('prSeason', { n: season })}
           </Text>
         </View>
 
-        <SectionTitle>Real-world activity</SectionTitle>
+        <SectionTitle>{t('prRealActivity')}</SectionTitle>
         <View style={styles.statsGrid}>
           <Card style={styles.statCard}>
             <Text style={styles.statValue}>{stats?.totalSessions ?? 0}</Text>
-            <Text style={styles.statLabel}>Sessions</Text>
+            <Text style={styles.statLabel}>{t('prStatSessions')}</Text>
           </Card>
           <Card style={styles.statCard}>
             <Text style={styles.statValue}>{stats?.distinctSpots ?? 0}</Text>
-            <Text style={styles.statLabel}>Pitches visited</Text>
+            <Text style={styles.statLabel}>{t('prStatPitches')}</Text>
           </Card>
           <Card style={styles.statCard}>
             <Text style={styles.statValue}>{stats?.totalMinutes ?? 0}</Text>
-            <Text style={styles.statLabel}>Minutes on pitch</Text>
+            <Text style={styles.statLabel}>{t('prStatMinutes')}</Text>
           </Card>
           <Card style={styles.statCard}>
             <Text style={styles.statValue}>{stats?.totalCoins ?? 0}</Text>
-            <Text style={styles.statLabel}>Coins earned</Text>
+            <Text style={styles.statLabel}>{t('prStatCoins')}</Text>
           </Card>
         </View>
 
         <SectionTitle>
-          Achievements ({unlockedCount}/{achievements.length})
+          {tf('prAchievements', { a: unlockedCount, b: achievements.length })}
         </SectionTitle>
         <View style={styles.achievementGrid}>
           {achievements.map((a) => {
@@ -147,56 +161,54 @@ export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
           })}
         </View>
 
-        <SectionTitle>Pitch Passport</SectionTitle>
+        <SectionTitle>{t('prPassport')}</SectionTitle>
         <Card style={styles.visitedCard}>
           <IconPin size={22} color={colors.pitch} />
           <View style={styles.visitedInfo}>
             <Text style={styles.visitedName}>
-              {visited.length} different pitch{visited.length === 1 ? '' : 'es'} discovered
+              {tf(visited.length === 1 ? 'prPassportCount' : 'prPassportCountPl', { n: visited.length })}
             </Text>
             <Text style={styles.visitedMeta}>
-              Badges, daily streak, home ground and all visited pitches
+              {t('prPassportSub')}
             </Text>
           </View>
         </Card>
         <GKButton
-          title="Open pitch passport"
+          title={t('prOpenPassport')}
           variant="secondary"
           onPress={() => navigation.navigate('Passport')}
         />
 
-        <SectionTitle>Friendlies</SectionTitle>
+        <SectionTitle>{t('prFriendlies')}</SectionTitle>
         <Card>
           <Text style={styles.infoRow}>{cloudLine}</Text>
           {cloudStatus === 'online' && (
             <Text style={styles.aboutText}>
-              Share this code with friends so they can add your club and play
-              friendlies against your latest XI.
+              {t('prShareCode')}
             </Text>
           )}
         </Card>
 
-        <SectionTitle>Club</SectionTitle>
+        <SectionTitle>{t('prClub')}</SectionTitle>
         <Card>
-          <Text style={styles.infoRow}>Squad size: {players.length} players</Text>
-          <Text style={styles.infoRow}>Legendary players: {legendaries}</Text>
-          <Text style={styles.infoRow}>Coins: {club?.coins ?? 0}</Text>
+          <Text style={styles.infoRow}>{tf('prSquadSize', { n: players.length })}</Text>
+          <Text style={styles.infoRow}>{tf('prLegendaries', { n: legendaries })}</Text>
+          <Text style={styles.infoRow}>{tf('prCoins', { n: club?.coins ?? 0 })}</Text>
         </Card>
 
-        <SectionTitle>About</SectionTitle>
+        <SectionTitle>{t('prAbout')}</SectionTitle>
         <Card>
           <Text style={styles.aboutText}>
-            Geo-Kick version 1 (MVP) - all data is stored locally on your device only.
+            {t('prAbout1')}
           </Text>
           <Text style={styles.aboutText}>
-            Map data: © OpenStreetMap contributors (ODbL). All player and club names are
-            entirely fictional.
+            {t('prAbout2')}
           </Text>
         </Card>
 
-        <SectionTitle>Settings</SectionTitle>
+        <SectionTitle>{t('prSettings')}</SectionTitle>
         <Card>
-          <Text style={styles.infoRow}>Theme</Text>
+          <Text style={styles.infoRow}>{t('prTheme')}</Text>
           <View style={styles.themeRow}>
             {(['light', 'dark'] as const).map((mode) => (
               <Pressable
@@ -205,23 +217,43 @@ export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
                 onPress={() => void onThemeChange(mode)}
               >
                 <Text style={[styles.themeText, themeMode === mode && styles.themeTextActive]}>
-                  {mode === 'light' ? 'Light' : 'Dark'}
+                  {mode === 'light' ? t('prLight') : t('prDark')}
                 </Text>
               </Pressable>
             ))}
           </View>
           <Text style={styles.aboutText}>
-            The new theme is applied the next time you start the app.
+            {t('prThemeHint')}
+          </Text>
+          <Text style={styles.infoRow}>{t('prLanguage')}</Text>
+          <View style={styles.themeRow}>
+            {([
+              ['en', 'English'],
+              ['de', 'Deutsch'],
+              ['pt', 'Português'],
+            ] as Array<[Language, string]>).map(([lang, label]) => (
+              <Pressable
+                key={lang}
+                style={[styles.themeBtn, language === lang && styles.themeBtnActive]}
+                onPress={() => void onLanguageChange(lang)}
+              >
+                <Text style={[styles.themeText, language === lang && styles.themeTextActive]}>
+                  {label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={styles.aboutText}>
+            {t('prLangSaved')}
           </Text>
         </Card>
 
-        <SectionTitle>Help</SectionTitle>
+        <SectionTitle>{t('prHelp')}</SectionTitle>
         <Card>
           <Text style={styles.aboutText}>
-            New to Geo-Kick or unsure how packs, points or the league work? The guide
-            explains everything.
+            {t('prHelpHint')}
           </Text>
-          <GKButton title="Open game guide" onPress={() => navigation.navigate('Help')} />
+          <GKButton title={t('prOpenGuide')} onPress={() => navigation.navigate('Help')} />
         </Card>
       </ScrollView>
     </SafeAreaView>

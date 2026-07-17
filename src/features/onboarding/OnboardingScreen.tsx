@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CREST_IDS, RARITY_COLOR } from '../../core/domain/constants';
+import { t, tf } from '../../core/i18n';
 import type { PoolPlayer } from '../../core/domain/types';
 import { STARTER_WINGERS } from '../../core/engine/names';
 import * as playerRepo from '../../core/db/repositories/playerRepo';
@@ -46,11 +47,11 @@ export function OnboardingScreen({ navigation }: RootScreenProps<'Onboarding'>) 
 
   const submit = async () => {
     if (!clubName.trim()) {
-      Alert.alert('Club name missing', 'Give your club a name first.');
+      Alert.alert(t('obNameMissingTitle'), t('obNameMissing'));
       return;
     }
     if (chosen === null) {
-      Alert.alert('No captain picked', 'Choose one of the three attackers.');
+      Alert.alert(t('obNoCaptainTitle'), t('obNoCaptain'));
       return;
     }
     setSaving(true);
@@ -64,20 +65,20 @@ export function OnboardingScreen({ navigation }: RootScreenProps<'Onboarding'>) 
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>Your Club</Text>
-        <Text style={styles.subtitle}>Found your club and start in Division 4!</Text>
+        <Text style={styles.title}>{t('obTitle')}</Text>
+        <Text style={styles.subtitle}>{t('obSubtitle')}</Text>
 
-        <SectionTitle>Club name</SectionTitle>
+        <SectionTitle>{t('obClubName')}</SectionTitle>
         <TextInput
           style={styles.input}
-          placeholder="e.g. Backyard Legends"
+          placeholder={t('obPlaceholder')}
           placeholderTextColor={colors.inkSoft}
           value={clubName}
           onChangeText={setClubName}
           maxLength={24}
         />
 
-        <SectionTitle>Pick a crest</SectionTitle>
+        <SectionTitle>{t('obCrest')}</SectionTitle>
         <View style={styles.crestRow}>
           {CREST_IDS.map((c) => (
             <Pressable
@@ -90,7 +91,7 @@ export function OnboardingScreen({ navigation }: RootScreenProps<'Onboarding'>) 
           ))}
         </View>
 
-        <SectionTitle>Choose your captain (attacker)</SectionTitle>
+        <SectionTitle>{t('obCaptain')}</SectionTitle>
         {starters.map((p) => (
           <Pressable key={p.id} onPress={() => setChosen(p.id)}>
             <Card
@@ -106,7 +107,7 @@ export function OnboardingScreen({ navigation }: RootScreenProps<'Onboarding'>) 
                   <Text style={styles.starterName}>{p.name}</Text>
                   <Text style={styles.starterFlavor}>{flavorFor(p.name)}</Text>
                   <Text style={styles.starterStats}>
-                    Pace {p.tempo} · Technique {p.technik} · Finishing {p.abschluss}
+                    {tf('obStats', { t: p.tempo, te: p.technik, f: p.abschluss })}
                   </Text>
                 </View>
                 {chosen === p.id && (
@@ -120,7 +121,7 @@ export function OnboardingScreen({ navigation }: RootScreenProps<'Onboarding'>) 
         ))}
 
         <GKButton
-          title="Let's go!"
+          title={t('obSubmit')}
           onPress={submit}
           loading={saving}
           style={{ marginTop: spacing.lg }}

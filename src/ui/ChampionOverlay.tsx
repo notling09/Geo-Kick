@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, Easing, Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Svg, { Ellipse, Path, Rect } from 'react-native-svg';
 import type { PoolPlayer } from '../core/domain/types';
+import { t, tf } from '../core/i18n';
 import { playSound } from '../core/services/sound';
 import { PlayerAvatar } from './PlayerAvatar';
 import { colors, font, spacing } from './theme';
@@ -108,9 +109,9 @@ export function ChampionOverlay({ visible, clubName, division, captain, onDismis
           <ConfettiPiece key={i} index={i} height={height} />
         ))}
         <View style={styles.content}>
-          <Text style={styles.title}>CHAMPIONS!</Text>
+          <Text style={styles.title}>{t('champTitle')}</Text>
           <Text style={styles.subtitle}>
-            {clubName} wins Division {division}!
+            {tf('champBody', { club: clubName, div: division })}
           </Text>
           {/* Captain steht hinter dem Pokal */}
           <View style={styles.stage}>
@@ -123,8 +124,8 @@ export function ChampionOverlay({ visible, clubName, division, captain, onDismis
               <Trophy size={110} />
             </View>
           </View>
-          {captain && <Text style={styles.captainName}>Captain {captain.name}</Text>}
-          <Text style={styles.hint}>Tap to continue</Text>
+          {captain && <Text style={styles.captainName}>{t('sqCaptainBtn')} {captain.name}</Text>}
+          <Text style={styles.hint}>{t('champHint')}</Text>
         </View>
       </Pressable>
     </Modal>

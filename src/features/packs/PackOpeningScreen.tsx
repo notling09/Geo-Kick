@@ -7,6 +7,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
   POSITION_LABEL, POSITION_SHORT, RARITY_COLOR, RARITY_LABEL, SELL_VALUE,
 } from '../../core/domain/constants';
+import { t, tf } from '../../core/i18n';
 import type { Position, PoolPlayer } from '../../core/domain/types';
 import { packTypeFromSource } from '../../core/engine/packGen';
 import { effectiveOverall, overallOf } from '../../core/engine/playerGen';
@@ -259,7 +260,7 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
     setBusy(true);
     try {
       await sellDrawnPlayer(e.pool);
-      patchCurrent({ coins: SELL_VALUE[e.pool.rarity], note: `sold for ${SELL_VALUE[e.pool.rarity]} coins` });
+      patchCurrent({ coins: SELL_VALUE[e.pool.rarity], note: tf('poSoldFor', { n: SELL_VALUE[e.pool.rarity] }) });
     } finally {
       setBusy(false);
     }
@@ -271,7 +272,7 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
     setBusy(true);
     try {
       const points = await takeDuplicatePoints(e.pool);
-      patchCurrent({ note: `+${points} level-up points` });
+      patchCurrent({ note: tf('poGotPoints', { n: points }) });
     } finally {
       setBusy(false);
     }
@@ -282,10 +283,10 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
     const ok = await keepDrawnPlayer(e.pool, sellOwnedId);
     setPickerOpen(false);
     if (!ok) {
-      Alert.alert('Not possible', 'This player cannot be sold (still in your XI?).');
+      Alert.alert(t('poNotPossibleTitle'), t('poNotPossible'));
       return;
     }
-    patchCurrent({ outcome: 'added', note: `joined the club (sold ${victim?.pool.name ?? 'a player'})` });
+    patchCurrent({ outcome: 'added', note: tf('poJoinedSold', { name: victim?.pool.name ?? '?' }) });
   };
 
   /** Die ???-Karte benennen und als 99er aufnehmen. */
@@ -295,7 +296,7 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
     try {
       const created = await claimMysteryPlayer(mysteryName, mysteryPos);
       if (!created) return;
-      patchCurrent({ pool: created, outcome: 'added', note: 'joined the club' });
+      patchCurrent({ pool: created, outcome: 'added', note: t('poJoined') });
       showCard();
     } finally {
       setBusy(false);
@@ -310,9 +311,9 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
 
   const statusLine = (e: Entry): string => {
     if (e.note) return e.note;
-    if (e.outcome === 'added') return 'joined the club';
-    if (e.outcome === 'duplicate') return 'duplicate - train or sell?';
-    return 'squad is full - sell or swap?';
+    if (e.outcome === 'added') return t('poJoined');
+    if (e.outcome === 'duplicate') return t('poDuplicate');
+    return t('poSquadFull');
   };
 
   const isLast = entries !== null && index >= entries.length - 1;
@@ -347,7 +348,7 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
               {packType.label}
             </Animated.Text>
             <Animated.Text style={[styles.tapHintSmall, { opacity: packOpacity }]}>
-              Tap the pack to open it
+              {t('poTapPack')}
             </Animated.Text>
           </Pressable>
         )}
@@ -376,13 +377,13 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           >
             <View style={styles.nameCard}>
-              <Text style={styles.nameTitle}>You found the one-of-a-kind card!</Text>
+              <Text style={styles.nameTitle}>{t('poMysteryTitle')}</Text>
               <Text style={styles.nameSub}>
-                A 99-rated player joins your club. Give him a name and pick his position.
+                {t('poMysterySub')}
               </Text>
               <TextInput
                 style={styles.nameInput}
-                placeholder="Player name"
+                placeholder={t('poMysteryPlaceholder')}
                 placeholderTextColor="#9BA6B2"
                 value={mysteryName}
                 onChangeText={setMysteryName}
@@ -403,7 +404,7 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
                 ))}
               </View>
               <GKButton
-                title="Create player"
+                title={t('poCreatePlayer')}
                 disabled={!mysteryName.trim() || busy}
                 onPress={onClaimMystery}
               />
@@ -414,7 +415,7 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
         {phase === 'card' && current && (
           <View style={styles.center}>
             <Text style={styles.counter}>
-              Player {index + 1} of {entries?.length ?? 0}
+              {tf('poPlayerOf', { i: index + 1, n: entries?.length ?? 0 })}
             </Text>
             {(current.pool.rarity === 'gold' || current.pool.rarity === 'legendaer') && (
               <Animated.View
@@ -456,12 +457,12 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
                 {current.outcome === 'duplicate' ? (
                   <>
                     <GKButton
-                      title={`Take +${SELL_VALUE[current.pool.rarity]} points`}
+                      title={tf('poTakePoints', { n: SELL_VALUE[current.pool.rarity] })}
                       style={styles.decisionBtn}
                       onPress={() => onTakePoints(current)}
                     />
                     <GKButton
-                      title={`Sell +${SELL_VALUE[current.pool.rarity]}`}
+                      title={tf('poSell', { n: SELL_VALUE[current.pool.rarity] })}
                       variant="danger"
                       style={styles.decisionBtn}
                       onPress={() => onSell(current)}
@@ -470,12 +471,12 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
                 ) : (
                   <>
                     <GKButton
-                      title="Keep (swap)"
+                      title={t('poKeepSwap')}
                       style={styles.decisionBtn}
                       onPress={() => setPickerOpen(true)}
                     />
                     <GKButton
-                      title={`Sell +${SELL_VALUE[current.pool.rarity]}`}
+                      title={tf('poSell', { n: SELL_VALUE[current.pool.rarity] })}
                       variant="danger"
                       style={styles.decisionBtn}
                       onPress={() => onSell(current)}
@@ -485,13 +486,13 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
               </View>
             ) : (
               <GKButton
-                title={isLast ? 'Continue' : 'Next player'}
+                title={isLast ? t('continue') : t('poNextPlayer')}
                 onPress={onNext}
                 style={styles.nextBtn}
               />
             )}
             {!needsDecision(current) && (
-              <Text style={styles.swipeHint}>Tap the card to continue</Text>
+              <Text style={styles.swipeHint}>{t('poTapCard')}</Text>
             )}
           </View>
         )}
@@ -501,20 +502,20 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
             <Animated.View
               style={[styles.card, styles.bonusCard, { opacity: cardOpacity, transform: [{ translateX: cardX }] }]}
             >
-              <Text style={styles.bonusTitle}>Pack bonus!</Text>
+              <Text style={styles.bonusTitle}>{t('poBonusTitle')}</Text>
               <View style={styles.bonusRow}>
                 <IconCoin size={26} />
-                <Text style={styles.bonusValue}>+{bonus} coins</Text>
+                <Text style={styles.bonusValue}>{tf('poBonusCoins', { n: bonus })}</Text>
               </View>
               <View style={styles.bonusRow}>
                 <IconCoin size={26} color="#0D47A1" fill="#90CAF9" />
-                <Text style={styles.bonusValue}>+{bonus} level-up points</Text>
+                <Text style={styles.bonusValue}>{tf('poBonusPoints', { n: bonus })}</Text>
               </View>
               <Text style={styles.bonusHint}>
-                Spend level-up points on any player in his detail view.
+                {t('poBonusHint')}
               </Text>
             </Animated.View>
-            <GKButton title="Back to packs" onPress={() => navigation.goBack()} style={styles.nextBtn} />
+            <GKButton title={t('poBackToPacks')} onPress={() => navigation.goBack()} style={styles.nextBtn} />
           </View>
         )}
 
@@ -530,7 +531,7 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalSheet, { paddingBottom: insets.bottom + spacing.md }]}>
             <Text style={styles.pickerTitle}>
-              Sell a player to keep {current?.pool.name}
+              {tf('poSellToKeep', { name: current?.pool.name ?? '' })}
             </Text>
             <FlatList
               data={sellCandidates}
@@ -547,7 +548,7 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
                     </Text>
                   </View>
                   <GKButton
-                    title={`Sell +${SELL_VALUE[item.pool.rarity]}`}
+                    title={tf('poSell', { n: SELL_VALUE[item.pool.rarity] })}
                     variant="danger"
                     style={styles.decisionBtn}
                     onPress={() => current && onKeep(current, item.id)}
@@ -555,11 +556,11 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
                 </View>
               )}
               ListEmptyComponent={
-                <Text style={styles.pickerMeta}>No sellable players - everyone is in your XI.</Text>
+                <Text style={styles.pickerMeta}>{t('poNoSellable')}</Text>
               }
             />
             <GKButton
-              title="Back"
+              title={t('back')}
               variant="secondary"
               style={styles.pickerBack}
               onPress={() => setPickerOpen(false)}

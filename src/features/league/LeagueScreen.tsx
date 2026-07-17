@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useIsFocused } from '@react-navigation/native';
 import { LEAGUE, TACTIC_LABEL, USER_CLUB_ID } from '../../core/domain/constants';
+import { t, tf } from '../../core/i18n';
 import type { Tactic } from '../../core/domain/types';
 import { useGameStore } from '../../state/gameStore';
 import { useLeagueStore } from '../../state/leagueStore';
@@ -151,20 +152,24 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
         />
       )}
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>League</Text>
+        <Text style={styles.title}>{t('lgTitle')}</Text>
         <Text style={styles.subtitle}>
-          Division {club?.division ?? 4} · Season {season} · Matchday{' '}
-          {Math.min(round, LEAGUE.roundsPerSeason)}/{LEAGUE.roundsPerSeason}
+          {tf('lgSubtitle', {
+            div: club?.division ?? 4,
+            season,
+            round: Math.min(round, LEAGUE.roundsPerSeason),
+            total: LEAGUE.roundsPerSeason,
+          })}
         </Text>
 
         {seasonMessage ? (
           <Card style={styles.messageCard}>
             <Text style={styles.messageText}>{seasonMessage}</Text>
-            <GKButton title="Got it!" variant="secondary" onPress={acknowledgeSeasonMessage} />
+            <GKButton title={t('gotIt')} variant="secondary" onPress={acknowledgeSeasonMessage} />
           </Card>
         ) : null}
 
-        <SectionTitle>Next match</SectionTitle>
+        <SectionTitle>{t('lgNextMatch')}</SectionTitle>
         {nextUserMatch && !seasonOver ? (
           <Card>
             <View style={styles.matchupRow}>
@@ -185,7 +190,7 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
 
             {ready ? (
               <>
-                <Text style={styles.tacticTitle}>Choose your tactic:</Text>
+                <Text style={styles.tacticTitle}>{t('lgChooseTactic')}</Text>
                 <View style={styles.tacticRow}>
                   {TACTICS.map((t) => (
                     <Pressable
@@ -200,35 +205,35 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
                   ))}
                 </View>
                 <Text style={styles.tacticHint}>
-                  Formation ({club?.formation}) is set on the Squad tab.
+                  {tf('lgFormationHint', { f: club?.formation ?? '4-4-2' })}
                 </Text>
-                <GKButton title="Kick off!" onPress={onKickoff} loading={starting} />
+                <GKButton title={t('lgKickoff')} onPress={onKickoff} loading={starting} />
               </>
             ) : (
               <View style={styles.countdownRow}>
                 <IconClock size={20} color={colors.accentDark} />
                 <Text style={styles.countdown}>
-                  Kick-off in {formatCountdown(msUntilNextMatch())}
+                  {tf('lgCountdown', { time: formatCountdown(msUntilNextMatch()) })}
                 </Text>
               </View>
             )}
           </Card>
         ) : (
           <Card>
-            <Text style={styles.countdown}>Season finished - a new season starts right away.</Text>
+            <Text style={styles.countdown}>{t('lgSeasonDone')}</Text>
           </Card>
         )}
 
         <Card style={styles.friendliesCard}>
           <View style={styles.friendliesRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.friendliesTitle}>Friendlies</Text>
+              <Text style={styles.friendliesTitle}>{t('lgFriendlies')}</Text>
               <Text style={styles.friendliesHint}>
-                Play against your friends’ latest teams
+                {t('lgFriendliesHint')}
               </Text>
             </View>
             <GKButton
-              title="Open"
+              title={t('open')}
               variant="secondary"
               style={styles.friendliesBtn}
               onPress={() => navigation.navigate('Friendlies')}
@@ -236,11 +241,11 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
           </View>
         </Card>
 
-        <SectionTitle>Table</SectionTitle>
+        <SectionTitle>{t('lgTable')}</SectionTitle>
         <Card style={{ paddingVertical: spacing.sm }}>
           <View style={styles.tableHeader}>
             <Text style={[styles.th, styles.colPos]}>#</Text>
-            <Text style={[styles.th, styles.colClub]}>Club</Text>
+            <Text style={[styles.th, styles.colClub]}>{t('lgClub')}</Text>
             <Text style={[styles.th, styles.colNum]}>P</Text>
             <Text style={[styles.th, styles.colNum]}>GD</Text>
             <Text style={[styles.th, styles.colNum]}>Pts</Text>
@@ -270,13 +275,13 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
             );
           })}
           <Text style={styles.legend}>
-            Top {LEAGUE.promotionSpots}: promotion · bottom {LEAGUE.relegationSpots}: relegation
+            {tf('lgLegend', { p: LEAGUE.promotionSpots, r: LEAGUE.relegationSpots })}
           </Text>
         </Card>
 
         {(topScorers.length > 0 || topAssists.length > 0) && (
           <>
-            <SectionTitle>Top scorers</SectionTitle>
+            <SectionTitle>{t('lgTopScorers')}</SectionTitle>
             <Card style={{ marginBottom: spacing.sm }}>
               {topScorers.map((s, i) => (
                 <View key={`${s.player}|${s.clubId}`} style={styles.scorerRow}>
@@ -290,7 +295,7 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
                   <Text style={[styles.td, styles.colNum, styles.points]}>{s.count}</Text>
                 </View>
               ))}
-              {topAssists.length > 0 && <Text style={styles.assistHeader}>Most assists</Text>}
+              {topAssists.length > 0 && <Text style={styles.assistHeader}>{t('lgTopAssists')}</Text>}
               {topAssists.map((s, i) => (
                 <View key={`${s.player}|${s.clubId}`} style={styles.scorerRow}>
                   <Text style={[styles.td, styles.colPos]}>{i + 1}</Text>
@@ -307,7 +312,7 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
           </>
         )}
 
-        <SectionTitle>Fixtures</SectionTitle>
+        <SectionTitle>{t('lgFixtures')}</SectionTitle>
         <Card>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.roundPicker}>
             {Array.from({ length: LEAGUE.roundsPerSeason }, (_, i) => i + 1).map((r) => {
@@ -349,9 +354,9 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
           })}
         </Card>
 
-        <SectionTitle>Your results</SectionTitle>
+        <SectionTitle>{t('lgYourResults')}</SectionTitle>
         {playedUserMatches.length === 0 ? (
-          <Text style={styles.emptyText}>No matches played yet.</Text>
+          <Text style={styles.emptyText}>{t('lgNoMatches')}</Text>
         ) : (
           playedUserMatches.map((m) => {
             const userIsHome = m.homeId === USER_CLUB_ID;
@@ -362,7 +367,7 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
               <Card key={m.id} style={styles.resultCard}>
                 <ResultIcon size={16} />
                 <Text style={styles.resultText}>
-                  MD {m.round}: {clubName(m.homeId)} {m.homeGoals}:{m.awayGoals}{' '}
+                  {tf('lgMdShort', { n: m.round })} {clubName(m.homeId)} {m.homeGoals}:{m.awayGoals}{' '}
                   {clubName(m.awayId)}
                 </Text>
               </Card>

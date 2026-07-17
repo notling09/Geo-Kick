@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TACTIC_LABEL } from '../../core/domain/constants';
 import type { Tactic } from '../../core/domain/types';
+import { t, tf } from '../../core/i18n';
 import { useGameStore } from '../../state/gameStore';
 import { useOnlineStore } from '../../state/onlineStore';
 import { GKButton, Card } from '../../ui/components';
@@ -38,16 +39,16 @@ export function OnlineLobbyScreen({ navigation }: RootScreenProps<'OnlineLobby'>
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <Text style={styles.title}>Online friendly</Text>
+      <Text style={styles.title}>{t('lobbyTitle')}</Text>
       <Text style={styles.subtitle}>
-        {opponent ? 'Both press Ready to kick off - live on both phones!' : 'Waiting for your friend to join …'}
+        {opponent ? t('lobbySub') : t('lobbyWaitingJoin')}
       </Text>
 
       <Card style={styles.clubCard}>
         <Crest crestId={club?.crest ?? 'crest-0'} size={44} />
         <View style={styles.clubInfo}>
-          <Text style={styles.clubName} numberOfLines={1}>{club?.name ?? 'My Club'}</Text>
-          <Text style={styles.readyText}>{myReady ? 'READY' : 'not ready yet'}</Text>
+          <Text style={styles.clubName} numberOfLines={1}>{club?.name ?? ''}</Text>
+          <Text style={styles.readyText}>{myReady ? t('lobbyReady') : t('lobbyNotReady')}</Text>
         </View>
       </Card>
 
@@ -75,22 +76,22 @@ export function OnlineLobbyScreen({ navigation }: RootScreenProps<'OnlineLobby'>
             <Crest crestId={opponent.crest} size={44} />
             <View style={styles.clubInfo}>
               <Text style={styles.clubName} numberOfLines={1}>{opponent.name}</Text>
-              <Text style={styles.clubMeta}>Strength {opponent.strength}</Text>
-              <Text style={styles.readyText}>{oppReady ? 'READY' : 'not ready yet'}</Text>
+              <Text style={styles.clubMeta}>{tf('lobbyStrength', { n: opponent.strength })}</Text>
+              <Text style={styles.readyText}>{oppReady ? t('lobbyReady') : t('lobbyNotReady')}</Text>
             </View>
           </>
         ) : (
-          <Text style={styles.waiting}>Waiting … your friend needs the app open.</Text>
+          <Text style={styles.waiting}>{t('lobbyWaitingOpen')}</Text>
         )}
       </Card>
 
       <View style={styles.buttons}>
         <GKButton
-          title={myReady ? 'Waiting for opponent …' : 'Ready!'}
+          title={myReady ? t('lobbyWaitingBtn') : t('lobbyReadyBtn')}
           disabled={myReady || !opponent}
           onPress={setReady}
         />
-        <GKButton title="Leave" variant="ghost" onPress={onLeave} />
+        <GKButton title={t('lobbyLeave')} variant="ghost" onPress={onLeave} />
       </View>
     </SafeAreaView>
   );

@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   BALANCING, PACK_TYPES, RARITY_LABEL, SHOP_PACK_IDS,
 } from '../../core/domain/constants';
+import { t, tf } from '../../core/i18n';
 import { packTypeFromSource } from '../../core/engine/packGen';
 import { MAX_EGGS, useEggStore } from '../../state/eggStore';
 import { useGameStore } from '../../state/gameStore';
@@ -37,8 +38,8 @@ export function PacksScreen({ navigation }: TabScreenProps<'Packs'>) {
     const ok = await buyPack(typeId);
     if (!ok) {
       Alert.alert(
-        'Not enough coins',
-        `The ${PACK_TYPES[typeId].label} costs ${PACK_TYPES[typeId].price} coins. Earn coins with real sessions or by selling players!`,
+        t('pkNoCoinsTitle'),
+        tf('pkNoCoins', { pack: PACK_TYPES[typeId].label, price: PACK_TYPES[typeId].price ?? 0 }),
       );
     }
   };
@@ -47,18 +48,18 @@ export function PacksScreen({ navigation }: TabScreenProps<'Packs'>) {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.headerRow}>
-          <Text style={styles.title}>Packs</Text>
+          <Text style={styles.title}>{t('pkTitle')}</Text>
           <View style={styles.badgeRow}>
             <CoinBadge coins={club?.coins ?? 0} />
             <PointsBadge points={levelPoints} />
           </View>
         </View>
 
-        <SectionTitle>Your packs ({unopened.length})</SectionTitle>
+        <SectionTitle>{tf('pkYours', { n: unopened.length })}</SectionTitle>
         {unopened.length === 0 ? (
           <Card>
             <Text style={styles.packHint}>
-              No unopened packs. Check in at a pitch for a session pack or buy one below.
+              {t('pkNone')}
             </Text>
           </Card>
         ) : (
@@ -68,12 +69,12 @@ export function PacksScreen({ navigation }: TabScreenProps<'Packs'>) {
               <View style={styles.packInfo}>
                 <Text style={styles.packLabel}>{packTypeFromSource(pack.source).label}</Text>
                 <Text style={styles.packMeta}>
-                  {BALANCING.playersPerPack} players · {oddsLine(packTypeFromSource(pack.source).id)}
-                  {'\n'}Bonus: {packTypeFromSource(pack.source).bonus[0]}-{packTypeFromSource(pack.source).bonus[1]} coins + points
+                  {tf('pkPlayers', { n: BALANCING.playersPerPack })} · {oddsLine(packTypeFromSource(pack.source).id)}
+                  {'\n'}{tf('pkBonus', { min: packTypeFromSource(pack.source).bonus[0], max: packTypeFromSource(pack.source).bonus[1] })}
                 </Text>
               </View>
               <GKButton
-                title="Open"
+                title={t('open')}
                 onPress={() => navigation.navigate('PackOpening', { packId: pack.id })}
                 style={styles.openBtn}
               />
@@ -81,12 +82,11 @@ export function PacksScreen({ navigation }: TabScreenProps<'Packs'>) {
           ))
         )}
 
-        <SectionTitle>Your eggs ({eggs.length}/{MAX_EGGS})</SectionTitle>
+        <SectionTitle>{tf('pkEggs', { n: eggs.length, max: MAX_EGGS })}</SectionTitle>
         {eggs.length === 0 ? (
           <Card>
             <Text style={styles.packHint}>
-              No eggs right now. Finish a session at a pitch to find one - then walk to
-              hatch it into a new player.
+              {t('pkNoEggs')}
             </Text>
           </Card>
         ) : (
@@ -100,15 +100,15 @@ export function PacksScreen({ navigation }: TabScreenProps<'Packs'>) {
                 <Text style={styles.packLabel}>{type.label}</Text>
                 <Text style={styles.packMeta}>
                   {ready
-                    ? 'Ready to hatch!'
-                    : `Walk to hatch it: ${(egg.progressMeters / 1000).toFixed(2)} / ${type.km} km (distance counts while the app is open)`}
+                    ? t('pkEggReady')
+                    : tf('pkEggWalk', { done: (egg.progressMeters / 1000).toFixed(2), total: type.km })}
                 </Text>
                 <View style={styles.eggBarWrap}>
                   <View style={[styles.eggBar, { width: `${pct}%` }]} />
                 </View>
                 {ready && (
                   <GKButton
-                    title="Hatch egg"
+                    title={t('pkHatch')}
                     onPress={() => navigation.navigate('PackOpening', { egg: true, eggIndex: index })}
                   />
                 )}
@@ -118,11 +118,11 @@ export function PacksScreen({ navigation }: TabScreenProps<'Packs'>) {
         )}
         {eggs.length >= MAX_EGGS && (
           <Text style={styles.packHint}>
-            All egg slots full - hatch one to find new eggs at the pitch.
+            {t('pkEggsFull')}
           </Text>
         )}
 
-        <SectionTitle>Shop</SectionTitle>
+        <SectionTitle>{t('pkShop')}</SectionTitle>
         {SHOP_PACK_IDS.map((typeId) => (
           <Card key={typeId} style={styles.packRow}>
             <IconPack size={34} color={typeId === 'ultimate' ? colors.gold : typeId === 'rare' ? colors.sky : colors.inkSoft} />
@@ -130,7 +130,7 @@ export function PacksScreen({ navigation }: TabScreenProps<'Packs'>) {
               <Text style={styles.packLabel}>{PACK_TYPES[typeId].label}</Text>
               <Text style={styles.packMeta}>
                 {oddsLine(typeId)}
-                {'\n'}Bonus: {PACK_TYPES[typeId].bonus[0]}-{PACK_TYPES[typeId].bonus[1]} coins + points
+                {'\n'}{tf('pkBonus', { min: PACK_TYPES[typeId].bonus[0], max: PACK_TYPES[typeId].bonus[1] })}
               </Text>
             </View>
             <GKButton
@@ -142,7 +142,7 @@ export function PacksScreen({ navigation }: TabScreenProps<'Packs'>) {
           </Card>
         ))}
         <Text style={styles.statsText}>
-          Packs opened so far: {openedCount} · squad size: {players.length}/{BALANCING.maxSquadSize}
+          {tf('pkStats', { opened: openedCount, size: players.length, max: BALANCING.maxSquadSize })}
         </Text>
       </ScrollView>
     </SafeAreaView>

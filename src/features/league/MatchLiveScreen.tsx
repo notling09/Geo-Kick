@@ -3,6 +3,7 @@ import { FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from '
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { POSITION_SHORT, TACTIC_LABEL } from '../../core/domain/constants';
 import type { MatchEvent, Tactic } from '../../core/domain/types';
+import { t, tf } from '../../core/i18n';
 import { effectiveOverall } from '../../core/engine/playerGen';
 import { useBattleStore } from '../../state/battleStore';
 import { useGameStore } from '../../state/gameStore';
@@ -190,8 +191,8 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
   if (!played) {
     return (
       <SafeAreaView style={styles.safe}>
-        <Text style={styles.noMatch}>No match available.</Text>
-        <GKButton title="Back" variant="ghost" onPress={() => navigation.goBack()} />
+        <Text style={styles.noMatch}>{t('matchNoMatch')}</Text>
+        <GKButton title={t('back')} variant="ghost" onPress={() => navigation.goBack()} />
       </SafeAreaView>
     );
   }
@@ -347,29 +348,34 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
           </View>
         );
       })()}
-      <Text style={styles.momentumLabel}>Momentum</Text>
+      <Text style={styles.momentumLabel}>{t('matchMomentum')}</Text>
 
       {finished && stats && (
         <Card style={styles.statsCard}>
-          <Text style={styles.statsTitle}>Match stats</Text>
-          <StatRow label="Goals" home={stats.home.goals} away={stats.away.goals} />
-          <StatRow label="Expected goals (xG)" home={stats.home.xg.toFixed(1)} away={stats.away.xg.toFixed(1)} />
-          <StatRow label="Shots" home={stats.home.shots} away={stats.away.shots} />
-          <StatRow label="Possession" home={`${stats.home.possession}%`} away={`${stats.away.possession}%`} />
-          <StatRow label="Corners" home={stats.home.corners} away={stats.away.corners} />
-          <StatRow label="Fouls" home={stats.home.fouls} away={stats.away.fouls} />
-          <StatRow label="Yellow cards" home={stats.home.yellows} away={stats.away.yellows} />
-          <StatRow label="Red cards" home={stats.home.reds} away={stats.away.reds} />
-          <StatRow label="Saves" home={stats.home.saves ?? 0} away={stats.away.saves ?? 0} />
+          <Text style={styles.statsTitle}>{t('matchStats')}</Text>
+          <StatRow label={t('statGoals')} home={stats.home.goals} away={stats.away.goals} />
+          <StatRow label={t('statXg')} home={stats.home.xg.toFixed(1)} away={stats.away.xg.toFixed(1)} />
+          <StatRow label={t('statShots')} home={stats.home.shots} away={stats.away.shots} />
+          <StatRow label={t('statPossession')} home={`${stats.home.possession}%`} away={`${stats.away.possession}%`} />
+          <StatRow label={t('statCorners')} home={stats.home.corners} away={stats.away.corners} />
+          <StatRow label={t('statFouls')} home={stats.home.fouls} away={stats.away.fouls} />
+          <StatRow label={t('statYellow')} home={stats.home.yellows} away={stats.away.yellows} />
+          <StatRow label={t('statRed')} home={stats.home.reds} away={stats.away.reds} />
+          <StatRow label={t('statSaves')} home={stats.home.saves ?? 0} away={stats.away.saves ?? 0} />
           {motm && (
             <Text style={styles.motmLine}>
-              Man of the match: {motm.name} ({motm.teamName}) · {motm.rating.toFixed(1)}/10 · {motm.summary}
+              {tf('matchMotmLine', {
+                name: motm.name,
+                club: motm.teamName,
+                rating: motm.rating.toFixed(1),
+                summary: motm.summary,
+              })}
             </Text>
           )}
           {coinReward && coinReward.breakdown.length > 0 && (
             <Text style={styles.coinLine}>
               {coinReward.total > 0
-                ? `+${coinReward.total} coins (${coinReward.breakdown.join(' · ')})`
+                ? `+${coinReward.total} ${t('coins')} (${coinReward.breakdown.join(' · ')})`
                 : coinReward.breakdown.join(' · ')}
             </Text>
           )}
@@ -400,19 +406,19 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
       {atPenalty && pause?.type === 'penalty' ? (
         <Card style={styles.halftimeCard}>
           <Text style={[styles.halftimeTitle, { color: ownPenalty ? colors.sky : colors.accentDark }]}>
-            PENALTY {ownPenalty ? 'for your team!' : `for ${userIsHome ? awayName : homeName}!`}
+            {ownPenalty ? t('penFor') : tf('penAgainst', { club: userIsHome ? awayName : homeName })}
           </Text>
           <GKButton
-            title={ownPenalty ? 'Take the penalty!' : 'Save the penalty!'}
+            title={ownPenalty ? t('penTake') : t('penSave')}
             variant="secondary"
             onPress={() => setPenaltyOpen(true)}
           />
         </Card>
       ) : atHalftime ? (
         <Card style={styles.halftimeCard}>
-          <Text style={styles.halftimeTitle}>Half-time - {homeGoals}:{awayGoals}</Text>
+          <Text style={styles.halftimeTitle}>{tf('htTitle', { score: `${homeGoals}:${awayGoals}` })}</Text>
           <Text style={styles.halftimeHint}>
-            Change your tactic or make substitutions, then resume.
+            {t('htHint')}
           </Text>
           <View style={styles.tacticRow}>
             {TACTICS.map((t) => (
@@ -429,13 +435,13 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
           </View>
           <View style={styles.halftimeButtons}>
             <GKButton
-              title="Substitution"
+              title={t('htSubs')}
               variant="secondary"
               style={styles.halftimeBtn}
               onPress={() => setSubsOpen(true)}
             />
             <GKButton
-              title={isOnlineMatch && waitingHalf ? 'Waiting for opponent …' : 'Resume'}
+              title={isOnlineMatch && waitingHalf ? t('htWaiting') : t('htResume')}
               style={styles.halftimeBtn}
               loading={resuming}
               disabled={isOnlineMatch && waitingHalf}
@@ -448,7 +454,7 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
           {finished ? (
             pendingShootout ? (
               <GKButton
-                title="Penalty shootout!"
+                title={t('matchShootout')}
                 variant="secondary"
                 onPress={() => navigation.replace('Shootout')}
               />
@@ -456,13 +462,13 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
               // Online-Remis: KEIN Continue (das würde das Spiel abbrechen),
               // stattdessen direkt zum Elfmeterschießen
               <GKButton
-                title="Penalty shootout!"
+                title={t('matchShootout')}
                 variant="secondary"
                 onPress={() => navigation.replace('OnlineShootout')}
               />
             ) : (
               <GKButton
-                title={`Continue (final score ${match.homeGoals}:${match.awayGoals})`}
+                title={tf('matchContinue', { score: `${match.homeGoals}:${match.awayGoals}` })}
                 onPress={() => {
                   navigation.goBack();
                   if (isOnlineMatch) useOnlineStore.getState().leave();
@@ -470,7 +476,7 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
               />
             )
           ) : (
-            <GKButton title="Skip" variant="ghost" onPress={onSkip} />
+            <GKButton title={t('skip')} variant="ghost" onPress={onSkip} />
           )}
         </View>
       )}
@@ -495,13 +501,13 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
       {/* Auswechslungen auf dem Formations-Feld (V5) */}
       <Modal visible={subsOpen} animationType="slide">
         <SafeAreaView style={styles.subsSafe} edges={['top', 'bottom']}>
-          <Text style={styles.subsTitle}>Half-time - arrange your team</Text>
+          <Text style={styles.subsTitle}>{t('subsTitle')}</Text>
           <Text style={styles.subsHint}>
             {selection === null
-              ? 'Tap a player on the pitch or on the bench, then tap where he should go.'
+              ? t('subsHintNone')
               : selection.type === 'slot'
-                ? 'Now tap a bench player to bring him ON - or another pitch player to swap positions.'
-                : 'Now tap the pitch player he should replace.'}
+                ? t('subsHintSlot')
+                : t('subsHintBench')}
           </Text>
           <View style={styles.subsPitch}>
             <FormationPitch
@@ -516,7 +522,7 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
               suspendedIds={suspendedIds}
             />
           </View>
-          <Text style={styles.subsSection}>Bench</Text>
+          <Text style={styles.subsSection}>{t('subsBench')}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.benchRow}>
             {bench.map((player) => {
               const suspended = suspendedIds.has(player.id);
@@ -533,7 +539,7 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
                   </Text>
                   <Text style={styles.benchMeta}>
                     {suspended
-                      ? 'suspended'
+                      ? t('subsSuspended')
                       : `${POSITION_SHORT[player.pool.position]} · ${effectiveOverall(player.pool, player.level)}`}
                   </Text>
                 </Pressable>
@@ -542,7 +548,7 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
           </ScrollView>
           <View style={{ paddingBottom: insets.bottom }}>
             <GKButton
-              title="Done"
+              title={t('done')}
               onPress={() => {
                 setSubsOpen(false);
                 setSelection(null);

@@ -23,6 +23,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   BALANCING, FITNESS_BONUS_COINS, OBJECTIVE_BONUS_COINS, PITCH_BATTLE,
 } from '../../core/domain/constants';
+import { t, tf, type TKey } from '../../core/i18n';
 import type { Spot } from '../../core/domain/types';
 import { circlePolygon, distanceMeters } from '../../core/services/geo';
 import { getMotionStats } from '../../core/services/motion';
@@ -48,13 +49,13 @@ import type { TabScreenProps } from '../../navigation/types';
  */
 const MAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
 
-const CHECKIN_ERROR_TEXT: Record<Exclude<CheckInResult, { ok: true }>['reason'], string> = {
-  permission: 'Location permission missing. Please allow it in the settings.',
-  mocked: 'Simulated GPS position detected - check-in blocked.',
-  too_far: 'You are too far away from this pitch.',
-  cooldown: 'This pitch is still on cooldown.',
-  active_session: 'You are already checked in at a pitch.',
-  no_location: 'Could not determine your location.',
+const CHECKIN_ERROR_KEY: Record<Exclude<CheckInResult, { ok: true }>['reason'], TKey> = {
+  permission: 'ciPermission',
+  mocked: 'ciMocked',
+  too_far: 'ciTooFar',
+  cooldown: 'ciCooldown',
+  active_session: 'ciActive',
+  no_location: 'ciNoLocation',
 };
 
 function formatDuration(ms: number): string {
@@ -64,13 +65,13 @@ function formatDuration(ms: number): string {
   return `${min}:${String(sec).padStart(2, '0')}`;
 }
 
-const BATTLE_ERROR_TEXT: Record<Exclude<BattleResult, { ok: true }>['reason'], string> = {
-  permission: 'Location permission missing. Please allow it in the settings.',
-  mocked: 'Simulated GPS position detected - battle blocked.',
-  too_far: 'You need to be at the pitch to challenge its team.',
-  already_fought: 'You already challenged this pitch today. Come back tomorrow!',
-  no_location: 'Could not determine your location.',
-  no_club: 'No club found.',
+const BATTLE_ERROR_KEY: Record<Exclude<BattleResult, { ok: true }>['reason'], TKey> = {
+  permission: 'ciPermission',
+  mocked: 'battleErrMocked',
+  too_far: 'battleErrFar',
+  already_fought: 'battleErrDone',
+  no_location: 'ciNoLocation',
+  no_club: 'battleErrClub',
 };
 
 export function MapScreen({ navigation }: TabScreenProps<'Map'>) {
@@ -154,7 +155,7 @@ export function MapScreen({ navigation }: TabScreenProps<'Map'>) {
     try {
       const coords = await locate();
       if (!coords) {
-        Alert.alert('No location', 'Could not determine your location. Is GPS enabled?');
+        Alert.alert(t('mapNoLocationTitle'), t('mapNoLocationGps'));
       }
     } finally {
       setLocating(false);
@@ -164,17 +165,14 @@ export function MapScreen({ navigation }: TabScreenProps<'Map'>) {
   const onRefreshSpots = async () => {
     const coords = myPos ?? (await locate());
     if (!coords) {
-      Alert.alert('No location', 'Could not determine your location.');
+      Alert.alert(t('mapNoLocationTitle'), t('mapNoLocation'));
       return;
     }
     const count = await refreshOsmSpots(coords.latitude, coords.longitude, { force: true });
     if (count > 0) {
-      Alert.alert('Pitches updated', `Loaded ${count} pitches from OpenStreetMap.`);
+      Alert.alert(t('mapPitchesUpdated'), tf('mapLoadedN', { n: count }));
     } else if (useSessionStore.getState().osmError) {
-      Alert.alert(
-        'Update failed',
-        'The OpenStreetMap servers did not respond. Cached pitches stay available - try again in a few minutes.',
-      );
+      Alert.alert(t('mapUpdateFailedTitle'), t('mapUpdateFailed'));
     }
   };
 
@@ -182,7 +180,7 @@ export function MapScreen({ navigation }: TabScreenProps<'Map'>) {
     const result = await checkIn(spot);
     if (!result.ok) {
       const extra = result.detail ? ` (${result.detail})` : '';
-      Alert.alert('Check-in not possible', CHECKIN_ERROR_TEXT[result.reason] + extra);
+      Alert.alert(t('ciErrTitle'), t(CHECKIN_ERROR_KEY[result.reason]) + extra);
     }
   };
 
@@ -190,39 +188,30 @@ export function MapScreen({ navigation }: TabScreenProps<'Map'>) {
     const result = await checkOut();
     if (result.ok) {
       const lines: string[] = [];
-      if (result.doubled) lines.push('Pitch of the day: session coins doubled!');
-      if (result.objectiveBonus > 0) lines.push(`Objectives: +${result.objectiveBonus}`);
-      if (result.firstVisitBonus > 0) lines.push(`New pitch discovered: +${result.firstVisitBonus}`);
-      if (result.homeBonus > 0) lines.push(`Home ground: +${result.homeBonus}`);
+      if (result.doubled) lines.push(t('coDoubled'));
+      if (result.objectiveBonus > 0) lines.push(tf('coObjectives', { n: result.objectiveBonus }));
+      if (result.firstVisitBonus > 0) lines.push(tf('coNewPitch', { n: result.firstVisitBonus }));
+      if (result.homeBonus > 0) lines.push(tf('coHome', { n: result.homeBonus }));
       if (result.streakBonus > 0) {
-        lines.push(`Daily streak day ${result.streak}: +${result.streakBonus}`);
+        lines.push(tf('coStreak', { d: result.streak ?? 0, n: result.streakBonus }));
       }
-      if (result.eggLabel) lines.push(`You found a ${result.eggLabel}! Walk to hatch it (Packs tab).`);
+      if (result.eggLabel) lines.push(tf('coEgg', { egg: result.eggLabel }));
       Alert.alert(
-        'Session complete!',
-        `${result.durationMinutes} minutes at the pitch.\nYou earned ${result.coins} coins and 1 pack!` +
+        t('coDoneTitle'),
+        tf('coDoneBody', { min: result.durationMinutes ?? 0, coins: result.coins ?? 0 }) +
           (lines.length > 0 ? `\n\n${lines.join('\n')}` : ''),
       );
     } else if (result.reason === 'too_short') {
       Alert.alert(
-        'Too short',
-        `Only ${result.durationMinutes ?? 0} minutes - you need at least ${BALANCING.minSessionMs / 60000} minutes for a reward. Nothing this time.`,
+        t('coTooShortTitle'),
+        tf('coTooShort', { min: result.durationMinutes ?? 0, need: BALANCING.minSessionMs / 60000 }),
       );
     } else if (result.reason === 'left_pitch') {
-      Alert.alert(
-        'No reward',
-        'You are no longer at the pitch. Check out while you are still there - session closed without a reward.',
-      );
+      Alert.alert(t('coNoRewardTitle'), t('coLeftPitch'));
     } else if (result.reason === 'mocked') {
-      Alert.alert(
-        'No reward',
-        'Simulated GPS position detected at check-out - session closed without a reward.',
-      );
+      Alert.alert(t('coNoRewardTitle'), t('coMockedOut'));
     } else if (result.reason === 'no_movement') {
-      Alert.alert(
-        'No reward',
-        'The motion sensor detected no movement at all during this session - session closed without a reward.',
-      );
+      Alert.alert(t('coNoRewardTitle'), t('coNoMovement'));
     }
   };
 
@@ -237,7 +226,7 @@ export function MapScreen({ navigation }: TabScreenProps<'Map'>) {
         navigation.navigate('MatchLive');
       } else {
         const extra = result.detail ? ` (${result.detail})` : '';
-        Alert.alert('Battle not possible', BATTLE_ERROR_TEXT[result.reason] + extra);
+        Alert.alert(t('battleErrTitle'), t(BATTLE_ERROR_KEY[result.reason]) + extra);
       }
     } finally {
       setFighting(false);
@@ -264,23 +253,23 @@ export function MapScreen({ navigation }: TabScreenProps<'Map'>) {
     const isBoss = spot.id === specialSpotId;
     const opponent = battle.opponentFor(spot, isBoss);
     const rewardLabel = isBoss
-      ? `win +${PITCH_BATTLE.bossWinReward} coins & points`
-      : 'win a session pack';
+      ? tf('battleWinBoss', { n: PITCH_BATTLE.bossWinReward })
+      : t('battleWinPack');
     return (
       <View style={styles.battleBox}>
         <Text style={[styles.battleText, isBoss && styles.battleBossText]}>
-          {isBoss ? 'BOSS: ' : 'Pitch team: '}
-          {opponent.name} · strength {opponent.strength}
+          {isBoss ? t('battleBoss') : t('battleTeam')}
+          {opponent.name} · {tf('battleStrength', { n: opponent.strength })}
         </Text>
         {battle.canFight(spot.id) ? (
           <GKButton
-            title={`Challenge on-site (${rewardLabel})`}
+            title={tf('battleChallenge', { reward: rewardLabel })}
             variant="secondary"
             loading={fighting}
             onPress={() => onFight(spot)}
           />
         ) : (
-          <Text style={styles.spotMeta}>Already challenged today - back tomorrow!</Text>
+          <Text style={styles.spotMeta}>{t('battleDone')}</Text>
         )}
       </View>
     );
@@ -300,7 +289,7 @@ export function MapScreen({ navigation }: TabScreenProps<'Map'>) {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Map</Text>
+        <Text style={styles.headerTitle}>{t('mapTitle')}</Text>
         <CoinBadge coins={coins} />
       </View>
 
@@ -403,20 +392,19 @@ export function MapScreen({ navigation }: TabScreenProps<'Map'>) {
 
       {activeSession && (
         <Card style={styles.bottomCard}>
-          <Text style={styles.spotName}>Session running: {activeSpot?.name ?? 'Pitch'}</Text>
+          <Text style={styles.spotName}>{tf('mapSessionRunning', { name: activeSpot?.name ?? t('mapPitchLabel') })}</Text>
           <Text style={styles.sessionTimer}>{formatDuration(sessionMs)}</Text>
           <Text style={styles.sessionHint}>
             {fullReached
-              ? 'Full reward reached!'
+              ? t('mapRewardFull')
               : rewardReached
-                ? `Reward secured - full reward at ${BALANCING.fullSessionMs / 60000} min.`
-                : `Stay at least ${BALANCING.minSessionMs / 60000} min. to earn a reward.`}
+                ? tf('mapRewardSecured', { min: BALANCING.fullSessionMs / 60000 })
+                : tf('mapRewardStay', { min: BALANCING.minSessionMs / 60000 })}
           </Text>
           {objectives.length > 0 && (
             <View style={styles.objectivesBox}>
               <Text style={styles.objectivesTitle}>
-                Session objectives (skill +{OBJECTIVE_BONUS_COINS} on your honor · fitness +
-                {FITNESS_BONUS_COINS} auto-verified)
+                {tf('objTitle', { s: OBJECTIVE_BONUS_COINS, f: FITNESS_BONUS_COINS })}
               </Text>
               {objectives.map((o, i) => {
                 if (o.kind === 'skill') {
@@ -444,7 +432,7 @@ export function MapScreen({ navigation }: TabScreenProps<'Map'>) {
                     ? `${Math.min(Math.floor(stats.movedMs / 60000), Math.ceil(o.target / 60000))}:${String(
                         Math.floor((Math.min(stats.movedMs, o.target) % 60000) / 1000),
                       ).padStart(2, '0')} / ${o.target / 60000}:00 min`
-                    : `${Math.min(stats.sprints, o.target)}/${o.target} sprints`;
+                    : `${Math.min(stats.sprints, o.target)}/${o.target} ${t('objSprints')}`;
                 return (
                   <View key={o.text} style={styles.objectiveRow}>
                     <View style={[styles.objectiveBox, achieved && styles.objectiveBoxDone]}>
@@ -459,7 +447,7 @@ export function MapScreen({ navigation }: TabScreenProps<'Map'>) {
               })}
             </View>
           )}
-          <GKButton title="Check out" variant="secondary" onPress={onCheckOut} />
+          <GKButton title={t('mapCheckOut')} variant="secondary" onPress={onCheckOut} />
           {/* V5: Platz-Kampf auch während der laufenden Session möglich */}
           {activeSpot && renderBattleBox(activeSpot)}
         </Card>
@@ -469,25 +457,24 @@ export function MapScreen({ navigation }: TabScreenProps<'Map'>) {
         <Card style={styles.bottomCard}>
           <Text style={styles.spotName}>
             {selectedSpot.name}
-            {selectedSpot.id === homeSpotId ? '  ·  HOME' : ''}
+            {selectedSpot.id === homeSpotId ? `  ·  ${t('mapHome')}` : ''}
           </Text>
           {selectedSpot.id === specialSpotId && (
             <Text style={styles.specialText}>
-              Pitch of the day: boss team waiting + double session coins!
+              {t('mapSpecial')}
             </Text>
           )}
           <Text style={styles.spotMeta}>
-            {selectedSpot.source === 'user' ? 'Added by you · ' : 'From OpenStreetMap · '}
-            {spotDistance !== null ? `${spotDistance} m away · ` : ''}
-            check-in radius {Math.round(selectedSpot.radius)} m
+            {selectedSpot.source === 'user' ? `${t('mapAddedByYou')} · ` : `${t('mapFromOsm')} · `}
+            {spotDistance !== null ? `${tf('mapAway', { m: spotDistance })} · ` : ''}
+            {tf('mapRadius', { m: Math.round(selectedSpot.radius) })}
           </Text>
           {selectedSpot.cooldownUntil > now ? (
             <Text style={styles.cooldownText}>
-              Cooldown: available again in{' '}
-              {Math.ceil((selectedSpot.cooldownUntil - now) / 60000)} min.
+              {tf('mapCooldown', { min: Math.ceil((selectedSpot.cooldownUntil - now) / 60000) })}
             </Text>
           ) : (
-            <GKButton title="Check in" onPress={() => onCheckIn(selectedSpot)} />
+            <GKButton title={t('mapCheckIn')} onPress={() => onCheckIn(selectedSpot)} />
           )}
           {renderBattleBox(selectedSpot)}
         </Card>
@@ -497,8 +484,8 @@ export function MapScreen({ navigation }: TabScreenProps<'Map'>) {
         <Card style={styles.bottomCard}>
           <Text style={styles.spotMeta}>
             {osmLoading
-              ? 'Searching OpenStreetMap for pitches nearby … this can take up to a minute.'
-              : 'Tap a pitch to check in. Long-press the map to add a missing pitch.'}
+              ? t('mapSearching')
+              : t('mapTapHint')}
           </Text>
         </Card>
       )}
@@ -507,10 +494,10 @@ export function MapScreen({ navigation }: TabScreenProps<'Map'>) {
       <Modal visible={newSpotCoords !== null} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
           <Card style={styles.modalCard}>
-            <Text style={styles.spotName}>Add a new pitch</Text>
+            <Text style={styles.spotName}>{t('mapNewSpotTitle')}</Text>
             <TextInput
               style={styles.input}
-              placeholder="Name of the pitch"
+              placeholder={t('mapNewSpotPlaceholder')}
               placeholderTextColor={colors.inkSoft}
               value={newSpotName}
               onChangeText={setNewSpotName}
@@ -518,12 +505,12 @@ export function MapScreen({ navigation }: TabScreenProps<'Map'>) {
             />
             <View style={styles.modalButtons}>
               <GKButton
-                title="Cancel"
+                title={t('cancel')}
                 variant="ghost"
                 style={{ flex: 1 }}
                 onPress={() => setNewSpotCoords(null)}
               />
-              <GKButton title="Add" style={{ flex: 1 }} onPress={confirmNewSpot} />
+              <GKButton title={t('add')} style={{ flex: 1 }} onPress={confirmNewSpot} />
             </View>
           </Card>
         </View>

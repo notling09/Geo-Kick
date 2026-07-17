@@ -9,7 +9,8 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { FORMATIONS, FORMATION_IDS, POSITION_LABEL } from '../../core/domain/constants';
+import { FORMATIONS, FORMATION_IDS, LEAGUE_REWARDS, POSITION_LABEL } from '../../core/domain/constants';
+import { t, tf } from '../../core/i18n';
 import type { FormationId } from '../../core/domain/types';
 import { effectiveOverall } from '../../core/engine/playerGen';
 import { teamStrength } from '../../core/engine/strength';
@@ -75,10 +76,10 @@ export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.headerRow}>
-          <Text style={styles.title}>Squad</Text>
+          <Text style={styles.title}>{t('sqTitle')}</Text>
           <View style={styles.headerBadges}>
             <View style={styles.strengthBadge}>
-              <Text style={styles.strengthText}>Strength {strength}</Text>
+              <Text style={styles.strengthText}>{tf('sqStrength', { n: strength })}</Text>
             </View>
             <PointsBadge points={levelPoints} />
           </View>
@@ -99,7 +100,7 @@ export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
             </Pressable>
           ))}
           <View style={{ flex: 1 }} />
-          <GKButton title="Best XI" variant="ghost" style={styles.autoBtn} onPress={autoLineup} />
+          <GKButton title={t('sqBestXI')} variant="ghost" style={styles.autoBtn} onPress={autoLineup} />
         </View>
 
         <View>
@@ -118,14 +119,15 @@ export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
         </View>
         {suspendedIds.size > 0 && (
           <Text style={styles.suspendedHint}>
-            Red card: {players
-              .filter((p) => suspendedIds.has(p.id))
-              .map((p) => p.pool.name)
-              .join(', ')}{' '}
-            {suspendedIds.size === 1 ? 'is' : 'are'} suspended for the next league match.
+            {tf('sqSuspendedHint', {
+              names: players
+                .filter((p) => suspendedIds.has(p.id))
+                .map((p) => p.pool.name)
+                .join(', '),
+            })}
           </Text>
         )}
-        <Text style={styles.benchTitle}>Bench ({bench.length})</Text>
+        <Text style={styles.benchTitle}>{tf('sqBench', { n: bench.length })}</Text>
         {bench.map((p) => (
           <PlayerCard
             key={p.id}
@@ -134,16 +136,16 @@ export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
           />
         ))}
         {bench.length === 0 && (
-          <Text style={styles.emptyText}>No substitutes - open packs to sign new players!</Text>
+          <Text style={styles.emptyText}>{t('sqEmptyBench')}</Text>
         )}
       </ScrollView>
 
       <Modal visible={pickingCaptain} animationType="slide" transparent>
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalSheet, { paddingBottom: insets.bottom + spacing.md }]}>
-            <Text style={styles.modalTitle}>Choose your captain</Text>
+            <Text style={styles.modalTitle}>{t('sqCaptainTitle')}</Text>
             <Text style={styles.captainHint}>
-              The captain earns bonus coins for goals (+3) and assists (+2) in league matches.
+              {tf('sqCaptainHint', { g: LEAGUE_REWARDS.captainGoal, a: LEAGUE_REWARDS.captainAssist })}
             </Text>
             <FlatList
               data={lineupList.filter((p): p is NonNullable<typeof p> => p !== null)}
@@ -160,7 +162,7 @@ export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
                 />
               )}
             />
-            <GKButton title="Close" variant="ghost" onPress={() => setPickingCaptain(false)} />
+            <GKButton title={t('close')} variant="ghost" onPress={() => setPickingCaptain(false)} />
           </View>
         </View>
       </Modal>
@@ -169,7 +171,7 @@ export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalSheet, { paddingBottom: insets.bottom + spacing.md }]}>
             <Text style={styles.modalTitle}>
-              Fill slot: {pickSlot !== null ? POSITION_LABEL[slots[pickSlot]] : ''}
+              {tf('sqFillSlot', { pos: pickSlot !== null ? POSITION_LABEL[slots[pickSlot]] : '' })}
             </Text>
             <FlatList
               data={pickCandidates}
@@ -178,7 +180,7 @@ export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
                 <PlayerCard
                   player={item}
                   compact
-                  badge={lineup.includes(item.id) ? 'in XI' : undefined}
+                  badge={lineup.includes(item.id) ? t('sqInXI') : undefined}
                   onPress={async () => {
                     if (pickSlot !== null) await setLineupSlot(pickSlot, item.id);
                     setPickSlot(null);
@@ -186,7 +188,7 @@ export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
                 />
               )}
             />
-            <GKButton title="Close" variant="ghost" onPress={() => setPickSlot(null)} />
+            <GKButton title={t('close')} variant="ghost" onPress={() => setPickSlot(null)} />
           </View>
         </View>
       </Modal>

@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   BALANCING, DISCOVERY, LEAGUE_REWARDS, PACK_TYPES, PITCH_BATTLE, SELL_VALUE, SHOP_PACK_IDS,
 } from '../../core/domain/constants';
+import { t, tf } from '../../core/i18n';
 import { GKButton, Card, SectionTitle } from '../../ui/components';
 import { colors, font, spacing } from '../../ui/theme';
 import type { RootScreenProps } from '../../navigation/types';
@@ -20,175 +21,135 @@ export function HelpScreen({ navigation }: RootScreenProps<'Help'>) {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>How Geo-Kick works</Text>
+        <Text style={styles.title}>{t('helpTitle')}</Text>
 
-        <SectionTitle>Sessions and coins</SectionTitle>
+        <SectionTitle>{t('helpSessions')}</SectionTitle>
         <Card>
           <Text style={styles.text}>
-            Go to a real football pitch and check in on the map (GPS). Stay and play for
-            at least 5 minutes - you earn {BALANCING.minCoins} coins, rising up to{' '}
-            {BALANCING.maxCoins} coins at 15 minutes, plus exactly one session pack.
-            Each session also offers small objectives for bonus coins; the fitness
-            objective is verified by your motion sensor.
+            {tf('helpS1', { min: BALANCING.minCoins, max: BALANCING.maxCoins })}
           </Text>
           <Text style={styles.text}>
-            Stay honest: check-in and check-out only work near the pitch, mock locations
-            are rejected, and a phone that never moves earns nothing. After a session the
-            pitch needs a {cooldownMin} minute cooldown.
+            {tf('helpS2', { min: cooldownMin })}
           </Text>
         </Card>
 
-        <SectionTitle>Discovering pitches</SectionTitle>
+        <SectionTitle>{t('helpDiscover')}</SectionTitle>
         <Card>
           <Text style={styles.text}>
-            Your Pitch Passport (Profile tab) collects every pitch you visit. The first
-            rewarded session at a new pitch pays +{DISCOVERY.firstVisitBonusCoins} bonus
-            coins, and badges unlock at {DISCOVERY.passportBadges.join(' / ')} different
-            pitches.
+            {tf('helpD1', {
+              bonus: DISCOVERY.firstVisitBonusCoins,
+              badges: DISCOVERY.passportBadges.join(' / '),
+            })}
           </Text>
           <Text style={styles.text}>
-            Check in every day to build a daily streak: +{DISCOVERY.streakBonusPerDay}{' '}
-            coins per streak day (up to +{DISCOVERY.streakBonusMax}). Miss a day and it
-            resets.
+            {tf('helpD2', { per: DISCOVERY.streakBonusPerDay, max: DISCOVERY.streakBonusMax })}
           </Text>
           <Text style={styles.text}>
-            The pitch you visit most (at least {DISCOVERY.homeMinVisits} times) becomes
-            your home ground - blue pin on the map, +{DISCOVERY.homeBonusCoins} bonus
-            coins per session, and it levels up as you keep coming back.
+            {tf('helpD3', { n: DISCOVERY.homeMinVisits, bonus: DISCOVERY.homeBonusCoins })}
           </Text>
         </Card>
 
-        <SectionTitle>Pitch battles and the pitch of the day</SectionTitle>
+        <SectionTitle>{t('helpBattles')}</SectionTitle>
         <Card>
           <Text style={styles.text}>
-            Every pitch has its own team. Challenge it while you are physically there -
-            even during a running session - once per pitch per day. Winning earns a
-            session pack, losing earns nothing.
-            There are no draws: after 90 minutes it goes to a penalty shootout - you
-            pick the corner for every shot AND the dive for every save (the keeper
-            guesses one of five spots, so 4 out of 5 shots go in).
+            {t('helpB1')}
           </Text>
           <Text style={styles.text}>
-            One pitch per day is special (gold pin) - always picked near your current
-            location, so travelling shows you a new one. A much stronger boss team
-            waits there: beat it for +{PITCH_BATTLE.bossWinReward} coins and points,
-            and sessions at that pitch pay double coins all day.
+            {tf('helpB2', { n: PITCH_BATTLE.bossWinReward })}
           </Text>
         </Card>
 
-        <SectionTitle>Eggs</SectionTitle>
+        <SectionTitle>{t('helpEggs')}</SectionTitle>
         <Card>
           <Text style={styles.text}>
-            Finish a session to find an egg (1, 3 or 5 km) - you can carry up to 3 at
-            once, and they all hatch from the same walking distance. Your distance
-            counts while the app is open. Longer eggs hatch better players - a 5 km
-            egg can never contain a Bronze player. Hatch them in the Packs tab.
+            {t('helpE1')}
           </Text>
         </Card>
 
-        <SectionTitle>Packs</SectionTitle>
+        <SectionTitle>{t('helpPacks')}</SectionTitle>
         <Card>
           <Text style={styles.text}>
-            Every pack contains {BALANCING.playersPerPack} players, revealed from weakest
-            to best. The shop sells stronger packs with better odds:{' '}
-            {SHOP_PACK_IDS.map((id) => `${PACK_TYPES[id].label} (${PACK_TYPES[id].price} coins)`).join(', ')}.
+            {tf('helpP1', {
+              n: BALANCING.playersPerPack,
+              shop: SHOP_PACK_IDS.map(
+                (id) => `${PACK_TYPES[id].label} (${PACK_TYPES[id].price} ${t('coins')})`,
+              ).join(', '),
+            })}
           </Text>
           <Text style={styles.text}>
-            After the three players every pack drops a bonus - the same amount as coins
-            AND as level-up points: Session {PACK_TYPES.session.bonus[0]}-{PACK_TYPES.session.bonus[1]},
-            Standard {PACK_TYPES.standard.bonus[0]}-{PACK_TYPES.standard.bonus[1]},
-            Rare {PACK_TYPES.rare.bonus[0]}-{PACK_TYPES.rare.bonus[1]},
-            Ultimate {PACK_TYPES.ultimate.bonus[0]}-{PACK_TYPES.ultimate.bonus[1]}.
-            High amounts are rarer than low ones.
+            {tf('helpP2', {
+              s1: PACK_TYPES.session.bonus[0], s2: PACK_TYPES.session.bonus[1],
+              st1: PACK_TYPES.standard.bonus[0], st2: PACK_TYPES.standard.bonus[1],
+              r1: PACK_TYPES.rare.bonus[0], r2: PACK_TYPES.rare.bonus[1],
+              u1: PACK_TYPES.ultimate.bonus[0], u2: PACK_TYPES.ultimate.bonus[1],
+            })}
           </Text>
           <Text style={styles.text}>
-            Duplicates are your choice: sell for coins or take the same value as
-            level-up points (Bronze {SELL_VALUE.bronze} · Silver {SELL_VALUE.silber} ·
-            Gold {SELL_VALUE.gold} · Legendary {SELL_VALUE.legendaer}).
+            {tf('helpP3', {
+              b: SELL_VALUE.bronze, s: SELL_VALUE.silber,
+              g: SELL_VALUE.gold, l: SELL_VALUE.legendaer,
+            })}
           </Text>
         </Card>
 
-        <SectionTitle>The ??? card</SectionTitle>
+        <SectionTitle>{t('helpMystery')}</SectionTitle>
         <Card>
           <Text style={styles.text}>
-            Rarer than Legendary and drawable only ONCE ever: a 99-rated player. You name
-            him and pick his position yourself. He always joins your club - even over the
-            squad limit - and can never be sold.
+            {t('helpM1')}
           </Text>
         </Card>
 
-        <SectionTitle>Level-up points</SectionTitle>
+        <SectionTitle>{t('helpPoints')}</SectionTitle>
         <Card>
           <Text style={styles.text}>
-            Spend points on any player in his detail view (Squad tab). One level gives +1
-            on every attribute. The cost depends on the player's current rating: up to
-            59 → 25 points, 60-74 → 50, 75-85 → 100, 86-89 → 200, from 90 → 250.
-            The maximum rating is 99.
+            {t('helpPo1')}
           </Text>
         </Card>
 
-        <SectionTitle>Squad</SectionTitle>
+        <SectionTitle>{t('helpSquad')}</SectionTitle>
         <Card>
           <Text style={styles.text}>
-            Formations: 4-4-2, 4-3-3 and 4-2-4. Tap a slot to swap players, or use Best XI
-            to fill the lineup automatically. Your squad holds at most{' '}
-            {BALANCING.maxSquadSize} players - sell spare players in their detail view.
+            {tf('helpSq1', { n: BALANCING.maxSquadSize })}
           </Text>
           <Text style={styles.text}>
-            The captain (gold C badge) earns bonus coins: +{LEAGUE_REWARDS.captainGoal} per
-            goal and +{LEAGUE_REWARDS.captainAssist} per assist in league matches.
+            {tf('helpSq2', { g: LEAGUE_REWARDS.captainGoal, a: LEAGUE_REWARDS.captainAssist })}
           </Text>
         </Card>
 
-        <SectionTitle>League</SectionTitle>
+        <SectionTitle>{t('helpLeague')}</SectionTitle>
         <Card>
           <Text style={styles.text}>
-            Your club plays in a division of 8 teams, 14 rounds per season, one match
-            every {matchMin} minutes. Pick a tactic before kickoff - it really matters:
-            offensive creates far more chances but weakens your defense, defensive is
-            the opposite. A win pays {LEAGUE_REWARDS.win} coins, a draw {LEAGUE_REWARDS.draw}.
+            {tf('helpL1', { min: matchMin, w: LEAGUE_REWARDS.win, d: LEAGUE_REWARDS.draw })}
           </Text>
           <Text style={styles.text}>
-            At half-time the match pauses: arrange your team on the pitch (bench swaps
-            AND position swaps) and change your tactic - both really affect the second
-            half. A live momentum bar (green = you) shows who is on top, updated every
-            5 match minutes.
+            {t('helpL2')}
           </Text>
           <Text style={styles.text}>
-            Sometimes a penalty is awarded during a match (light blue = your team,
-            orange = opponent). You take it yourself: pick a corner to shoot - or the
-            dive of your keeper when the opponent steps up.
+            {t('helpL3')}
           </Text>
           <Text style={styles.text}>
-            After the last matchday the season review shows the final table, your
-            promotion or relegation with the season prize, the Player of the Season
-            and every player's average rating.
+            {t('helpL5')}
           </Text>
           <Text style={styles.text}>
-            Red cards (or two yellows) suspend a player for the next match. At the end of
-            a season the top two are promoted, the bottom two relegated - and 1st/2nd
-            place win a prize that grows with the division (up to{' '}
-            {LEAGUE_REWARDS.seasonByDivision[1][0]}/{LEAGUE_REWARDS.seasonByDivision[1][1]} coins
-            in Division 1).
+            {tf('helpL4', {
+              p1: LEAGUE_REWARDS.seasonByDivision[1][0],
+              p2: LEAGUE_REWARDS.seasonByDivision[1][1],
+            })}
           </Text>
         </Card>
 
-        <SectionTitle>Friendlies</SectionTitle>
+        <SectionTitle>{t('helpFriends')}</SectionTitle>
         <Card>
           <Text style={styles.text}>
-            Add friends with their 6-character code (Profile tab) and play friendlies
-            against their latest synced XI - just for fun, no coins.
+            {t('helpF1')}
           </Text>
           <Text style={styles.text}>
-            Play ONLINE: if both of you have the app open, challenge a friend to a live
-            match - you both watch the exact same game, make your own half-time changes,
-            and settle a draw with a player-vs-player penalty shootout: the shooter
-            picks a corner first, only then the keeper picks the dive.
+            {t('helpF2')}
           </Text>
         </Card>
 
         <GKButton
-          title="Back"
+          title={t('back')}
           variant="ghost"
           style={styles.backBtn}
           onPress={() => navigation.goBack()}

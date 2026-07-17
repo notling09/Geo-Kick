@@ -3,6 +3,7 @@ import {
   type LiveMatchState, type LiveOutcome, type SimResult, type SimTeam,
 } from '../core/engine/matchSim';
 import type { Tactic } from '../core/domain/types';
+import { tf } from '../core/i18n';
 import { useGameStore } from './gameStore';
 
 /**
@@ -123,10 +124,10 @@ export async function runUserMatch(hooks: UserMatchHooks): Promise<void> {
             type: 'wechsel',
             team: userSide,
             text: inName && outName
-              ? `Substitution (${userTeam.name}): ${inName} ON for ${outName}.`
+              ? tf('simSubBoth', { club: userTeam.name, inName, outName })
               : inName
-                ? `Substitution (${userTeam.name}): ${inName} comes ON.`
-                : `Substitution (${userTeam.name}): ${outName} goes OFF.`,
+                ? tf('simSubIn', { club: userTeam.name, inName })
+                : tf('simSubOut', { club: userTeam.name, outName }),
           });
         }
         const oppSide: 'home' | 'away' = hooks.userIsHome ? 'away' : 'home';
@@ -135,7 +136,7 @@ export async function runUserMatch(hooks: UserMatchHooks): Promise<void> {
             minute: 45,
             type: 'wechsel',
             team: oppSide,
-            text: `Substitution (${hooks.opponent.name}): ${s.into} ON for ${s.out}.`,
+            text: tf('simSubBoth', { club: hooks.opponent.name, inName: s.into, outName: s.out }),
           });
         });
         await handle(continueLiveMatch(home(), away(), state));

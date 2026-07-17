@@ -3,6 +3,7 @@ import { Image, StyleSheet, Text, View, useWindowDimensions } from 'react-native
 import { GKButton } from '../../ui/components';
 import { PitchBackground } from '../../ui/PitchBackground';
 import { colors, font, spacing } from '../../ui/theme';
+import { t } from '../../core/i18n';
 import { useGameStore } from '../../state/gameStore';
 import type { RootScreenProps } from '../../navigation/types';
 
@@ -28,10 +29,10 @@ export function StartScreen({ navigation }: RootScreenProps<'Start'>) {
             style={{ width: width * 0.88, height: width * 0.88 * (368 / 1243) }}
             resizeMode="contain"
           />
-          <Text style={styles.subtitle}>Play for real. Rise virtually.</Text>
+          <Text style={styles.subtitle}>{t('stSlogan')}</Text>
         </View>
         <GKButton
-          title="Click to Start"
+          title={t('stTap')}
           variant="secondary"
           style={styles.button}
           onPress={() => navigation.replace(onboarded ? 'Main' : 'Onboarding')}

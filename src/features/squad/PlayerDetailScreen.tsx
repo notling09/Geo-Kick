@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   MAX_PLAYER_OVERALL, POSITION_LABEL, RARITY_COLOR, RARITY_LABEL, SELL_VALUE, levelUpCost,
 } from '../../core/domain/constants';
+import { t, tf, type TKey } from '../../core/i18n';
 import { effectiveAttributes, effectiveOverall } from '../../core/engine/playerGen';
 import { useGameStore } from '../../state/gameStore';
 import { GKButton, Card, SectionTitle } from '../../ui/components';
@@ -16,12 +17,12 @@ import type { RootScreenProps } from '../../navigation/types';
  * duplicates and pack bonuses, V3) and selling for coins.
  */
 
-const ATTR_LABELS: Array<[keyof ReturnType<typeof effectiveAttributes>, string]> = [
-  ['tempo', 'Pace'],
-  ['technik', 'Technique'],
-  ['abschluss', 'Finishing'],
-  ['verteidigung', 'Defending'],
-  ['kondition', 'Stamina'],
+const ATTR_LABELS: Array<[keyof ReturnType<typeof effectiveAttributes>, TKey]> = [
+  ['tempo', 'pdPace'],
+  ['technik', 'pdTechnique'],
+  ['abschluss', 'pdFinishing'],
+  ['verteidigung', 'pdDefending'],
+  ['kondition', 'pdStamina'],
 ];
 
 export function PlayerDetailScreen({ route, navigation }: RootScreenProps<'PlayerDetail'>) {
@@ -35,8 +36,8 @@ export function PlayerDetailScreen({ route, navigation }: RootScreenProps<'Playe
   if (!player) {
     return (
       <SafeAreaView style={styles.safe}>
-        <Text style={styles.emptyText}>Player not found.</Text>
-        <GKButton title="Back" variant="ghost" onPress={() => navigation.goBack()} />
+        <Text style={styles.emptyText}>{t('pdNotFound')}</Text>
+        <GKButton title={t('back')} variant="ghost" onPress={() => navigation.goBack()} />
       </SafeAreaView>
     );
   }
@@ -48,12 +49,12 @@ export function PlayerDetailScreen({ route, navigation }: RootScreenProps<'Playe
 
   const onSell = () => {
     Alert.alert(
-      `Sell ${player.pool.name}?`,
-      `You will receive ${sellValue} coins. This cannot be undone.`,
+      tf('pdSellConfirmTitle', { name: player.pool.name }),
+      tf('pdSellConfirmBody', { n: sellValue }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         {
-          text: `Sell for ${sellValue}`,
+          text: `${t('pdSell')} +${sellValue}`,
           style: 'destructive',
           onPress: async () => {
             const ok = await sellPlayer(player.id);
@@ -71,17 +72,17 @@ export function PlayerDetailScreen({ route, navigation }: RootScreenProps<'Playe
           <PlayerAvatar player={player.pool} size={96} />
           <Text style={styles.heroName}>{player.pool.name}</Text>
           <Text style={styles.heroMeta}>
-            {POSITION_LABEL[player.pool.position]} · {RARITY_LABEL[player.pool.rarity]} · Level{' '}
-            {player.level}
+            {POSITION_LABEL[player.pool.position]} · {RARITY_LABEL[player.pool.rarity]} ·{' '}
+            {tf('pdLevel', { n: player.level })}
           </Text>
           <Text style={styles.heroOverall}>{overall}</Text>
         </View>
 
-        <SectionTitle>Attributes</SectionTitle>
+        <SectionTitle>{t('pdAttributes')}</SectionTitle>
         <Card>
           {ATTR_LABELS.map(([key, label]) => (
             <View key={key} style={styles.attrRow}>
-              <Text style={styles.attrLabel}>{label}</Text>
+              <Text style={styles.attrLabel}>{t(label)}</Text>
               <View style={styles.attrBarWrap}>
                 <View
                   style={[
@@ -95,7 +96,7 @@ export function PlayerDetailScreen({ route, navigation }: RootScreenProps<'Playe
           ))}
         </Card>
 
-        <SectionTitle>Level up</SectionTitle>
+        <SectionTitle>{t('pdLevelUp')}</SectionTitle>
         <Card>
           {(() => {
             const cost = overall >= MAX_PLAYER_OVERALL ? null : levelUpCost(overall);
@@ -103,18 +104,15 @@ export function PlayerDetailScreen({ route, navigation }: RootScreenProps<'Playe
               <>
                 <Text style={styles.trainText}>
                   {cost === null
-                    ? `${player.pool.name} has reached the maximum rating of ${MAX_PLAYER_OVERALL}.`
-                    : `Next level costs ${cost} points (rating ${overall}). You have ${levelPoints} level-up points - earn more from duplicates and pack bonuses.`}
+                    ? tf('pdMaxReached', { name: player.pool.name, max: MAX_PLAYER_OVERALL })
+                    : tf('pdLevelCost', { cost, ovr: overall, points: levelPoints })}
                 </Text>
                 <GKButton
-                  title={cost === null ? 'Maximum reached' : `Level up for ${cost} points`}
+                  title={cost === null ? t('pdMaxBtn') : tf('pdLevelBtn', { n: cost })}
                   onPress={async () => {
                     const result = await levelUpPlayer(player.id);
                     if (result === 'points') {
-                      Alert.alert(
-                        'Not enough points',
-                        'Earn level-up points from duplicates and pack bonuses.',
-                      );
+                      Alert.alert(t('pdNoPointsTitle'), t('pdNoPoints'));
                     }
                   }}
                   disabled={cost === null || levelPoints < cost}
@@ -124,23 +122,23 @@ export function PlayerDetailScreen({ route, navigation }: RootScreenProps<'Playe
           })()}
         </Card>
 
-        <SectionTitle>Sell</SectionTitle>
+        <SectionTitle>{t('pdSell')}</SectionTitle>
         <Card>
           {player.pool.rarity === 'geheim' ? (
             <Text style={styles.trainText}>
-              This is the one-of-a-kind ??? card - it cannot be sold.
+              {t('pdMysteryNoSell')}
             </Text>
           ) : (
             <>
               <Text style={styles.trainText}>
                 {isCaptain
-                  ? 'This player is your captain. Pick a new captain on the Squad tab first to sell him.'
+                  ? t('pdCaptainNoSell')
                   : inLineup
-                    ? 'This player is in your starting XI. Remove him from the lineup first to sell him.'
-                    : `Selling gives you ${sellValue} coins (${RARITY_LABEL[player.pool.rarity]}).`}
+                    ? t('pdLineupNoSell')
+                    : tf('pdSellInfo', { n: sellValue, rarity: RARITY_LABEL[player.pool.rarity] })}
               </Text>
               <GKButton
-                title={`Sell for ${sellValue} coins`}
+                title={tf('pdSellBtn', { n: sellValue })}
                 variant="danger"
                 onPress={onSell}
                 disabled={inLineup || isCaptain}
@@ -150,7 +148,7 @@ export function PlayerDetailScreen({ route, navigation }: RootScreenProps<'Playe
         </Card>
 
         <GKButton
-          title="Back"
+          title={t('back')}
           variant="ghost"
           style={{ marginTop: spacing.md }}
           onPress={() => navigation.goBack()}

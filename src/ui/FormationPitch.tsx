@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { FORMATIONS, POSITION_SHORT } from '../core/domain/constants';
 import type { FormationId, OwnedPlayer, Position } from '../core/domain/types';
+import { t } from '../core/i18n';
 import { effectiveOverall } from '../core/engine/playerGen';
 import { IconSwap } from './icons';
 import { PitchBackground } from './PitchBackground';
@@ -127,7 +128,7 @@ export function FormationPitch({
                   <Pressable onPress={() => onSwapPress(slot)} style={styles.emptySlot}>
                     <Text style={styles.emptyText}>{POSITION_SHORT[position]}</Text>
                   </Pressable>
-                  <Text style={styles.chipName}>tap to fill</Text>
+                  <Text style={styles.chipName}>{t('sqTapFill')}</Text>
                 </>
               )}
             </View>

@@ -1,10 +1,11 @@
 import * as Location from 'expo-location';
 import { create } from 'zustand';
 import {
-  ANTI_CHEAT, BALANCING, DISCOVERY, FITNESS_BONUS_COINS, FITNESS_OBJECTIVES,
-  OBJECTIVE_BONUS_COINS, SKILL_OBJECTIVES, SKILL_OBJECTIVES_PER_SESSION,
+  ANTI_CHEAT, BALANCING, DISCOVERY, FITNESS_BONUS_COINS, fitnessObjectives,
+  OBJECTIVE_BONUS_COINS, skillObjectives, SKILL_OBJECTIVES_PER_SESSION,
 } from '../core/domain/constants';
 import type { Session, Spot } from '../core/domain/types';
+import { t } from '../core/i18n';
 import { dayKey } from '../core/engine/pitchBattle';
 import { shuffle } from '../core/engine/random';
 import { calculateReward } from '../core/engine/rewards';
@@ -199,8 +200,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     } catch (e) {
       set({
         osmLoading: false,
-        osmError:
-          'Could not load pitches from OpenStreetMap right now. Tap the refresh button to retry, or add a pitch yourself by long-pressing the map.',
+        osmError: t('mapOsmError'),
       });
       return 0;
     }
@@ -209,7 +209,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   addUserSpot: async (name, latitude, longitude) => {
     await spotRepo.addUserSpot({
       id: `user-${Date.now()}`,
-      name: name.trim() || 'My pitch',
+      name: name.trim() || t('mapMyPitch'),
       latitude,
       longitude,
       radius: BALANCING.defaultSpotRadius,
@@ -224,22 +224,22 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     await sessionRepo.voidOrphanOpenSessions();
     if (spot.cooldownUntil > Date.now()) {
       const mins = Math.ceil((spot.cooldownUntil - Date.now()) / 60000);
-      return { ok: false, reason: 'cooldown', detail: `${mins} Min.` };
+      return { ok: false, reason: 'cooldown', detail: `${mins} min` };
     }
     const pos = await getVerifiedPosition();
     if (!pos.ok) return { ok: false, reason: pos.reason };
     // Geofencing: Position muss im Platz-Radius liegen
     const dist = distanceMeters(pos.latitude, pos.longitude, spot.latitude, spot.longitude);
     if (dist > spot.radius) {
-      return { ok: false, reason: 'too_far', detail: `${Math.round(dist)} m entfernt` };
+      return { ok: false, reason: 'too_far', detail: `${Math.round(dist)} m` };
     }
     const id = await sessionRepo.startSession(spot.id, Date.now());
     // Bewegungssensor-Messung für diese Session starten (Kapitel 6.2)
     await startMotionTracking(true);
     // 2 Skill-Aufgaben (Ehrensystem) + 1 sensorverifizierte Fitness-Aufgabe
-    const fitness = shuffle(FITNESS_OBJECTIVES)[0];
+    const fitness = shuffle(fitnessObjectives())[0];
     const objectives: SessionObjective[] = [
-      ...shuffle(SKILL_OBJECTIVES)
+      ...shuffle(skillObjectives())
         .slice(0, SKILL_OBJECTIVES_PER_SESSION)
         .map((text) => ({
           text,

@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import { t, tf } from '../../core/i18n';
 import { useCloudStore } from '../../state/cloudStore';
 import { useFriendsStore } from '../../state/friendsStore';
 import { useOnlineStore } from '../../state/onlineStore';
@@ -43,7 +44,7 @@ export function FriendliesScreen({ navigation }: RootScreenProps<'Friendlies'>) 
       if (ok) {
         navigation.navigate('OnlineLobby');
       } else {
-        Alert.alert('Not possible', 'Could not start an online match. Check your connection.');
+        Alert.alert(t('frPlayErrTitle'), t('frOnlineErr'));
       }
     } finally {
       setInvitingId(null);
@@ -58,7 +59,7 @@ export function FriendliesScreen({ navigation }: RootScreenProps<'Friendlies'>) 
 
   const onAdd = async () => {
     if (code.trim().length !== 6) {
-      Alert.alert('Invalid code', 'Friend codes have exactly 6 characters.');
+      Alert.alert(t('frInvalidTitle'), t('frInvalid'));
       return;
     }
     setAdding(true);
@@ -68,12 +69,12 @@ export function FriendliesScreen({ navigation }: RootScreenProps<'Friendlies'>) 
         setCode('');
       } else {
         const messages: Record<Exclude<typeof result, 'ok'>, string> = {
-          not_found: 'No club found with this code. Double-check it with your friend.',
-          own_code: 'That is your own code - add a friend instead!',
-          already_added: 'This club is already in your friends list.',
-          offline: 'Could not reach the server. Try again later.',
+          not_found: t('frNotFound'),
+          own_code: t('frOwnCode'),
+          already_added: t('frAlready'),
+          offline: t('frOfflineErr'),
         };
-        Alert.alert('Could not add friend', messages[result]);
+        Alert.alert(t('frAddErrTitle'), messages[result]);
       }
     } finally {
       setAdding(false);
@@ -87,7 +88,7 @@ export function FriendliesScreen({ navigation }: RootScreenProps<'Friendlies'>) 
       if (played) {
         navigation.navigate('MatchLive');
       } else {
-        Alert.alert('Not possible', 'Could not load your friend’s squad. Try again later.');
+        Alert.alert(t('frPlayErrTitle'), t('frPlayErr'));
       }
     } finally {
       setPlayingId(null);
@@ -95,9 +96,9 @@ export function FriendliesScreen({ navigation }: RootScreenProps<'Friendlies'>) 
   };
 
   const onRemove = (friendId: string, name: string) => {
-    Alert.alert(`Remove ${name}?`, 'You can add the club again anytime with its code.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: () => void removeFriend(friendId) },
+    Alert.alert(tf('frRemoveTitle', { name }), t('frRemoveBody'), [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('remove'), style: 'destructive', onPress: () => void removeFriend(friendId) },
     ]);
   };
 
@@ -109,46 +110,46 @@ export function FriendliesScreen({ navigation }: RootScreenProps<'Friendlies'>) 
           <RefreshControl refreshing={loading} onRefresh={() => void loadFriends()} />
         }
       >
-        <Text style={styles.title}>Friendlies</Text>
+        <Text style={styles.title}>{t('frTitle')}</Text>
 
         {cloudStatus !== 'online' ? (
           <Card>
             <Text style={styles.offlineText}>
               {cloudStatus === 'connecting'
-                ? 'Connecting to the cloud …'
-                : 'Friendlies need an internet connection. Your club plays on - try again later.'}
+                ? t('frConnecting')
+                : t('frOffline')}
             </Text>
           </Card>
         ) : (
           <>
             <Card style={styles.codeCard}>
-              <Text style={styles.codeLabel}>Your friend code</Text>
+              <Text style={styles.codeLabel}>{t('frYourCode')}</Text>
               <Text style={styles.codeValue}>{myCode ?? '…'}</Text>
               <Text style={styles.codeHint}>
-                Share it with friends so they can add your club.
+                {t('frShare')}
               </Text>
             </Card>
 
-            <SectionTitle>Add a friend</SectionTitle>
+            <SectionTitle>{t('frAddFriend')}</SectionTitle>
             <Card style={styles.addRow}>
               <TextInput
                 style={styles.input}
                 placeholder="ABC123"
                 placeholderTextColor={colors.inkSoft}
                 value={code}
-                onChangeText={(t) => setCode(t.toUpperCase())}
+                onChangeText={(v) => setCode(v.toUpperCase())}
                 autoCapitalize="characters"
                 autoCorrect={false}
                 maxLength={6}
               />
-              <GKButton title="Add" onPress={onAdd} loading={adding} style={styles.addBtn} />
+              <GKButton title={t('add')} onPress={onAdd} loading={adding} style={styles.addBtn} />
             </Card>
 
-            <SectionTitle>Your friends ({friends.length})</SectionTitle>
+            <SectionTitle>{tf('frYourFriends', { n: friends.length })}</SectionTitle>
             {friends.length === 0 ? (
               <Card>
                 <Text style={styles.offlineText}>
-                  No friends yet. Send them the app and swap codes!
+                  {t('frNoFriends')}
                 </Text>
               </Card>
             ) : (
@@ -163,22 +164,22 @@ export function FriendliesScreen({ navigation }: RootScreenProps<'Friendlies'>) 
                           {f.club_name}
                         </Text>
                         <Text style={styles.friendMeta}>
-                          Division {f.division} · Strength {f.strength} · {f.formation}
+                          {tf('frMeta', { div: f.division, str: f.strength, form: f.formation })}
                         </Text>
                         <Text style={styles.friendRecord}>
-                          Your record: {rec.w}W {rec.d}D {rec.l}L
+                          {tf('frRecord', { w: rec.w, d: rec.d, l: rec.l })}
                         </Text>
                       </View>
                     </View>
                     <View style={styles.friendButtons}>
                       <GKButton
-                        title="Play friendly"
+                        title={t('frPlay')}
                         onPress={() => onPlay(f.id)}
                         loading={playingId === f.id}
                         style={{ flex: 1 }}
                       />
                       <GKButton
-                        title="Play online"
+                        title={t('frPlayOnline')}
                         variant="secondary"
                         onPress={() => onPlayOnline(f.id, f.club_name)}
                         loading={invitingId === f.id}
@@ -199,7 +200,7 @@ export function FriendliesScreen({ navigation }: RootScreenProps<'Friendlies'>) 
         )}
 
         <GKButton
-          title="Back"
+          title={t('back')}
           variant="ghost"
           style={{ marginTop: spacing.md }}
           onPress={() => navigation.goBack()}

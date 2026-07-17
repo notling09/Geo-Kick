@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Line, Rect } from 'react-native-svg';
+import { t, tf } from '../core/i18n';
 import { colors, font, spacing } from './theme';
 
 /**
@@ -96,15 +97,15 @@ export function PenaltyGoal({ mode, shooter, keeper, onDone, onPick, externalRes
       <Text style={styles.prompt}>
         {result
           ? result.scored
-            ? 'GOAL!'
-            : 'SAVED!'
+            ? t('penGoal')
+            : t('penSaved')
           : picked
-            ? 'Waiting for the opponent...'
+            ? t('penWaiting')
             : locked
-              ? `${shooter} is picking a corner...`
+              ? tf('penPicking', { shooter })
               : mode === 'shoot'
-                ? `${shooter} steps up - tap a corner!`
-                : `${shooter} steps up - tap where ${keeper} dives!`}
+                ? tf('penShootPrompt', { shooter })
+                : tf('penDivePrompt', { shooter, keeper })}
       </Text>
       <View style={styles.imageWrap}>
         <Image source={GOAL_IMAGE} style={styles.image} resizeMode="cover" />

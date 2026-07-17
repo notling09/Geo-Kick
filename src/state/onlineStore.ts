@@ -2,6 +2,7 @@ import { Alert } from 'react-native';
 import { create } from 'zustand';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import type { MatchEvent, Position, Tactic } from '../core/domain/types';
+import { t, tf } from '../core/i18n';
 import {
   simulateFirstHalf, simulateSecondHalf, type HalfTimeState, type MatchMotm, type SimTeam,
 } from '../core/engine/matchSim';
@@ -186,7 +187,7 @@ export const useOnlineStore = create<OnlineState>((set, get) => {
   const opponentLeft = () => {
     const phase = get().phase;
     if (phase === 'idle' || phase === 'done') return;
-    Alert.alert('Opponent left', 'The connection to your opponent was lost - match cancelled.');
+    Alert.alert(t('onLeftTitle'), t('onLeftBody'));
     // Keine Store-Navigation: die Screens reagieren selbst auf phase 'idle'
     // (sonst kommt es zu doppelten Back-Sprüngen)
     void cleanup();
@@ -264,10 +265,10 @@ export const useOnlineStore = create<OnlineState>((set, get) => {
           type: 'wechsel',
           team: side,
           text: ins[i] && outs[i]
-            ? `Substitution (${after.name}): ${ins[i]} ON for ${outs[i]}.`
+            ? tf('simSubBoth', { club: after.name, inName: ins[i], outName: outs[i] })
             : ins[i]
-              ? `Substitution (${after.name}): ${ins[i]} comes ON.`
-              : `Substitution (${after.name}): ${outs[i]} goes OFF.`,
+              ? tf('simSubIn', { club: after.name, inName: ins[i] })
+              : tf('simSubOut', { club: after.name, outName: outs[i] }),
         });
       }
     };
@@ -422,7 +423,7 @@ export const useOnlineStore = create<OnlineState>((set, get) => {
       })
       .on('broadcast', { event: 'decline' }, ({ payload }) => {
         if (payload.senderId === myUserId) return;
-        Alert.alert('Declined', 'Your friend declined the challenge.');
+        Alert.alert(t('onDeclinedTitle'), t('onDeclinedBody'));
         void cleanup();
       })
       .on('broadcast', { event: 'ready' }, ({ payload }) => {
@@ -543,11 +544,11 @@ export const useOnlineStore = create<OnlineState>((set, get) => {
         const id = payload.matchId as string;
         if (get().phase !== 'idle') return; // beschäftigt: Einladung ignorieren
         Alert.alert(
-          'Online challenge!',
-          `${from.name} challenges you to a live friendly. Accept?`,
+          t('onChallengeTitle'),
+          tf('onChallengeBody', { name: from.name }),
           [
             {
-              text: 'Decline',
+              text: t('onDecline'),
               style: 'cancel',
               onPress: () => {
                 // Kurz beitreten, absagen, wieder gehen
@@ -561,14 +562,14 @@ export const useOnlineStore = create<OnlineState>((set, get) => {
               },
             },
             {
-              text: 'Accept',
+              text: t('onAccept'),
               onPress: () => {
                 void (async () => {
                   set({ phase: 'lobby', myRole: 'guest', opponent: from, myReady: false, oppReady: false });
                   const ok = await joinMatch(id, 'guest');
                   if (ok) navigate('OnlineLobby');
                   else {
-                    Alert.alert('Connection failed', 'Could not join the match. Try again.');
+                    Alert.alert(t('onConnFailTitle'), t('onConnFail'));
                     void cleanup();
                   }
                 })();

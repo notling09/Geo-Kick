@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { t, tf } from '../../core/i18n';
 import { useGameStore } from '../../state/gameStore';
 import { useOnlineStore } from '../../state/onlineStore';
 import { GKButton, Card } from '../../ui/components';
@@ -16,7 +17,7 @@ import type { RootScreenProps } from '../../navigation/types';
  */
 export function OnlineShootoutScreen({ navigation }: RootScreenProps<'OnlineShootout'>) {
   const { phase, myRole, opponent, shootout, sendShot, sendDive, leave } = useOnlineStore();
-  const clubName = useGameStore((s) => s.club?.name ?? 'Your club');
+  const clubName = useGameStore((s) => s.club?.name ?? '');
 
   // Verbindung weg / abgebrochen → zurück
   useEffect(() => {
@@ -26,7 +27,7 @@ export function OnlineShootoutScreen({ navigation }: RootScreenProps<'OnlineShoo
   if (!shootout || !myRole) {
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <Text style={styles.waiting}>Preparing the shootout …</Text>
+        <Text style={styles.waiting}>{t('osoPreparing')}</Text>
       </SafeAreaView>
     );
   }
@@ -64,7 +65,7 @@ export function OnlineShootoutScreen({ navigation }: RootScreenProps<'OnlineShoo
             <View style={styles.dotRow}>{dots(myKicks)}</View>
           </View>
           <View>
-            <Text style={styles.teamName} numberOfLines={1}>{opponent?.name ?? 'Opponent'}</Text>
+            <Text style={styles.teamName} numberOfLines={1}>{opponent?.name ?? t('onlineOpponent')}</Text>
             <View style={styles.dotRow}>{dots(oppKicks)}</View>
           </View>
         </View>
@@ -92,14 +93,14 @@ export function OnlineShootoutScreen({ navigation }: RootScreenProps<'OnlineShoo
           ) : (
             <Card style={styles.waitCard}>
               <Text style={styles.waitText}>
-                Corner picked! Waiting for the keeper to dive …
+                {t('osoPickedWaiting')}
               </Text>
             </Card>
           )
         ) : shootout.stage === 'pick' ? (
           <Card style={styles.waitCard}>
             <Text style={styles.waitText}>
-              {shootout.shooter} ({opponent?.name}) is picking a corner …
+              {tf('osoOppPicking', { shooter: shootout.shooter, club: opponent?.name ?? '' })}
             </Text>
           </Card>
         ) : (
@@ -117,11 +118,11 @@ export function OnlineShootoutScreen({ navigation }: RootScreenProps<'OnlineShoo
         <View style={styles.doneOverlay}>
           <Card style={styles.doneCard}>
             <Text style={[styles.doneTitle, { color: iWon ? colors.pitch : colors.danger }]}>
-              {iWon ? 'Shootout won!' : 'Shootout lost'}
+              {iWon ? t('soWon') : t('soLost')}
             </Text>
-            <Text style={styles.doneScore}>{myGoals}:{oppGoals} on penalties</Text>
+            <Text style={styles.doneScore}>{tf('soScoreLine', { score: `${myGoals}:${oppGoals}` })}</Text>
             <GKButton
-              title="Back"
+              title={t('back')}
               onPress={() => {
                 leave();
                 navigation.goBack();

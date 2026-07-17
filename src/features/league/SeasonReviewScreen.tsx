@@ -3,6 +3,7 @@ import { Animated, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { USER_CLUB_ID } from '../../core/domain/constants';
 import type { StandingRow } from '../../core/domain/types';
+import { t, tf } from '../../core/i18n';
 import { useGameStore } from '../../state/gameStore';
 import { useLeagueStore, type SeasonPlayerStat } from '../../state/leagueStore';
 import { GKButton, Card } from '../../ui/components';
@@ -127,8 +128,8 @@ export function SeasonReviewScreen({ navigation }: RootScreenProps<'SeasonReview
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       {step === 0 && (
         <View style={styles.stepWrap}>
-          <Text style={styles.title}>Season {review.season}</Text>
-          <Text style={styles.subtitle}>Final table - Division {review.oldDivision}</Text>
+          <Text style={styles.title}>{tf('rvSeason', { n: review.season })}</Text>
+          <Text style={styles.subtitle}>{tf('rvFinalTable', { n: review.oldDivision })}</Text>
           <ScrollView style={styles.tableWrap}>
             {review.standings.map((row, i) => (
               <TableRow
@@ -140,22 +141,22 @@ export function SeasonReviewScreen({ navigation }: RootScreenProps<'SeasonReview
               />
             ))}
           </ScrollView>
-          <Text style={styles.rankLine}>You finished {review.finalRank}. of 8</Text>
-          <GKButton title="Continue" onPress={() => setStep(1)} />
+          <Text style={styles.rankLine}>{tf('rvFinished', { rank: review.finalRank })}</Text>
+          <GKButton title={t('continue')} onPress={() => setStep(1)} />
         </View>
       )}
 
       {step === 1 && (
         <View style={styles.stepWrap}>
           <Text style={styles.title}>
-            {review.promoted ? 'PROMOTED!' : review.relegated ? 'Relegated' : 'Staying put'}
+            {review.promoted ? t('rvPromoted') : review.relegated ? t('rvRelegated') : t('rvStay')}
           </Text>
           <Text style={styles.subtitle}>
             {review.promoted
-              ? `Your club climbs to Division ${review.newDivision}!`
+              ? tf('rvPromotedSub', { n: review.newDivision })
               : review.relegated
-                ? `Down to Division ${review.newDivision} - bounce back next season!`
-                : `Another season in Division ${review.newDivision}.`}
+                ? tf('rvRelegatedSub', { n: review.newDivision })
+                : tf('rvStaySub', { n: review.newDivision })}
           </Text>
           <View style={styles.ladderWrap}>
             {[1, 2, 3, 4].map((d) => (
@@ -169,7 +170,7 @@ export function SeasonReviewScreen({ navigation }: RootScreenProps<'SeasonReview
                     d === review.newDivision && styles.ladderTextActive,
                   ]}
                 >
-                  Division {d}
+                  {tf('rvDivision', { n: d })}
                 </Text>
               </View>
             ))}
@@ -192,10 +193,10 @@ export function SeasonReviewScreen({ navigation }: RootScreenProps<'SeasonReview
             </Animated.View>
           </View>
           {review.prize > 0 && (
-            <Text style={styles.prizeLine}>Season prize: +{review.prize} coins!</Text>
+            <Text style={styles.prizeLine}>{tf('rvPrize', { n: review.prize })}</Text>
           )}
           <GKButton
-            title={review.best ? 'The Player of the Season was...' : 'Continue'}
+            title={review.best ? t('rvPosButton') : t('continue')}
             onPress={() => setStep(review.best ? 2 : 3)}
           />
         </View>
@@ -203,7 +204,7 @@ export function SeasonReviewScreen({ navigation }: RootScreenProps<'SeasonReview
 
       {step === 2 && review.best && (
         <View style={[styles.stepWrap, styles.posWrap]}>
-          <Text style={styles.posHeading}>Player of the Season</Text>
+          <Text style={styles.posHeading}>{t('rvPosHeading')}</Text>
           <Animated.View style={[styles.posCard, { opacity: posName }]}>
             {bestPool ? (
               <PlayerAvatar player={bestPool} size={130} />
@@ -215,25 +216,25 @@ export function SeasonReviewScreen({ navigation }: RootScreenProps<'SeasonReview
           <Animated.View style={[styles.posStatsRow, { opacity: posStats }]}>
             <View style={styles.posStat}>
               <Text style={styles.posStatValue}>{review.best.goals}</Text>
-              <Text style={styles.posStatLabel}>goals</Text>
+              <Text style={styles.posStatLabel}>{t('rvGoals')}</Text>
             </View>
             <View style={styles.posStat}>
               <Text style={styles.posStatValue}>{review.best.assists}</Text>
-              <Text style={styles.posStatLabel}>assists</Text>
+              <Text style={styles.posStatLabel}>{t('rvAssists')}</Text>
             </View>
             <View style={styles.posStat}>
               <Text style={styles.posStatValue}>{review.best.avg.toFixed(1)}</Text>
-              <Text style={styles.posStatLabel}>avg rating /10</Text>
+              <Text style={styles.posStatLabel}>{t('rvAvg')}</Text>
             </View>
           </Animated.View>
-          <GKButton title="Continue" onPress={() => setStep(3)} />
+          <GKButton title={t('continue')} onPress={() => setStep(3)} />
         </View>
       )}
 
       {step === 3 && (
         <View style={styles.stepWrap}>
-          <Text style={styles.title}>Season ratings</Text>
-          <Text style={styles.subtitle}>Your squad's average match ratings</Text>
+          <Text style={styles.title}>{t('rvRatings')}</Text>
+          <Text style={styles.subtitle}>{t('rvRatingsSub')}</Text>
           <View style={styles.pitchWrap}>
             <View style={StyleSheet.absoluteFill}>
               <PitchBackground width={360} height={430} />
@@ -274,7 +275,7 @@ export function SeasonReviewScreen({ navigation }: RootScreenProps<'SeasonReview
               ))}
             </Card>
           )}
-          <GKButton title="Finish" onPress={onFinish} />
+          <GKButton title={t('finish')} onPress={onFinish} />
         </View>
       )}
     </SafeAreaView>

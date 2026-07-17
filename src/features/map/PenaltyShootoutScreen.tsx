@@ -3,6 +3,7 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Line, Rect } from 'react-native-svg';
 import { shootoutWinner } from '../../core/engine/shootout';
+import { t, tf } from '../../core/i18n';
 import { playSound } from '../../core/services/sound';
 import { useBattleStore } from '../../state/battleStore';
 import { useGameStore } from '../../state/gameStore';
@@ -83,7 +84,7 @@ function Keeper({ size = 58 }: { size?: number }) {
 
 export function PenaltyShootoutScreen({ navigation }: RootScreenProps<'Shootout'>) {
   const setup = useBattleStore((s) => s.pendingShootout);
-  const clubName = useGameStore((s) => s.club?.name ?? 'Your club');
+  const clubName = useGameStore((s) => s.club?.name ?? '');
 
   const [kicks, setKicks] = useState<Kick[]>([]);
   const [phase, setPhase] = useState<'aim' | 'result' | 'done'>('aim');
@@ -190,7 +191,7 @@ export function PenaltyShootoutScreen({ navigation }: RootScreenProps<'Shootout'
           <View style={styles.scoreBlock}>
             <View style={styles.scoreLine}>
               <Text style={styles.shootingTeam} numberOfLines={1}>
-                {shooting ? clubName : setup.opponentName} shoot{shooting ? '' : 's'}
+                {tf('soShootsSuffix', { team: shooting ? clubName : setup.opponentName })}
               </Text>
               <Text style={styles.score}>{userGoals}:{oppGoals}</Text>
             </View>
@@ -201,11 +202,11 @@ export function PenaltyShootoutScreen({ navigation }: RootScreenProps<'Shootout'
         <Text style={styles.promptText}>
           {phase === 'result' && lastShot
             ? lastShot.scored
-              ? 'GOAL!'
-              : 'SAVED!'
+              ? t('penGoal')
+              : t('penSaved')
             : shooting
-              ? 'You shoot - tap a corner!'
-              : 'Your keeper saves - tap where to dive!'}
+              ? t('soYouShoot')
+              : t('soYouSave')}
         </Text>
       </View>
 
@@ -251,13 +252,13 @@ export function PenaltyShootoutScreen({ navigation }: RootScreenProps<'Shootout'
         <View style={styles.doneOverlay}>
           <Card style={styles.doneCard}>
             <Text style={[styles.doneTitle, { color: winner === 'user' ? colors.pitch : colors.danger }]}>
-              {winner === 'user' ? 'Shootout won!' : 'Shootout lost'}
+              {winner === 'user' ? t('soWon') : t('soLost')}
             </Text>
             <Text style={styles.doneScore}>
-              {userGoals}:{oppGoals} on penalties
+              {tf('soScoreLine', { score: `${userGoals}:${oppGoals}` })}
             </Text>
             {rewardText && <Text style={styles.doneReward}>{rewardText}</Text>}
-            <GKButton title="Back to the map" onPress={() => navigation.goBack()} />
+            <GKButton title={t('soBackMap')} onPress={() => navigation.goBack()} />
           </Card>
         </View>
       )}

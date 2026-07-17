@@ -18,6 +18,7 @@ import { OnlineLobbyScreen } from '../features/friends/OnlineLobbyScreen';
 import { OnlineShootoutScreen } from '../features/friends/OnlineShootoutScreen';
 import { StartScreen } from '../features/start/StartScreen';
 import { OnboardingScreen } from '../features/onboarding/OnboardingScreen';
+import { t, type TKey } from '../core/i18n';
 import { colors } from '../ui/theme';
 import { IconMap, IconPack, IconProfile, IconSquad, IconTrophy, type IconProps } from '../ui/icons';
 import type { MainTabParamList, RootStackParamList } from './types';
@@ -33,6 +34,14 @@ const TAB_ICONS: Record<keyof MainTabParamList, React.ComponentType<IconProps>> 
   Profile: IconProfile,
 };
 
+const TAB_LABELS: Record<keyof MainTabParamList, TKey> = {
+  Map: 'mapTitle',
+  Squad: 'sqTitle',
+  League: 'lgTitle',
+  Packs: 'pkTitle',
+  Profile: 'prTitle',
+};
+
 function MainTabs() {
   return (
     <Tabs.Navigator
@@ -40,6 +49,7 @@ function MainTabs() {
         headerShown: false,
         tabBarActiveTintColor: colors.pitch,
         tabBarInactiveTintColor: colors.inkSoft,
+        tabBarLabel: t(TAB_LABELS[route.name as keyof MainTabParamList]),
         tabBarLabelStyle: { fontWeight: '700' },
         tabBarIcon: ({ color, size }) => {
           const Icon = TAB_ICONS[route.name as keyof MainTabParamList];

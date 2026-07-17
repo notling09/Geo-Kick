@@ -1,3 +1,4 @@
+import { t, tf, type TKey } from '../i18n';
 import { MATCH_SIM } from '../domain/constants';
 import type { MatchEvent, MatchStats, Position, Tactic, TeamStats } from '../domain/types';
 import { FIRST_NAMES, LAST_NAMES } from './names';
@@ -82,30 +83,14 @@ function tacticChanceRate(tactic: Tactic): number {
   return base;
 }
 
-const CHANCE_TEXTS = [
-  'fires just past the post - big chance!',
-  'strikes from distance, the keeper tips it over the bar.',
-  'leads the counter-attack, but the final pass is overhit.',
-  'heads the cross inches over the crossbar.',
-  'is through one-on-one but the keeper stands tall.',
-];
+// Ticker-Texte: Übersetzungs-Schlüssel, erst beim Ziehen aufgelöst (i18n)
+const CHANCE_TEXTS: TKey[] = ['simChance1', 'simChance2', 'simChance3', 'simChance4', 'simChance5'];
+const GOAL_TEXTS: TKey[] = ['simGoal1', 'simGoal2', 'simGoal3', 'simGoal4', 'simGoal5'];
+const CORNER_TEXTS: TKey[] = ['simCorner1', 'simCorner2'];
+const FOUL_TEXTS: TKey[] = ['simFoul1', 'simFoul2'];
 
-const GOAL_TEXTS = [
-  'with a dry finish into the far corner!',
-  'rises highest and heads it in - unstoppable!',
-  'finishes a dream combination ice-cold!',
-  'sees his deflected shot beat the keeper!',
-  'caps off a textbook counter-attack!',
-];
-
-const CORNER_TEXTS = ['Corner kick - the delivery is cleared.', 'Corner from the left, the keeper claims it safely.'];
-const FOUL_TEXTS = [
-  'goes in hard in midfield - free kick.',
-  'stops the attack with a tactical foul, the referee has a word.',
-];
-
-function pickText(texts: readonly string[]): string {
-  return texts[Math.floor(Math.random() * texts.length)];
+function pickText(keys: readonly TKey[]): string {
+  return t(keys[Math.floor(Math.random() * keys.length)]);
 }
 
 /** Positions-Gewichte: wer erzielt Tore/hat Chancen (Stürmer am ehesten). */
@@ -175,8 +160,8 @@ function computeMotm(
     const name = key.slice(key.indexOf(':') + 1);
     const rating = Math.min(10, 6.5 + c.goals * 1.2 + c.assists * 0.6 + teamBonus(c.team));
     const parts: string[] = [];
-    if (c.goals > 0) parts.push(`${c.goals} goal${c.goals > 1 ? 's' : ''}`);
-    if (c.assists > 0) parts.push(`${c.assists} assist${c.assists > 1 ? 's' : ''}`);
+    if (c.goals > 0) parts.push(tf(c.goals > 1 ? 'motmGoalsPl' : 'motmGoals', { n: c.goals }));
+    if (c.assists > 0) parts.push(tf(c.assists > 1 ? 'motmAssistsPl' : 'motmAssists', { n: c.assists }));
     candidates.push({
       name,
       team: c.team,
@@ -192,14 +177,14 @@ function computeMotm(
     const saves = stats[side].saves;
     if (conceded === 0 || saves >= 4) {
       const parts: string[] = [];
-      if (saves > 0) parts.push(`${saves} save${saves > 1 ? 's' : ''}`);
-      if (conceded === 0) parts.push('clean sheet');
+      if (saves > 0) parts.push(tf(saves > 1 ? 'motmSavesPl' : 'motmSaves', { n: saves }));
+      if (conceded === 0) parts.push(t('motmCleanSheet'));
       candidates.push({
         name: keeperName(side === 'home' ? home : away),
         team: side,
         teamName: side === 'home' ? home.name : away.name,
         rating: Math.min(10, 6.5 + saves * 0.35 + (conceded === 0 ? 0.8 : 0) + teamBonus(side)),
-        summary: parts.join(', ') || 'solid at the back',
+        summary: parts.join(', ') || t('motmSolid'),
       });
     }
   });
@@ -212,7 +197,7 @@ function computeMotm(
       team: side,
       teamName: side === 'home' ? home.name : away.name,
       rating: 6.8,
-      summary: 'kept his team in the game',
+      summary: t('motmKept'),
     });
   }
 
@@ -264,7 +249,7 @@ function executePenalty(
       type: 'tor',
       team: side,
       player: shooter,
-      text: `GOAL! ${shooter} (${atk.name}) buries the penalty! ${ctx.homeGoals}:${ctx.awayGoals}`,
+      text: tf('simPenaltyGoal', { shooter, club: atk.name, score: `${ctx.homeGoals}:${ctx.awayGoals}` }),
     });
   } else {
     ctx.stats[defSide].saves++;
@@ -273,7 +258,7 @@ function executePenalty(
       type: 'parade',
       team: defSide,
       player: keeper,
-      text: `PENALTY SAVED! ${keeper} (${def.name}) denies ${shooter}!`,
+      text: tf('simPenaltySaved', { keeper, club: def.name, shooter }),
     });
   }
 }
@@ -312,7 +297,7 @@ function simulateRange(
         minute,
         type: 'elfmeter',
         team: side,
-        text: `PENALTY! Foul in the box - spot kick for ${atk.name}!`,
+        text: tf('simPenaltyAwarded', { club: atk.name }),
       });
       const shooter = pickPlayerName(atk, SCORER_WEIGHTS);
       const keeper = keeperName(def);
@@ -370,8 +355,12 @@ function simulateRange(
           player: scorer,
           assist,
           text:
-            `GOAL! ${scorer} (${atk.name}) ${pickText(GOAL_TEXTS)} ${ctx.homeGoals}:${ctx.awayGoals}` +
-            (assist ? ` (assist: ${assist})` : ''),
+            tf('simGoal', {
+              scorer,
+              club: atk.name,
+              flavor: pickText(GOAL_TEXTS),
+              score: `${ctx.homeGoals}:${ctx.awayGoals}`,
+            }) + (assist ? tf('simAssist', { name: assist }) : ''),
         });
       } else {
         // Kein Tor: in ~65 % der Fälle hält der gegnerische Torwart (V4: Saves)
@@ -383,13 +372,18 @@ function simulateRange(
           minute,
           type: 'chance',
           team: attackerSide,
-          text: `${player} (${atk.name}) ${pickText(CHANCE_TEXTS)}`,
+          text: tf('simChanceLine', { player, club: atk.name, flavor: pickText(CHANCE_TEXTS) }),
         });
       }
     } else if (roll < homeChanceRate + awayChanceRate + MATCH_SIM.cornerPerMinute) {
       const side = Math.random() < ctx.homeStrength / (ctx.homeStrength + ctx.awayStrength) ? 'home' : 'away';
       ctx.stats[side].corners++;
-      ctx.events.push({ minute, type: 'ecke', team: side, text: `${side === 'home' ? home.name : away.name}: ${pickText(CORNER_TEXTS)}` });
+      ctx.events.push({
+        minute,
+        type: 'ecke',
+        team: side,
+        text: tf('simCornerLine', { club: side === 'home' ? home.name : away.name, flavor: pickText(CORNER_TEXTS) }),
+      });
     } else if (roll < homeChanceRate + awayChanceRate + MATCH_SIM.cornerPerMinute + MATCH_SIM.foulPerMinute) {
       const side = Math.random() < 0.5 ? 'home' : 'away';
       const team = side === 'home' ? home : away;
@@ -399,7 +393,7 @@ function simulateRange(
         minute,
         type: 'foul',
         team: side,
-        text: `${offender} (${team.name}) ${pickText(FOUL_TEXTS)}`,
+        text: tf('simFoulLine', { player: offender, club: team.name, flavor: pickText(FOUL_TEXTS) }),
       });
 
       // Karten: gelb, zweite gelbe oder glatt rot (Kapitel-8-Feinjustierung V2)
@@ -412,7 +406,7 @@ function simulateRange(
           type: 'rot',
           team: side,
           player: offender,
-          text: `RED CARD! ${offender} (${team.name}) is sent off for a reckless challenge!`,
+          text: tf('simRed', { player: offender, club: team.name }),
         });
         if (side === 'home') ctx.homeStrength *= MATCH_SIM.redCardPenalty;
         else ctx.awayStrength *= MATCH_SIM.redCardPenalty;
@@ -426,7 +420,7 @@ function simulateRange(
             type: 'rot',
             team: side,
             player: offender,
-            text: `Second yellow - RED CARD! ${offender} (${team.name}) has to go off!`,
+            text: tf('simSecondYellow', { player: offender, club: team.name }),
           });
           if (side === 'home') ctx.homeStrength *= MATCH_SIM.redCardPenalty;
           else ctx.awayStrength *= MATCH_SIM.redCardPenalty;
@@ -437,7 +431,7 @@ function simulateRange(
             type: 'gelb',
             team: side,
             player: offender,
-            text: `Yellow card for ${offender} (${team.name}).`,
+            text: tf('simYellow', { player: offender, club: team.name }),
           });
         }
       }
@@ -457,12 +451,12 @@ export function simulateFirstHalf(home: SimTeam, away: SimTeam): HalfTimeState {
     homeStrength: home.strength,
     awayStrength: away.strength,
   };
-  ctx.events.push({ minute: 1, type: 'anpfiff', text: 'Kick-off! The match is under way.' });
+  ctx.events.push({ minute: 1, type: 'anpfiff', text: t('simKickoff') });
   simulateRange(ctx, home, away, 1, 45);
   ctx.events.push({
     minute: 45,
     type: 'halbzeit',
-    text: `Half-time. The score is ${ctx.homeGoals}:${ctx.awayGoals}.`,
+    text: tf('simHalftime', { score: `${ctx.homeGoals}:${ctx.awayGoals}` }),
   });
   return {
     homeGoals: ctx.homeGoals,
@@ -495,7 +489,7 @@ export function simulateSecondHalf(home: SimTeam, away: SimTeam, half: HalfTimeS
   ctx.events.push({
     minute: 90,
     type: 'abpfiff',
-    text: `Full-time! Final score ${ctx.homeGoals}:${ctx.awayGoals}.`,
+    text: tf('simFulltime', { score: `${ctx.homeGoals}:${ctx.awayGoals}` }),
   });
 
   // Ballbesitz aus dem Stärkeverhältnis (plus etwas Rauschen), 30–70 %
@@ -571,7 +565,7 @@ export function beginLiveMatch(home: SimTeam, away: SimTeam): { state: LiveMatch
     half: 1,
     homeGoals: 0,
     awayGoals: 0,
-    events: [{ minute: 1, type: 'anpfiff', text: 'Kick-off! The match is under way.' }],
+    events: [{ minute: 1, type: 'anpfiff', text: t('simKickoff') }],
     stats: { home: emptyStats(), away: emptyStats() },
     yellow: [],
     homeStrengthFactor: 1,
@@ -594,7 +588,7 @@ export function continueLiveMatch(home: SimTeam, away: SimTeam, state: LiveMatch
     ctx.events.push({
       minute: 45,
       type: 'halbzeit',
-      text: `Half-time. The score is ${ctx.homeGoals}:${ctx.awayGoals}.`,
+      text: tf('simHalftime', { score: `${ctx.homeGoals}:${ctx.awayGoals}` }),
     });
     saveCtx(ctx, home, away, state, 45);
     state.half = 2;
@@ -603,7 +597,7 @@ export function continueLiveMatch(home: SimTeam, away: SimTeam, state: LiveMatch
   ctx.events.push({
     minute: 90,
     type: 'abpfiff',
-    text: `Full-time! Final score ${ctx.homeGoals}:${ctx.awayGoals}.`,
+    text: tf('simFulltime', { score: `${ctx.homeGoals}:${ctx.awayGoals}` }),
   });
   const possHome = Math.round(
     Math.min(70, Math.max(30, 50 + ((home.strength - away.strength) / (home.strength + away.strength)) * 60 + (Math.random() * 8 - 4))),

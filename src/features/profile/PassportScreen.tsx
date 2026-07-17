@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { DISCOVERY } from '../../core/domain/constants';
+import { t, tf } from '../../core/i18n';
 import { dayKey } from '../../core/engine/pitchBattle';
 import { getVisitedSpots, type VisitedSpot } from '../../core/db/repositories/sessionRepo';
 import { getMeta, getMetaNumber } from '../../core/db/repositories/metaRepo';
@@ -18,9 +19,9 @@ import type { RootScreenProps } from '../../navigation/types';
 
 function formatLastVisit(ts: number): string {
   const days = Math.floor((Date.now() - ts) / 86400000);
-  if (days === 0) return 'today';
-  if (days === 1) return 'yesterday';
-  return `${days} days ago`;
+  if (days === 0) return t('ppToday');
+  if (days === 1) return t('ppYesterday');
+  return tf('ppDaysAgo', { n: days });
 }
 
 export function PassportScreen({ navigation }: RootScreenProps<'Passport'>) {
@@ -54,19 +55,19 @@ export function PassportScreen({ navigation }: RootScreenProps<'Passport'>) {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>Pitch Passport</Text>
+        <Text style={styles.title}>{t('ppTitle')}</Text>
 
         <Card style={styles.countCard}>
           <Text style={styles.countNumber}>{distinct}</Text>
           <Text style={styles.countLabel}>
-            different pitch{distinct === 1 ? '' : 'es'} discovered
+            {distinct === 1 ? t('ppDiscovered') : t('ppDiscoveredPl')}
           </Text>
           <Text style={styles.countHint}>
-            Every new pitch pays +{DISCOVERY.firstVisitBonusCoins} bonus coins.
+            {tf('ppFirstBonus', { n: DISCOVERY.firstVisitBonusCoins })}
           </Text>
         </Card>
 
-        <SectionTitle>Badges</SectionTitle>
+        <SectionTitle>{t('ppBadges')}</SectionTitle>
         <View style={styles.badgeRow}>
           {DISCOVERY.passportBadges.map((threshold) => {
             const unlocked = distinct >= threshold;
@@ -76,48 +77,50 @@ export function PassportScreen({ navigation }: RootScreenProps<'Passport'>) {
                 <Text style={[styles.badgeText, unlocked && styles.badgeTextUnlocked]}>
                   {threshold}
                 </Text>
-                <Text style={styles.badgeSub}>pitches</Text>
+                <Text style={styles.badgeSub}>{t('ppPitches')}</Text>
               </View>
             );
           })}
         </View>
 
-        <SectionTitle>Daily streak</SectionTitle>
+        <SectionTitle>{t('ppStreak')}</SectionTitle>
         <Card>
           <Text style={styles.streakLine}>
-            Current streak: <Text style={styles.streakValue}>{streak} day{streak === 1 ? '' : 's'}</Text>
+            {t('ppCurrentStreak')}<Text style={styles.streakValue}>{tf(streak === 1 ? 'ppDay' : 'ppDayPl', { n: streak })}</Text>
           </Text>
           <Text style={styles.streakLine}>
-            Best streak: <Text style={styles.streakValue}>{bestStreak} day{bestStreak === 1 ? '' : 's'}</Text>
+            {t('ppBestStreak')}<Text style={styles.streakValue}>{tf(bestStreak === 1 ? 'ppDay' : 'ppDayPl', { n: bestStreak })}</Text>
           </Text>
           <Text style={styles.hint}>
-            Check in every day: +{DISCOVERY.streakBonusPerDay} coins per streak day
-            (up to +{DISCOVERY.streakBonusMax}). Miss a day and the streak resets.
+            {tf('ppStreakHint', { per: DISCOVERY.streakBonusPerDay, max: DISCOVERY.streakBonusMax })}
           </Text>
         </Card>
 
-        <SectionTitle>Home ground</SectionTitle>
+        <SectionTitle>{t('ppHome')}</SectionTitle>
         <Card>
           {home ? (
             <>
               <Text style={styles.homeName}>{home.name}</Text>
               <Text style={styles.hint}>
-                Level {homeLevel} · {home.visits} visits · {home.totalMinutes} min played there.
-                Sessions at your home ground pay +{DISCOVERY.homeBonusCoins} bonus coins.
+                {tf('ppHomeInfo', {
+                  lvl: homeLevel,
+                  visits: home.visits,
+                  min: home.totalMinutes,
+                  bonus: DISCOVERY.homeBonusCoins,
+                })}
               </Text>
             </>
           ) : (
             <Text style={styles.hint}>
-              Visit one pitch at least {DISCOVERY.homeMinVisits} times to make it your home
-              ground (blue pin on the map, bonus coins per session).
+              {tf('ppHomeNone', { n: DISCOVERY.homeMinVisits })}
             </Text>
           )}
         </Card>
 
-        <SectionTitle>Visited pitches ({distinct})</SectionTitle>
+        <SectionTitle>{tf('ppVisited', { n: distinct })}</SectionTitle>
         {visited.length === 0 ? (
           <Card>
-            <Text style={styles.hint}>No pitches visited yet - check in on the map!</Text>
+            <Text style={styles.hint}>{t('ppNoVisits')}</Text>
           </Card>
         ) : (
           visited.map((v) => (
@@ -126,11 +129,14 @@ export function PassportScreen({ navigation }: RootScreenProps<'Passport'>) {
               <View style={styles.visitedInfo}>
                 <Text style={styles.visitedName} numberOfLines={1}>
                   {v.name}
-                  {v.spotId === homeSpotId ? '  ·  HOME' : ''}
+                  {v.spotId === homeSpotId ? `  ·  ${t('mapHome')}` : ''}
                 </Text>
                 <Text style={styles.hint}>
-                  {v.visits} visit{v.visits === 1 ? '' : 's'} · {v.totalMinutes} min · last{' '}
-                  {formatLastVisit(v.lastVisit)}
+                  {tf(v.visits === 1 ? 'ppVisitLine' : 'ppVisitLinePl', {
+                    visits: v.visits,
+                    min: v.totalMinutes,
+                    last: formatLastVisit(v.lastVisit),
+                  })}
                 </Text>
               </View>
             </Card>
@@ -138,7 +144,7 @@ export function PassportScreen({ navigation }: RootScreenProps<'Passport'>) {
         )}
 
         <GKButton
-          title="Back"
+          title={t('back')}
           variant="ghost"
           style={styles.backBtn}
           onPress={() => navigation.goBack()}
@@ -196,8 +202,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   badgeUnlocked: {
+    // Kein heller Fix-Hintergrund (Dark Mode): der Gold-Rahmen reicht
     borderColor: colors.gold,
-    backgroundColor: '#FFF8E1',
   },
   badgeText: {
     fontSize: font.h2,

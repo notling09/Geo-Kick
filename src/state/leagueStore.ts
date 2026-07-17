@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { BALANCING, LEAGUE, LEAGUE_REWARDS, USER_CLUB_ID } from '../core/domain/constants';
+import { tf } from '../core/i18n';
 import type { Match, MatchStats, NpcClub, OwnedPlayer, StandingRow, Tactic } from '../core/domain/types';
 import { computeStandings, generateNpcRoster, resolveSeason } from '../core/engine/league';
 import { simulateMatch, type MatchMotm, type SimTeam } from '../core/engine/matchSim';
@@ -352,10 +353,10 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       let total = 0;
       if (userGoals > oppGoals) {
         total += LEAGUE_REWARDS.win;
-        breakdown.push(`Win +${LEAGUE_REWARDS.win}`);
+        breakdown.push(tf('rewardWin', { n: LEAGUE_REWARDS.win }));
       } else if (userGoals === oppGoals) {
         total += LEAGUE_REWARDS.draw;
-        breakdown.push(`Draw +${LEAGUE_REWARDS.draw}`);
+        breakdown.push(tf('rewardDraw', { n: LEAGUE_REWARDS.draw }));
       }
       const captain = g2.players.find((p) => p.id === g2.captainPlayerId);
       if (captain) {
@@ -367,11 +368,11 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
         ).length;
         if (captainGoals > 0) {
           total += captainGoals * LEAGUE_REWARDS.captainGoal;
-          breakdown.push(`Captain goal x${captainGoals} +${captainGoals * LEAGUE_REWARDS.captainGoal}`);
+          breakdown.push(tf('rewardCaptainGoal', { c: captainGoals, n: captainGoals * LEAGUE_REWARDS.captainGoal }));
         }
         if (captainAssists > 0) {
           total += captainAssists * LEAGUE_REWARDS.captainAssist;
-          breakdown.push(`Captain assist x${captainAssists} +${captainAssists * LEAGUE_REWARDS.captainAssist}`);
+          breakdown.push(tf('rewardCaptainAssist', { c: captainAssists, n: captainAssists * LEAGUE_REWARDS.captainAssist }));
         }
       }
       if (total > 0) await g2.addCoins(total);

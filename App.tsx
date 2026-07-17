@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { navigationRef } from './src/navigation/navigationRef';
 import { LoadingScreen } from './src/features/start/LoadingScreen';
 import { getMeta } from './src/core/db/repositories/metaRepo';
+import { setLanguage, type Language } from './src/core/i18n';
 import { useCloudStore } from './src/state/cloudStore';
 import { useEggStore } from './src/state/eggStore';
 import { useGameStore } from './src/state/gameStore';
@@ -39,9 +40,16 @@ export default function App() {
       // Mindestanzeigedauer, damit der Loading-Screen sichtbar bleibt (Kapitel 2.3)
       const minSplash = new Promise((resolve) => setTimeout(resolve, 1800));
       try {
-        // Theme zuerst: alle danach geladenen Screens übernehmen die Palette
-        const themeMode = await getMeta('themeMode');
+        // Theme und Sprache zuerst: alle danach geladenen Screens übernehmen
+        // Palette und Texte (StyleSheets/Konstanten frieren beim Laden ein)
+        const [themeMode, language] = await Promise.all([
+          getMeta('themeMode'),
+          getMeta('language'),
+        ]);
         applyTheme(themeMode === 'dark' ? 'dark' : 'light');
+        if (language === 'de' || language === 'pt' || language === 'en') {
+          setLanguage(language as Language);
+        }
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         const nav = require('./src/navigation/RootNavigator') as typeof import('./src/navigation/RootNavigator');
         setRoot(() => nav.RootNavigator);

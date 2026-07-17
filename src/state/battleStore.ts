@@ -2,6 +2,7 @@ import * as Location from 'expo-location';
 import { create } from 'zustand';
 import { PITCH_BATTLE, USER_CLUB_ID } from '../core/domain/constants';
 import type { Spot } from '../core/domain/types';
+import { t, tf } from '../core/i18n';
 import { generateNpcRoster } from '../core/engine/league';
 import type { SimTeam } from '../core/engine/matchSim';
 import {
@@ -248,11 +249,11 @@ export const useBattleStore = create<BattleState>((set, get) => ({
           await g2.addLevelPoints(reward);
           coinReward = {
             total: reward,
-            breakdown: [`Boss beaten +${reward} coins`, `+${reward} level-up points`],
+            breakdown: [tf('rewardBossBeaten', { n: reward }), tf('rewardBossPoints', { n: reward })],
           };
         } else if (won) {
           await g2.grantPack('session');
-          coinReward = { total: 0, breakdown: ['Pitch battle won: +1 session pack'] };
+          coinReward = { total: 0, breakdown: [t('rewardBattlePack')] };
         }
 
         if (draw) {
@@ -307,10 +308,10 @@ export const useBattleStore = create<BattleState>((set, get) => ({
       const reward = PITCH_BATTLE.bossWinReward;
       await game.addCoins(reward);
       await game.addLevelPoints(reward);
-      return `Boss beaten: +${reward} coins and +${reward} level-up points!`;
+      return tf('soRewardBoss', { n: reward });
     }
     await game.grantPack('session');
-    return 'You won a session pack!';
+    return t('soRewardPack');
   },
 
   abandonShootout: () => set({ pendingShootout: null }),
