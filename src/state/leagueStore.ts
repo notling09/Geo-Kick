@@ -275,6 +275,7 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
         strength: teamStrength(lineupNow, g.club?.formation ?? club.formation),
         tactic: t,
         roster: xi.map((p) => ({ name: p.pool.name, position: p.pool.position })),
+        captainName: g.players.find((p) => p.id === g.captainPlayerId)?.pool.name,
       };
     };
 

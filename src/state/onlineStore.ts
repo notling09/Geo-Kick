@@ -41,6 +41,8 @@ export interface OnlineClub {
   strength: number;
   tactic: Tactic;
   roster: Array<{ name: string; position: Position }>;
+  /** Captain (V6.4): tritt bei Elfmetern im Spiel an, solange er auf dem Feld steht */
+  captain?: string;
 }
 
 type Role = 'host' | 'guest';
@@ -101,6 +103,7 @@ function toSimTeam(club: OnlineClub): SimTeam {
     strength: club.strength,
     tactic: club.tactic,
     roster: club.roster,
+    captainName: club.captain,
   };
 }
 
@@ -116,6 +119,7 @@ function myClub(tactic?: Tactic): OnlineClub {
     roster: lineup
       .filter((p): p is NonNullable<typeof p> => p !== null)
       .map((p) => ({ name: p.pool.name, position: p.pool.position })),
+    captain: g.players.find((p) => p.id === g.captainPlayerId)?.pool.name,
   };
 }
 

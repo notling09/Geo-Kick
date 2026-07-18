@@ -30,6 +30,11 @@ export interface SimTeam {
    * NPC-Teams ohne Kader bekommen zufällige fiktive Namen.
    */
   roster?: Array<{ name: string; position: Position }>;
+  /**
+   * Captain (V6.4): Er tritt bei Elfmetern IM Spiel an, solange er auf dem
+   * Feld steht (nach Auswechslung greift wieder die gewichtete Zufallswahl).
+   */
+  captainName?: string;
 }
 
 /** Man of the Match (V4): bester Spieler mit Note bis 10 und Kurzbegründung. */
@@ -97,6 +102,14 @@ function pickText(keys: readonly TKey[]): string {
 const SCORER_WEIGHTS: Record<Position, number> = { ST: 5, MF: 3, ABW: 1.2, TW: 0.1 };
 /** Positions-Gewichte für Vorlagen (Mittelfeld am ehesten). */
 const ASSIST_WEIGHTS: Record<Position, number> = { ST: 2.5, MF: 5, ABW: 1.5, TW: 0.2 };
+
+/** Elfmeterschütze im Spiel: der Captain, falls er auf dem Feld steht. */
+function penaltyTaker(team: SimTeam): string {
+  if (team.captainName && team.roster?.some((p) => p.name === team.captainName)) {
+    return team.captainName;
+  }
+  return pickPlayerName(team, SCORER_WEIGHTS);
+}
 
 function pickPlayerName(team: SimTeam, weights?: Record<Position, number>): string {
   if (team.roster && team.roster.length > 0) {
@@ -299,7 +312,7 @@ function simulateRange(
         team: side,
         text: tf('simPenaltyAwarded', { club: atk.name }),
       });
-      const shooter = pickPlayerName(atk, SCORER_WEIGHTS);
+      const shooter = penaltyTaker(atk);
       const keeper = keeperName(def);
       if (pauseOnPenalty) {
         return { penalty: { side, minute, shooter, keeper } };

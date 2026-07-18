@@ -224,6 +224,7 @@ export const useBattleStore = create<BattleState>((set, get) => ({
         roster: lineupNow
           .filter((p): p is NonNullable<typeof p> => p !== null)
           .map((p) => ({ name: p.pool.name, position: p.pool.position })),
+        captainName: g.players.find((p) => p.id === g.captainPlayerId)?.pool.name,
       };
     };
 
