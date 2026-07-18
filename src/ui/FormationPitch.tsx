@@ -62,20 +62,27 @@ interface Props {
   captainId?: number | null;
   /** Gesperrte Spieler (rote Karte) bekommen das Rote-Karte-Badge */
   suspendedIds?: Set<number>;
+  /**
+   * An die verfügbare HÖHE anpassen statt an die Breite (V6.4): im
+   * Halbzeit-Wechsel-Modal ist die Höhe begrenzt – mit der Breiten-Variante
+   * wurde das Feld höher als der Platz und der Torwart verschwand
+   * abgeschnitten hinter der Bank.
+   */
+  fitHeight?: boolean;
 }
 
 const CHIP_W = 72;
 const CHIP_H = 64;
 
 export function FormationPitch({
-  formation, lineup, onPlayerPress, onSwapPress, captainId, suspendedIds,
+  formation, lineup, onPlayerPress, onSwapPress, captainId, suspendedIds, fitHeight,
 }: Props) {
   const [size, setSize] = React.useState({ w: 0, h: 0 });
   const layout = formationLayout(formation);
 
   return (
     <View
-      style={styles.wrap}
+      style={fitHeight ? styles.wrapFit : styles.wrap}
       onLayout={(e) =>
         setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })
       }
@@ -142,6 +149,14 @@ const styles = StyleSheet.create({
   wrap: {
     width: '100%',
     aspectRatio: 100 / 150,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+  },
+  wrapFit: {
+    height: '100%',
+    maxWidth: '100%',
+    aspectRatio: 100 / 150,
+    alignSelf: 'center',
     borderRadius: radius.md,
     overflow: 'hidden',
   },
