@@ -8,6 +8,7 @@ import { teamStrength } from '../core/engine/strength';
 import * as leagueRepo from '../core/db/repositories/leagueRepo';
 import * as metaRepo from '../core/db/repositories/metaRepo';
 import { clubList, createSeason, loadLeagueData, seasonFinished } from '../core/services/seasonService';
+import { addLeagueTitle } from '../core/services/trophies';
 import { useGameStore } from './gameStore';
 import { runUserMatch, type MatchPause } from './matchFlow';
 import { pick } from '../core/engine/random';
@@ -425,6 +426,8 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
         if (outcome.finalRank === 1) {
           prize = firstPrize;
           await g2.addCoins(prize);
+          // Meistertitel in den (Karriere-übergreifenden) Trophäenschrank (V7)
+          await addLeagueTitle(club.division);
           // Meister: Pokal-Animation mit dem Captain – aber erst NACH dem
           // Live-Ticker zeigen (revealCelebration in der Live-Ansicht)
           set({

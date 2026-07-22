@@ -11,6 +11,7 @@ import {
 } from '../../core/services/achievements';
 import { getMeta, setMeta } from '../../core/db/repositories/metaRepo';
 import { getLanguage, t, tf, type Language } from '../../core/i18n';
+import { loadTrophies, totalTrophies } from '../../core/services/trophies';
 import { useCloudStore } from '../../state/cloudStore';
 import { useGameStore } from '../../state/gameStore';
 import { useLeagueStore } from '../../state/leagueStore';
@@ -50,6 +51,7 @@ export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [themeMode, setThemeMode] = useState<'light' | 'dark'>('light');
   const [language, setLanguageState] = useState<Language>(getLanguage());
+  const [trophyCount, setTrophyCount] = useState(0);
 
   /** Theme wechseln (V6.1): wird beim nächsten App-Start angewendet. */
   const onThemeChange = async (mode: 'light' | 'dark') => {
@@ -81,6 +83,7 @@ export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
         if (savedLang === 'en' || savedLang === 'de' || savedLang === 'pt') {
           setLanguageState(savedLang);
         }
+        setTrophyCount(totalTrophies(await loadTrophies()));
         setAchievements(
           await computeAchievements({
             stats: s,
@@ -177,6 +180,20 @@ export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
           title={t('prOpenPassport')}
           variant="secondary"
           onPress={() => navigation.navigate('Passport')}
+        />
+
+        <SectionTitle>{t('prTrophies')}</SectionTitle>
+        <Card style={styles.visitedCard}>
+          <IconTrophy size={22} color={colors.gold} />
+          <View style={styles.visitedInfo}>
+            <Text style={styles.visitedName}>{trophyCount}</Text>
+            <Text style={styles.visitedMeta}>{t('prTrophiesHint')}</Text>
+          </View>
+        </Card>
+        <GKButton
+          title={t('prOpenTrophies')}
+          variant="secondary"
+          onPress={() => navigation.navigate('Trophies')}
         />
 
         <SectionTitle>{t('prFriendlies')}</SectionTitle>
