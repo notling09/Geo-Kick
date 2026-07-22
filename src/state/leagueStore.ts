@@ -345,8 +345,22 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
     const updatedSeason = season + 1;
     await createSeason(updatedSeason, outcome.newDivision);
     await metaRepo.setMeta('div1Slot', '0');
+    let updatedNpcs = await leagueRepo.getNpcClubs(updatedSeason);
+
+    // Mit-Aufsteiger übernehmen (V7.2): Steigt der Nutzer auf, kommt das andere
+    // aufgestiegene Team (der andere in Top 2) mit in die höhere Division –
+    // realistischer als komplett neue Gegner. Name + Wappen werden übernommen,
+    // die Stärke bleibt auf dem Niveau der neuen Division.
+    if (outcome.promoted) {
+      const otherPromoted = finalStandings
+        .slice(0, LEAGUE.promotionSpots)
+        .find((r) => r.clubId !== USER_CLUB_ID);
+      if (otherPromoted && updatedNpcs.length > 0) {
+        await leagueRepo.renameNpcClub(updatedNpcs[0].id, otherPromoted.name, otherPromoted.crest);
+        updatedNpcs = await leagueRepo.getNpcClubs(updatedSeason);
+      }
+    }
     const updatedMatches = await leagueRepo.getMatches(updatedSeason);
-    const updatedNpcs = await leagueRepo.getNpcClubs(updatedSeason);
 
     useGameStore.setState((s) => ({
       club: s.club ? { ...s.club, division: outcome.newDivision } : s.club,

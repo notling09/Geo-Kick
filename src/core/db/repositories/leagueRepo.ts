@@ -45,6 +45,12 @@ export async function setNpcRoster(id: number, roster: NpcClub['roster']): Promi
   await db.runAsync('UPDATE npc_clubs SET rosterJson = ? WHERE id = ?', JSON.stringify(roster), id);
 }
 
+/** Name + Wappen eines NPC-Klubs ändern (V7.2: Mit-Aufsteiger übernehmen). */
+export async function renameNpcClub(id: number, name: string, crest: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync('UPDATE npc_clubs SET name = ?, crest = ? WHERE id = ?', name, crest, id);
+}
+
 interface MatchRow {
   id: number;
   season: number;
