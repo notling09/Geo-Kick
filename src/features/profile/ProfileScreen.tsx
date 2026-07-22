@@ -196,6 +196,20 @@ export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
           onPress={() => navigation.navigate('Trophies')}
         />
 
+        <SectionTitle>{t('prDex')}</SectionTitle>
+        <Card style={styles.visitedCard}>
+          <IconStar size={22} color={colors.gold} />
+          <View style={styles.visitedInfo}>
+            <Text style={styles.visitedName}>{t('prDex')}</Text>
+            <Text style={styles.visitedMeta}>{t('prDexHint')}</Text>
+          </View>
+        </Card>
+        <GKButton
+          title={t('prOpenDex')}
+          variant="secondary"
+          onPress={() => navigation.navigate('Dex')}
+        />
+
         <SectionTitle>{t('prFriendlies')}</SectionTitle>
         <Card>
           <Text style={styles.infoRow}>{cloudLine}</Text>

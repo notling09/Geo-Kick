@@ -9,10 +9,10 @@ import { pick, randInt, shuffle } from './random';
  * (Duplikate → Training, Kapitel 3.3).
  */
 
-/** Zielgrößen des Pools (2026-07-04 verdoppelt, weniger Duplikate). */
+/** Zielgrößen des Pools (V7.2: nochmals verdoppelt, mehr Sammel-Vielfalt). */
 export const POOL_SIZE: Record<Rarity, number> = {
-  bronze: 88,
-  silber: 64,
+  bronze: 176,
+  silber: 128,
   gold: GOLD_PLAYERS.length,
   legendaer: LEGENDARY_PLAYERS.length,
   // Die ???-Identität entsteht erst beim einmaligen Zug (Nutzer benennt sie)

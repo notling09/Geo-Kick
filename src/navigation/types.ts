@@ -20,6 +20,7 @@ export type RootStackParamList = {
   Trophies: undefined;
   ChampionsLeague: undefined;
   CareerComplete: undefined;
+  Dex: undefined;
 };
 
 export type MainTabParamList = {

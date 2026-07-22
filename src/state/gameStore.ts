@@ -17,6 +17,7 @@ import * as metaRepo from '../core/db/repositories/metaRepo';
 import * as playerRepo from '../core/db/repositories/playerRepo';
 import * as packRepo from '../core/db/repositories/packRepo';
 import { createSeason } from '../core/services/seasonService';
+import { markSeen } from '../core/services/dex';
 
 /**
  * Globaler Spielzustand (Kader, Coins, Klub) – Zustand-Store über der
@@ -256,6 +257,8 @@ export const useGameStore = create<GameState>((set, get) => ({
         playerRepo.getLineup(),
         packRepo.getPacks(),
       ]);
+      // Sammelalbum: aktuelle Kaderspieler als besessen merken (Migration + laufend)
+      await markSeen(players.map((p) => p.pool.name));
       // Captain laden; Migration: alte Spielstände bekommen den gewählten
       // Starter (bzw. den stärksten Spieler) als Standard-Captain
       let captainPlayerId = await metaRepo.getMetaNumber('captainPlayerId', 0);
@@ -429,6 +432,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     const bonus = rollPackBonus(packType);
     await get().addCoins(bonus);
     await get().addLevelPoints(bonus);
+    // Sammelalbum: alle gezogenen Spieler als „besessen" merken (V7.2)
+    await markSeen(entries.map((e) => e.pool.name));
     set({
       packs: await packRepo.getPacks(),
       players: await playerRepo.getOwnedPlayers(),
@@ -527,6 +532,7 @@ export const useGameStore = create<GameState>((set, get) => ({
    * Pack – Duplikat = Wahl Punkte/Verkauf, Kader voll = behalten/verkaufen.
    */
   receivePlayer: async (poolPlayer) => {
+    await markSeen([poolPlayer.name]);
     const players = await playerRepo.getOwnedPlayers();
     let entry: PackEntry;
     if (players.some((o) => o.poolId === poolPlayer.id)) {

@@ -172,6 +172,8 @@ export async function resetCareer(): Promise<void> {
     );
     const keepKeys = [
       'trophyCabinet', 'language', 'themeMode',
+      // Sammelalbum bleibt dauerhaft (Karriere-übergreifend, V7.2)
+      'dexSeen',
       // Platz-Pass: Heimplatz + tägliche Serie bleiben (die Plätze bleiben ja)
       'homeSpotId', 'streakDay', 'streakCount', 'bestStreak',
       ...authRows.map((r) => r.key),

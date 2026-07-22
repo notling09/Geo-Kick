@@ -15,6 +15,7 @@ import { ProfileScreen } from '../features/profile/ProfileScreen';
 import { HelpScreen } from '../features/profile/HelpScreen';
 import { PassportScreen } from '../features/profile/PassportScreen';
 import { TrophiesScreen } from '../features/profile/TrophiesScreen';
+import { DexScreen } from '../features/profile/DexScreen';
 import { PenaltyShootoutScreen } from '../features/map/PenaltyShootoutScreen';
 import { SeasonReviewScreen } from '../features/league/SeasonReviewScreen';
 import { CareerCompleteScreen } from '../features/league/CareerCompleteScreen';
@@ -91,6 +92,7 @@ export function RootNavigator() {
       <Stack.Screen name="Help" component={HelpScreen} />
       <Stack.Screen name="Passport" component={PassportScreen} />
       <Stack.Screen name="Trophies" component={TrophiesScreen} />
+      <Stack.Screen name="Dex" component={DexScreen} />
       <Stack.Screen
         name="Shootout"
         component={PenaltyShootoutScreen}
