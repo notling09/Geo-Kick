@@ -78,17 +78,18 @@ export function createClState(
   const others = shuffle(Object.keys(teams).filter((id) => id !== USER_CLUB_ID));
   const groupIds = [USER_CLUB_ID, ...others.slice(0, CHAMPIONS_LEAGUE.groupSize - 1)];
 
-  // 6 Gruppenspiele (jeder gegen jeden), Reihenfolge: erst die Nutzer-Spiele
+  // 6 Gruppenspiele als 3 Spieltage (V7.1-Fix): die ersten 3 sind die
+  // Nutzer-Spiele, die letzten 3 die NPC-Spiele DESSELBEN Spieltags (gleicher
+  // Index). So spielt an jedem Spieltag jedes Team genau einmal.
+  //   Spieltag 1: A-n0 | n1-n2
+  //   Spieltag 2: A-n1 | n0-n2
+  //   Spieltag 3: A-n2 | n0-n1
   const groupMatches: ClMatch[] = [];
   const npc = groupIds.filter((id) => id !== USER_CLUB_ID);
-  npc.forEach((oppId) => {
-    groupMatches.push(mkMatch('group', USER_CLUB_ID, oppId));
-  });
-  for (let i = 0; i < npc.length; i++) {
-    for (let j = i + 1; j < npc.length; j++) {
-      groupMatches.push(mkMatch('group', npc[i], npc[j]));
-    }
-  }
+  npc.forEach((oppId) => groupMatches.push(mkMatch('group', USER_CLUB_ID, oppId)));
+  groupMatches.push(mkMatch('group', npc[1], npc[2]));
+  groupMatches.push(mkMatch('group', npc[0], npc[2]));
+  groupMatches.push(mkMatch('group', npc[0], npc[1]));
 
   return {
     season,
@@ -205,8 +206,14 @@ function userDone(state: ClState): boolean {
  */
 function simulateParallelGroupGame(state: ClState): void {
   if (state.ko.r16.length > 0) return;
-  const openNpc = state.groupMatches.find((m) => !involvesUser(m) && !m.played);
-  if (openNpc) simulate(state, openNpc);
+  // NPC-Spiel DESSELBEN Spieltags simulieren (gleicher Index wie das gerade
+  // gespielte Nutzer-Spiel), damit die Tabelle nach jedem Spieltag stimmt
+  const userGames = state.groupMatches.filter((m) => involvesUser(m));
+  const npcGames = state.groupMatches.filter((m) => !involvesUser(m));
+  const idx = userGames.filter((m) => m.played).length - 1;
+  if (idx >= 0 && idx < npcGames.length && !npcGames[idx].played) {
+    simulate(state, npcGames[idx]);
+  }
 }
 
 /** NPC-Gruppenspiele simulieren und Achtelfinale bauen, sobald der Nutzer durch ist. */

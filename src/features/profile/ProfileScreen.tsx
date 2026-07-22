@@ -272,6 +272,17 @@ export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
           </Text>
           <GKButton title={t('prOpenGuide')} onPress={() => navigation.navigate('Help')} />
         </Card>
+
+        {/* TEST-ONLY (V7.1): Karriere-Ende-Flow prüfen – vor der finalen
+            Version wieder entfernen (Suche: TEST-CAREER-END) */}
+        <Card style={{ marginTop: spacing.md, borderColor: colors.danger, borderWidth: 2 }}>
+          <Text style={styles.aboutText}>TEST: Karriere-Ende + Neustart prüfen</Text>
+          <GKButton
+            title="TEST: Karriere-Ende"
+            variant="danger"
+            onPress={() => navigation.navigate('CareerComplete')}
+          />
+        </Card>
       </ScrollView>
     </SafeAreaView>
   );
