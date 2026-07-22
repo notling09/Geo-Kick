@@ -4,8 +4,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { resetCareer } from '../../core/db/database';
 import { t } from '../../core/i18n';
 import { useClStore } from '../../state/clStore';
+import { useEggStore } from '../../state/eggStore';
 import { useGameStore } from '../../state/gameStore';
 import { useLeagueStore } from '../../state/leagueStore';
+import { useSessionStore } from '../../state/sessionStore';
 import { GKButton } from '../../ui/components';
 import { IconTrophy } from '../../ui/icons';
 import { PitchBackground } from '../../ui/PitchBackground';
@@ -45,6 +47,8 @@ export function CareerCompleteScreen({ navigation }: RootScreenProps<'CareerComp
       suspensions: [],
     });
     useClStore.setState({ state: null });
+    useEggStore.setState({ eggs: [] });
+    useSessionStore.setState({ activeSession: null, objectives: [] });
     useGameStore.setState({
       onboarded: false, club: null, players: [], lineup: [],
       packs: [], captainPlayerId: null, levelPoints: 0,

@@ -156,9 +156,13 @@ export async function resetDatabase(): Promise<void> {
 }
 
 /**
- * Karriere-Reset (V7): alles auf null für eine neue Karriere – ABER der
- * Trophäenschrank, die App-Einstellungen (Sprache/Theme) und der Cloud-Login
- * (damit Konto und Freunde erhalten bleiben) werden bewahrt.
+ * Karriere-Reset (V7 / V7.1): alles auf null für eine neue Karriere – ABER
+ * erhalten bleiben:
+ *  - der Trophäenschrank (dauerhaft über alle Karrieren),
+ *  - App-Einstellungen (Sprache/Theme) und der Cloud-Login (Konto + Freunde),
+ *  - die besuchten Fußballplätze samt Platz-Pass (spots + sessions + Streak/
+ *    Heimplatz-Meta) – man soll seine entdeckten Plätze nicht verlieren.
+ * Neu sind Team, Kader, Liga, Champions League, Coins und Packs.
  */
 export async function resetCareer(): Promise<void> {
   await runExclusive(async () => {
@@ -166,13 +170,18 @@ export async function resetCareer(): Promise<void> {
     const authRows = await database.getAllAsync<{ key: string }>(
       "SELECT key FROM meta WHERE key LIKE 'sb-auth:%'",
     );
-    const keepKeys = ['trophyCabinet', 'language', 'themeMode', ...authRows.map((r) => r.key)];
+    const keepKeys = [
+      'trophyCabinet', 'language', 'themeMode',
+      // Platz-Pass: Heimplatz + tägliche Serie bleiben (die Plätze bleiben ja)
+      'homeSpotId', 'streakDay', 'streakCount', 'bestStreak',
+      ...authRows.map((r) => r.key),
+    ];
     const placeholders = keepKeys.map(() => '?').join(',');
     await database.runAsync(`DELETE FROM meta WHERE key NOT IN (${placeholders})`, ...keepKeys);
+    // spots und sessions bewusst NICHT löschen (besuchte Plätze + Passport)
     await database.execAsync(`
       DELETE FROM player_pool; DELETE FROM players; DELETE FROM lineup;
-      DELETE FROM spots; DELETE FROM sessions; DELETE FROM packs;
-      DELETE FROM npc_clubs; DELETE FROM matches;
+      DELETE FROM packs; DELETE FROM npc_clubs; DELETE FROM matches;
     `);
   });
 }
