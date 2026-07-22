@@ -6,6 +6,7 @@ import { MapScreen } from '../features/map/MapScreen';
 import { SquadScreen } from '../features/squad/SquadScreen';
 import { PlayerDetailScreen } from '../features/squad/PlayerDetailScreen';
 import { LeagueScreen } from '../features/league/LeagueScreen';
+import { LeaderboardScreen } from '../features/league/LeaderboardScreen';
 import { MatchLiveScreen } from '../features/league/MatchLiveScreen';
 import { PacksScreen } from '../features/packs/PacksScreen';
 import { PackOpeningScreen } from '../features/packs/PackOpeningScreen';
@@ -96,6 +97,7 @@ export function RootNavigator() {
         component={SeasonReviewScreen}
         options={{ gestureEnabled: false, animation: 'fade' }}
       />
+      <Stack.Screen name="Leaderboard" component={LeaderboardScreen} />
       <Stack.Screen name="OnlineLobby" component={OnlineLobbyScreen} />
       <Stack.Screen
         name="OnlineShootout"

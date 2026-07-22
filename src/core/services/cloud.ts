@@ -73,3 +73,56 @@ export interface CloudClub {
   squad: CloudSquadPlayer[];
   updated_at: string;
 }
+
+/** Ein Eintrag der weltweiten Bestenliste (V7). */
+export interface LeaderboardEntry {
+  id: string;
+  clubName: string;
+  crest: string;
+  division: number;
+  strength: number;
+  bestPlayer: string | null;
+  bestOverall: number;
+}
+
+/**
+ * Weltweite Bestenliste (V7): die stärksten Klubs aller Spieler, absteigend
+ * nach Team-Stärke. Der squad-Schnappschuss enthält bereits die effektiven
+ * Attribute, daraus ergibt sich der beste Spieler je Klub. Kein neues
+ * DB-Recht nötig – clubs sind ohnehin öffentlich lesbar (clubs_read_all).
+ */
+export async function fetchLeaderboard(
+  overall: (p: CloudSquadPlayer) => number,
+  limit = 10,
+): Promise<LeaderboardEntry[]> {
+  const supabase = getSupabase();
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from('clubs')
+    .select('id, club_name, crest, division, strength, squad')
+    .gt('strength', 0)
+    .order('strength', { ascending: false })
+    .limit(limit);
+  if (error || !data) return [];
+  return data.map((c) => {
+    const squad = (c.squad ?? []) as CloudSquadPlayer[];
+    let bestPlayer: string | null = null;
+    let bestOverall = 0;
+    for (const p of squad) {
+      const ovr = overall(p);
+      if (ovr > bestOverall) {
+        bestOverall = ovr;
+        bestPlayer = p.name;
+      }
+    }
+    return {
+      id: c.id as string,
+      clubName: c.club_name as string,
+      crest: c.crest as string,
+      division: c.division as number,
+      strength: c.strength as number,
+      bestPlayer,
+      bestOverall,
+    };
+  });
+}

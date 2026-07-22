@@ -16,6 +16,8 @@ export type RootStackParamList = {
   SeasonReview: undefined;
   OnlineLobby: undefined;
   OnlineShootout: undefined;
+  Leaderboard: undefined;
+  Trophies: undefined;
 };
 
 export type MainTabParamList = {

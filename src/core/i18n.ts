@@ -326,6 +326,11 @@ const en = {
   lgYourResults: 'Your results',
   lgNoMatches: 'No matches played yet.',
   lgMdShort: 'MD {n}:',
+  lbTitle: 'Leaderboard',
+  lbSubtitle: 'The strongest clubs worldwide',
+  lbBest: 'Best: {name} ({ovr})',
+  lbOffline: 'The leaderboard needs an internet connection.',
+  lbEmpty: 'No clubs yet. Be the first!',
 
   // Squad
   sqTitle: 'Squad',
@@ -910,6 +915,11 @@ const de: typeof en = {
   lgYourResults: 'Deine Ergebnisse',
   lgNoMatches: 'Noch keine Spiele gespielt.',
   lgMdShort: 'Sp. {n}:',
+  lbTitle: 'Bestenliste',
+  lbSubtitle: 'Die stärksten Klubs weltweit',
+  lbBest: 'Bester: {name} ({ovr})',
+  lbOffline: 'Die Bestenliste braucht eine Internetverbindung.',
+  lbEmpty: 'Noch keine Klubs. Sei der Erste!',
 
   sqTitle: 'Kader',
   sqStrength: 'Stärke {n}',
@@ -1483,6 +1493,11 @@ const pt: typeof en = {
   lgYourResults: 'Seus resultados',
   lgNoMatches: 'Nenhuma partida jogada ainda.',
   lgMdShort: 'R{n}:',
+  lbTitle: 'Classificação',
+  lbSubtitle: 'Os clubes mais fortes do mundo',
+  lbBest: 'Melhor: {name} ({ovr})',
+  lbOffline: 'A classificação precisa de conexão com a internet.',
+  lbEmpty: 'Nenhum clube ainda. Seja o primeiro!',
 
   sqTitle: 'Elenco',
   sqStrength: 'Força {n}',

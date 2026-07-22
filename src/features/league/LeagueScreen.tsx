@@ -10,7 +10,7 @@ import { useLeagueStore } from '../../state/leagueStore';
 import { GKButton, Card, SectionTitle } from '../../ui/components';
 import { ChampionOverlay } from '../../ui/ChampionOverlay';
 import { Crest } from '../../ui/Crest';
-import { IconCheck, IconClock, IconCross, IconMinus } from '../../ui/icons';
+import { IconCheck, IconClock, IconCross, IconMinus, IconTrophy } from '../../ui/icons';
 import { colors, font, radius, spacing } from '../../ui/theme';
 import type { TabScreenProps } from '../../navigation/types';
 
@@ -152,7 +152,13 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
         />
       )}
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>{t('lgTitle')}</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>{t('lgTitle')}</Text>
+          <Pressable style={styles.lbButton} onPress={() => navigation.navigate('Leaderboard')}>
+            <IconTrophy size={18} color={colors.gold} />
+            <Text style={styles.lbButtonText}>{t('lbTitle')}</Text>
+          </Pressable>
+        </View>
         <Text style={styles.subtitle}>
           {tf('lgSubtitle', {
             div: club?.division ?? 4,
@@ -388,10 +394,31 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     paddingBottom: spacing.xl,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   title: {
     fontSize: font.title,
     fontWeight: '900',
     color: colors.pitchDark,
+  },
+  lbButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.gold,
+    borderRadius: radius.round,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+  },
+  lbButtonText: {
+    fontWeight: '800',
+    fontSize: font.small,
+    color: colors.ink,
   },
   subtitle: {
     color: colors.inkSoft,
