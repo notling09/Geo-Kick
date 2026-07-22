@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Line, Rect } from 'react-native-svg';
 import { shootoutWinner } from '../../core/engine/shootout';
 import { t, tf } from '../../core/i18n';
+import { promptBossReward } from './bossReward';
 import { playSound } from '../../core/services/sound';
 import { useBattleStore } from '../../state/battleStore';
 import { useGameStore } from '../../state/gameStore';
@@ -142,7 +143,12 @@ export function PenaltyShootoutScreen({ navigation }: RootScreenProps<'Shootout'
         void useBattleStore
           .getState()
           .resolveShootout(decided === 'user')
-          .then(setRewardText);
+          .then((text) => {
+            // Boss besiegt (V7): Belohnung wählen (Coins+Punkte / 2 Packs),
+            // sonst den festen Belohnungstext anzeigen
+            if (useBattleStore.getState().pendingBossReward) promptBossReward(setRewardText);
+            else setRewardText(text);
+          });
         // Der entscheidende Elfmeter bleibt erst ~2 s sichtbar, bevor die
         // Ergebnis-Box darüberliegt (V6.3, Nutzerwunsch)
         timer.current = setTimeout(() => setPhase('done'), 2000);

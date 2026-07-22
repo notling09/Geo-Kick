@@ -251,6 +251,12 @@ const en = {
   soBackMap: 'Back to the map',
   soRewardBoss: 'Boss beaten: +{n} coins and +{n} level-up points!',
   soRewardPack: 'You won a session pack!',
+  bossRewardTitle: 'Boss beaten!',
+  bossRewardChoose: 'Boss beaten - pick your reward.',
+  bossRewardCoins: '{n} coins + {n} points',
+  bossRewardPacks: '2 session packs',
+  bossRewardGotCoins: '+{n} coins and +{n} level-up points!',
+  bossRewardGotPacks: 'You got 2 session packs!',
 
   // Online
   onChallengeTitle: 'Online challenge!',
@@ -360,6 +366,9 @@ const en = {
   pdSellBtn: 'Sell for {n} coins',
   pdSellConfirmTitle: 'Sell {name}?',
   pdSellConfirmBody: 'You will receive {n} coins. This cannot be undone.',
+  pdSellChoose: 'Sell for {n} coins or {n} level-up points? This cannot be undone.',
+  pdSellForCoins: '{n} coins',
+  pdSellForPoints: '{n} points',
   pdNotFound: 'Player not found.',
 
   // Packs-Tab
@@ -829,6 +838,12 @@ const de: typeof en = {
   soBackMap: 'Zurück zur Karte',
   soRewardBoss: 'Boss besiegt: +{n} Coins und +{n} Level-up-Punkte!',
   soRewardPack: 'Du hast ein Session-Pack gewonnen!',
+  bossRewardTitle: 'Boss besiegt!',
+  bossRewardChoose: 'Boss besiegt - wähle deine Belohnung.',
+  bossRewardCoins: '{n} Coins + {n} Punkte',
+  bossRewardPacks: '2 Session-Packs',
+  bossRewardGotCoins: '+{n} Coins und +{n} Level-up-Punkte!',
+  bossRewardGotPacks: 'Du hast 2 Session-Packs bekommen!',
 
   onChallengeTitle: 'Online-Herausforderung!',
   onChallengeBody: '{name} fordert dich zu einem Live-Freundschaftsspiel heraus. Annehmen?',
@@ -933,6 +948,9 @@ const de: typeof en = {
   pdSellBtn: 'Für {n} Coins verkaufen',
   pdSellConfirmTitle: '{name} verkaufen?',
   pdSellConfirmBody: 'Du bekommst {n} Coins. Das lässt sich nicht rückgängig machen.',
+  pdSellChoose: 'Für {n} Coins oder {n} Level-up-Punkte verkaufen? Nicht rückgängig machbar.',
+  pdSellForCoins: '{n} Coins',
+  pdSellForPoints: '{n} Punkte',
   pdNotFound: 'Spieler nicht gefunden.',
 
   pkTitle: 'Packs',
@@ -1393,6 +1411,12 @@ const pt: typeof en = {
   soBackMap: 'Voltar ao mapa',
   soRewardBoss: 'Chefe vencido: +{n} moedas e +{n} pontos de nível!',
   soRewardPack: 'Você ganhou um pacote de sessão!',
+  bossRewardTitle: 'Chefe vencido!',
+  bossRewardChoose: 'Chefe vencido - escolha sua recompensa.',
+  bossRewardCoins: '{n} moedas + {n} pontos',
+  bossRewardPacks: '2 pacotes de sessão',
+  bossRewardGotCoins: '+{n} moedas e +{n} pontos de nível!',
+  bossRewardGotPacks: 'Você ganhou 2 pacotes de sessão!',
 
   onChallengeTitle: 'Desafio online!',
   onChallengeBody: '{name} desafia você para um amistoso ao vivo. Aceitar?',
@@ -1497,6 +1521,9 @@ const pt: typeof en = {
   pdSellBtn: 'Vender por {n} moedas',
   pdSellConfirmTitle: 'Vender {name}?',
   pdSellConfirmBody: 'Você receberá {n} moedas. Isso não pode ser desfeito.',
+  pdSellChoose: 'Vender por {n} moedas ou {n} pontos de nível? Não pode ser desfeito.',
+  pdSellForCoins: '{n} moedas',
+  pdSellForPoints: '{n} pontos',
   pdNotFound: 'Jogador não encontrado.',
 
   pkTitle: 'Pacotes',

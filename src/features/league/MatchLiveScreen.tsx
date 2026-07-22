@@ -4,6 +4,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { POSITION_SHORT, TACTIC_LABEL } from '../../core/domain/constants';
 import type { MatchEvent, Tactic } from '../../core/domain/types';
 import { t, tf } from '../../core/i18n';
+import { promptBossReward } from '../map/bossReward';
 import { effectiveOverall } from '../../core/engine/playerGen';
 import { useBattleStore } from '../../state/battleStore';
 import { useGameStore } from '../../state/gameStore';
@@ -169,6 +170,17 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
       return () => clearTimeout(t);
     }
   }, [minute, pendingShootout, navigation]);
+
+  // Boss in 90 Minuten besiegt (V7): nach dem Abpfiff die Belohnung wählen
+  const pendingBossReward = useBattleStore((s) => s.pendingBossReward);
+  const bossRewardShown = useRef(false);
+  useEffect(() => {
+    if (minute >= 90 && !pendingShootout && pendingBossReward && !bossRewardShown.current) {
+      bossRewardShown.current = true;
+      const t = setTimeout(() => promptBossReward(), 1500);
+      return () => clearTimeout(t);
+    }
+  }, [minute, pendingShootout, pendingBossReward]);
 
   // Online-Remis (V6): weiter ins Spieler-gegen-Spieler-Elfmeterschießen
   const onlinePhase = useOnlineStore((s) => s.phase);

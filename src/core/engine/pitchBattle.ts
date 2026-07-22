@@ -28,11 +28,21 @@ export function dayKey(date: Date = new Date()): string {
   return `${y}-${m}-${d}`;
 }
 
-/** Der besondere Platz des Tages: höchster Hash aus Platz-Id + Tag. */
-export function specialSpotIdForDay(spotIds: string[], day: string): string | null {
+/**
+ * Der besondere Platz des Tages: höchster Hash aus Platz-Id + Tag. Der zuletzt
+ * gewählte Platz (excludeId) wird ausgeschlossen, solange es Alternativen gibt –
+ * so wechselt der Gold-Pin garantiert jeden Tag, auch bei nur 2-3 Plätzen (V7).
+ */
+export function specialSpotIdForDay(
+  spotIds: string[],
+  day: string,
+  excludeId?: string | null,
+): string | null {
+  const pool =
+    excludeId && spotIds.length > 1 ? spotIds.filter((id) => id !== excludeId) : spotIds;
   let best: string | null = null;
   let bestHash = -1;
-  for (const id of spotIds) {
+  for (const id of pool) {
     const h = hashString(`${id}|${day}`);
     if (h > bestHash) {
       bestHash = h;

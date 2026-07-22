@@ -33,8 +33,8 @@ export const BALANCING = {
   spotCooldownMs: 30 * 60 * 1000,
   /** Default-Check-in-Radius um einen Platz (m); V5: 100, ein Feld ist groß */
   defaultSpotRadius: 100,
-  /** 1 simuliertes Ligaspiel alle 10 Min (nach Nutzertests von 24 h gesenkt) */
-  matchIntervalMs: 10 * 60 * 1000,
+  /** 1 simuliertes Ligaspiel alle 5 Min (nach Nutzertests von 24 h -> 10 -> 5) */
+  matchIntervalMs: 5 * 60 * 1000,
   /** Spieler pro Pack */
   playersPerPack: 3,
   /**
@@ -144,11 +144,12 @@ export const EGG_TYPES: EggType[] = [
     get label() { return t('egg1'); },
     km: 1,
     weight: 60,
+    // V7: Eier deutlich aufgewertet – 1 km garantiert mind. Silber
     odds: [
-      { rarity: 'bronze', weight: 50 },
-      { rarity: 'silber', weight: 35 },
-      { rarity: 'gold', weight: 13 },
-      { rarity: 'legendaer', weight: 2 },
+      { rarity: 'bronze', weight: 28 },
+      { rarity: 'silber', weight: 46 },
+      { rarity: 'gold', weight: 22 },
+      { rarity: 'legendaer', weight: 4 },
     ],
   },
   {
@@ -156,11 +157,11 @@ export const EGG_TYPES: EggType[] = [
     get label() { return t('egg3'); },
     km: 3,
     weight: 30,
+    // V7: 3 km enthält nie mehr Bronze (Nutzerwunsch)
     odds: [
-      { rarity: 'bronze', weight: 20 },
-      { rarity: 'silber', weight: 45 },
-      { rarity: 'gold', weight: 28 },
-      { rarity: 'legendaer', weight: 7 },
+      { rarity: 'silber', weight: 42 },
+      { rarity: 'gold', weight: 45 },
+      { rarity: 'legendaer', weight: 13 },
     ],
   },
   {
@@ -168,10 +169,10 @@ export const EGG_TYPES: EggType[] = [
     get label() { return t('egg5'); },
     km: 5,
     weight: 10,
+    // V7: 5 km ist Top – nur noch Gold oder Legendär
     odds: [
-      { rarity: 'silber', weight: 30 },
-      { rarity: 'gold', weight: 50 },
-      { rarity: 'legendaer', weight: 20 },
+      { rarity: 'gold', weight: 62 },
+      { rarity: 'legendaer', weight: 38 },
     ],
   },
 ];

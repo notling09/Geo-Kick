@@ -47,17 +47,24 @@ export function PlayerDetailScreen({ route, navigation }: RootScreenProps<'Playe
   const rarityColor = RARITY_COLOR[player.pool.rarity];
   const sellValue = SELL_VALUE[player.pool.rarity];
 
+  // V7: beim Verkauf zwischen Coins und Level-up-Punkten (gleiche Höhe) wählen
   const onSell = () => {
     Alert.alert(
       tf('pdSellConfirmTitle', { name: player.pool.name }),
-      tf('pdSellConfirmBody', { n: sellValue }),
+      tf('pdSellChoose', { n: sellValue }),
       [
         { text: t('cancel'), style: 'cancel' },
         {
-          text: `${t('pdSell')} +${sellValue}`,
-          style: 'destructive',
+          text: tf('pdSellForCoins', { n: sellValue }),
           onPress: async () => {
-            const ok = await sellPlayer(player.id);
+            const ok = await sellPlayer(player.id, 'coins');
+            if (ok) navigation.goBack();
+          },
+        },
+        {
+          text: tf('pdSellForPoints', { n: sellValue }),
+          onPress: async () => {
+            const ok = await sellPlayer(player.id, 'points');
             if (ok) navigation.goBack();
           },
         },

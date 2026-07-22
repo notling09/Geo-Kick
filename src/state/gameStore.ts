@@ -54,7 +54,7 @@ interface GameState {
   takeDuplicatePoints: (poolPlayer: PoolPlayer) => Promise<number>;
   levelUpPlayer: (ownedId: number) => Promise<'ok' | 'max' | 'points'>;
   keepDrawnPlayer: (poolPlayer: PoolPlayer, sellOwnedId: number) => Promise<boolean>;
-  sellPlayer: (ownedId: number) => Promise<boolean>;
+  sellPlayer: (ownedId: number, as?: 'coins' | 'points') => Promise<boolean>;
   setCaptain: (playerId: number) => Promise<void>;
   claimMysteryPlayer: (name: string, position: Position) => Promise<PoolPlayer | null>;
   /** Einzelnen gezogenen Spieler aufnehmen (Ei-Ausbrüten, V4) */
@@ -536,14 +536,20 @@ export const useGameStore = create<GameState>((set, get) => ({
     return entry;
   },
 
-  /** Eigenen Spieler verkaufen (nicht möglich: aufgestellt, Captain oder ???-Karte). */
-  sellPlayer: async (ownedId) => {
+  /**
+   * Eigenen Spieler verkaufen (nicht möglich: aufgestellt, Captain oder
+   * ???-Karte). V7: Der Erlös geht wahlweise als Coins ODER als Level-up-
+   * Punkte in gleicher Höhe (Standard: Coins).
+   */
+  sellPlayer: async (ownedId, as = 'coins') => {
     const { players, lineup, captainPlayerId } = get();
     const player = players.find((p) => p.id === ownedId);
     if (!player || lineup.includes(ownedId) || ownedId === captainPlayerId) return false;
     if (player.pool.rarity === 'geheim') return false;
     await playerRepo.deleteOwnedPlayer(ownedId);
-    await get().addCoins(SELL_VALUE[player.pool.rarity]);
+    const value = SELL_VALUE[player.pool.rarity];
+    if (as === 'points') await get().addLevelPoints(value);
+    else await get().addCoins(value);
     set({ players: await playerRepo.getOwnedPlayers() });
     return true;
   },

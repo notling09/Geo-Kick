@@ -49,6 +49,11 @@ interface BattleState {
   specialSpotId: string | null;
   /** Steht ein Elfmeterschießen aus (Kampf endete 90 Min unentschieden)? */
   pendingShootout: ShootoutSetup | null;
+  /**
+   * Boss besiegt (V7): die Belohnung ist noch offen – der Nutzer wählt im
+   * Screen zwischen Coins+Punkten und 2 Session-Packs (claimBossReward).
+   */
+  pendingBossReward: boolean;
 
   hydrate: () => Promise<void>;
   /**
@@ -72,6 +77,8 @@ interface BattleState {
   resolveShootout: (won: boolean) => Promise<string | null>;
   /** Abbruch (Screen verlassen): kein Reward, Zustand aufräumen. */
   abandonShootout: () => void;
+  /** Boss-Belohnung wählen (V7): Coins+Punkte oder 2 Session-Packs. */
+  claimBossReward: (choice: 'coins' | 'packs') => Promise<string>;
 }
 
 async function persist(day: string, foughtSpotIds: string[]): Promise<void> {
@@ -95,6 +102,7 @@ export const useBattleStore = create<BattleState>((set, get) => ({
   foughtSpotIds: [],
   specialSpotId: null,
   pendingShootout: null,
+  pendingBossReward: false,
 
   hydrate: async () => {
     const raw = await metaRepo.getMeta('pitchBattles');
@@ -150,7 +158,18 @@ export const useBattleStore = create<BattleState>((set, get) => ({
       pickFrom = nearest ? [nearest] : spots;
     }
     if (pickFrom.length === 0) pickFrom = spots;
-    const specialSpotId = specialSpotIdForDay(pickFrom.map((s) => s.id), today);
+    // Zuletzt gewählten Gold-Platz laden und ausschließen → garantierte
+    // Tages-Rotation (V7). An einem neuen Tag ist das der gestrige Platz.
+    let lastId: string | null = null;
+    try {
+      const stored = JSON.parse((await metaRepo.getMeta('specialSpot')) || 'null') as
+        | { day: string; spotId: string }
+        | null;
+      lastId = stored?.spotId ?? null;
+    } catch {
+      lastId = null;
+    }
+    const specialSpotId = specialSpotIdForDay(pickFrom.map((s) => s.id), today, lastId);
     if (!specialSpotId) return;
     await metaRepo.setMeta('specialSpot', JSON.stringify({ day: today, spotId: specialSpotId }));
     set({ specialSpotId });
@@ -260,13 +279,9 @@ export const useBattleStore = create<BattleState>((set, get) => ({
         const draw = result.homeGoals === result.awayGoals;
         let coinReward: PlayedUserMatch['coinReward'];
         if (won && isBoss) {
-          const reward = PITCH_BATTLE.bossWinReward;
-          await g2.addCoins(reward);
-          await g2.addLevelPoints(reward);
-          coinReward = {
-            total: reward,
-            breakdown: [tf('rewardBossBeaten', { n: reward }), tf('rewardBossPoints', { n: reward })],
-          };
+          // V7: Belohnung erst nach dem Abpfiff wählen (Coins+Punkte / 2 Packs)
+          set({ pendingBossReward: true });
+          coinReward = { total: 0, breakdown: [t('bossRewardChoose')] };
         } else if (won) {
           await g2.grantPack('session');
           coinReward = { total: 0, breakdown: [t('rewardBattlePack')] };
@@ -321,14 +336,28 @@ export const useBattleStore = create<BattleState>((set, get) => ({
     if (!pending || !won) return null;
     const game = useGameStore.getState();
     if (pending.isBoss) {
-      const reward = PITCH_BATTLE.bossWinReward;
-      await game.addCoins(reward);
-      await game.addLevelPoints(reward);
-      return tf('soRewardBoss', { n: reward });
+      // V7: Boss-Belohnung wählt der Screen (pendingBossReward), kein Fixtext
+      set({ pendingBossReward: true });
+      return null;
     }
     await game.grantPack('session');
     return t('soRewardPack');
   },
 
   abandonShootout: () => set({ pendingShootout: null }),
+
+  claimBossReward: async (choice) => {
+    if (!get().pendingBossReward) return '';
+    set({ pendingBossReward: false });
+    const game = useGameStore.getState();
+    if (choice === 'packs') {
+      await game.grantPack('session');
+      await game.grantPack('session');
+      return t('bossRewardGotPacks');
+    }
+    const reward = PITCH_BATTLE.bossWinReward;
+    await game.addCoins(reward);
+    await game.addLevelPoints(reward);
+    return tf('bossRewardGotCoins', { n: reward });
+  },
 }));
