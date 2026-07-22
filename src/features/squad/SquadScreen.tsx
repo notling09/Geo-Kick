@@ -100,7 +100,7 @@ export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
             </Pressable>
           ))}
           <View style={{ flex: 1 }} />
-          <GKButton title={t('sqBestXI')} variant="ghost" style={styles.autoBtn} onPress={autoLineup} />
+          <GKButton title={t('sqBestXI')} variant="ghost" style={styles.autoBtn} onPress={() => autoLineup(suspendedIds)} />
         </View>
 
         <View>

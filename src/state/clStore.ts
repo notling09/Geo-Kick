@@ -160,17 +160,41 @@ export const useClStore = create<ClStore>((set, get) => ({
         const finalUserGoals = userIsHome ? hg : ag;
         const finalOppGoals = userIsHome ? ag : hg;
         const won = finalUserGoals > finalOppGoals;
+        const draw = finalUserGoals === finalOppGoals;
 
-        // CL-Coins nur bei Sieg (steigend je Runde)
+        // CL-Coins: Sieg (steigend je Runde), Gruppen-Remis 5, plus Captain-
+        // Boni die je Runde steigen (V7.1)
         const breakdown: string[] = [];
         let coins = 0;
         if (won) {
-          coins = clWinReward(fixture.stage);
-          if (coins > 0) {
-            await g2.addCoins(coins);
-            breakdown.push(tf('clRewardWin', { n: coins }));
+          const w = clWinReward(fixture.stage);
+          coins += w;
+          breakdown.push(tf('clRewardWin', { n: w }));
+        } else if (draw) {
+          coins += CHAMPIONS_LEAGUE.drawReward;
+          breakdown.push(tf('rewardDraw', { n: CHAMPIONS_LEAGUE.drawReward }));
+        }
+        const captain = g2.players.find((p) => p.id === g2.captainPlayerId);
+        if (captain) {
+          const side = userIsHome ? 'home' : 'away';
+          const cg = result.events.filter(
+            (e) => e.type === 'tor' && e.team === side && e.player === captain.pool.name,
+          ).length;
+          const ca = result.events.filter(
+            (e) => e.type === 'tor' && e.team === side && e.assist === captain.pool.name,
+          ).length;
+          const goalV = CHAMPIONS_LEAGUE.captainGoal[fixture.stage] ?? 0;
+          const assistV = CHAMPIONS_LEAGUE.captainAssist[fixture.stage] ?? 0;
+          if (cg > 0) {
+            coins += cg * goalV;
+            breakdown.push(tf('rewardCaptainGoal', { c: cg, n: cg * goalV }));
+          }
+          if (ca > 0) {
+            coins += ca * assistV;
+            breakdown.push(tf('rewardCaptainAssist', { c: ca, n: ca * assistV }));
           }
         }
+        if (coins > 0) await g2.addCoins(coins);
 
         // Ergebnis in den Turnierbaum eintragen und vorantreiben
         applyUserClResult(state, hg, ag);

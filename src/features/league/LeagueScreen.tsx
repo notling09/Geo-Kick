@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useIsFocused } from '@react-navigation/native';
 import { LEAGUE, TACTIC_LABEL, USER_CLUB_ID } from '../../core/domain/constants';
 import { t, tf } from '../../core/i18n';
 import type { Tactic } from '../../core/domain/types';
 import { nextUserClMatch, userHasClMatch } from '../../core/engine/cl';
+import { ClBracketView } from './ClBracketView';
 import { useGameStore } from '../../state/gameStore';
 import { useLeagueStore } from '../../state/leagueStore';
 import { useClStore } from '../../state/clStore';
@@ -44,6 +45,17 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
   const div1Slot = useLeagueStore((s) => s.div1Slot);
   const nextMatchAt = useLeagueStore((s) => s.nextMatchAt);
   const clState = useClStore((s) => s.state);
+  const lineup = useGameStore((s) => s.lineup);
+  const suspensions = useLeagueStore((s) => s.suspensions);
+
+  // Für das nächste Ligaspiel gesperrte eigene Spieler (rote Karte, V7)
+  const suspendedInLineup = useMemo(
+    () =>
+      suspensions
+        .filter((s) => s.season === season && s.round === round && lineup.includes(s.playerId))
+        .map((s) => s.playerName),
+    [suspensions, season, round, lineup],
+  );
 
   // Champions League (V7, nur Division 1): jeder 3. Slot ist ein CL-Spiel
   const isClNext = (club?.division ?? 4) === 1 && div1Slot % 3 === 2 && !!clState;
@@ -73,6 +85,8 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
   const [starting, setStarting] = useState(false);
   const [, forceTick] = useState(0);
   const [fixtureRound, setFixtureRound] = useState<number | null>(null);
+  // Tabelle-Tab (V7.1): in Division 1 zwischen Ligatabelle und CL-Bracket
+  const [tableTab, setTableTab] = useState<'league' | 'cl'>('league');
 
   useEffect(() => {
     if (isFocused) hydrate();
@@ -141,12 +155,19 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
   );
 
   const onKickoff = async () => {
+    // Gesperrte Spieler (rote Karte) müssen erst raus – gilt auch für die CL
+    if (suspendedInLineup.length > 0) {
+      Alert.alert(t('lgSuspendedTitle'), tf('lgSuspendedBody', { names: suspendedInLineup.join(', ') }));
+      return;
+    }
     setStarting(true);
     try {
       if (isClNext) {
         if (clUserOut) {
-          // Nutzer raus: die nächste CL-Runde nur simulieren (kein Ticker)
+          // Nutzer raus: die nächste CL-Runde simulieren und im Bracket zeigen
           await useClStore.getState().simulateNextRound();
+          setTableTab('cl');
+          navigation.navigate('ChampionsLeague');
         } else {
           const played = await useClStore.getState().playUserClMatch(tactic);
           if (played) navigation.navigate('MatchLive');
@@ -259,12 +280,6 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
                       )}
                     </>
                   )}
-                  <GKButton
-                    title={t('clBracket')}
-                    variant="ghost"
-                    style={{ marginTop: spacing.sm }}
-                    onPress={() => navigation.navigate('ChampionsLeague')}
-                  />
                 </Card>
               </>
             );
@@ -345,7 +360,33 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
           </View>
         </Card>
 
-        <SectionTitle>{t('lgTable')}</SectionTitle>
+        {/* Division 1: Umschalter Ligatabelle / Champions League (V7.1) */}
+        {clState ? (
+          <View style={styles.tableTabs}>
+            <Pressable
+              style={[styles.tableTab, tableTab === 'league' && styles.tableTabActive]}
+              onPress={() => setTableTab('league')}
+            >
+              <Text style={[styles.tableTabText, tableTab === 'league' && styles.tableTabTextActive]}>
+                {t('lgTable')}
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.tableTab, tableTab === 'cl' && styles.tableTabActive]}
+              onPress={() => setTableTab('cl')}
+            >
+              <Text style={[styles.tableTabText, tableTab === 'cl' && styles.tableTabTextActive]}>
+                {t('clName')}
+              </Text>
+            </Pressable>
+          </View>
+        ) : (
+          <SectionTitle>{t('lgTable')}</SectionTitle>
+        )}
+
+        {clState && tableTab === 'cl' ? (
+          <ClBracketView state={clState} />
+        ) : (
         <Card style={{ paddingVertical: spacing.sm }}>
           <View style={styles.tableHeader}>
             <Text style={[styles.th, styles.colPos]}>#</Text>
@@ -382,6 +423,7 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
             {tf('lgLegend', { p: LEAGUE.promotionSpots, r: LEAGUE.relegationSpots })}
           </Text>
         </Card>
+        )}
 
         {(topScorers.length > 0 || topAssists.length > 0) && (
           <>
@@ -531,6 +573,31 @@ const styles = StyleSheet.create({
     fontSize: font.small,
     textAlign: 'center',
     marginBottom: spacing.sm,
+  },
+  tableTabs: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  tableTab: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: radius.round,
+    borderWidth: 2,
+    borderColor: colors.line,
+    alignItems: 'center',
+  },
+  tableTabActive: {
+    borderColor: colors.pitch,
+    backgroundColor: colors.pitch,
+  },
+  tableTabText: {
+    fontWeight: '800',
+    fontSize: font.small,
+    color: colors.inkSoft,
+  },
+  tableTabTextActive: {
+    color: '#fff',
   },
   messageCard: {
     backgroundColor: '#FFF8E1',

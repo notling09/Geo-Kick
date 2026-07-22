@@ -453,6 +453,12 @@ export const CHAMPIONS_LEAGUE = {
   strengthRange: [820, 1010] as [number, number],
   /** Coins pro Sieg je Runde (steigend) */
   winReward: { group: 10, r16: 20, qf: 40, sf: 80, final: 150 } as Record<string, number>,
+  /** Coins für ein Remis (nur in der Gruppenphase möglich) */
+  drawReward: 5,
+  /** Captain-Bonus pro Tor je Runde (steigend) */
+  captainGoal: { group: 3, r16: 6, qf: 12, sf: 24, final: 45 } as Record<string, number>,
+  /** Captain-Bonus pro Vorlage je Runde (steigend) */
+  captainAssist: { group: 2, r16: 4, qf: 8, sf: 16, final: 30 } as Record<string, number>,
   /** Gegner-Schwierigkeit für den Nutzer je Runde (Stärke-Faktor, steigend) */
   difficulty: { group: 0.98, r16: 1.06, qf: 1.14, sf: 1.22, final: 1.32 } as Record<string, number>,
 } as const;

@@ -198,6 +198,17 @@ function userDone(state: ClState): boolean {
   return state.userStage === 'out' || state.userStage === 'champion';
 }
 
+/**
+ * Ein offenes NPC-Gruppenspiel mitsimulieren (V7.1): So spielen die anderen
+ * Gruppen-Teams parallel zum Nutzer – die Tabelle bleibt nach jedem Spieltag
+ * aktuell, statt erst am Ende alle NPC-Spiele nachzuholen.
+ */
+function simulateParallelGroupGame(state: ClState): void {
+  if (state.ko.r16.length > 0) return;
+  const openNpc = state.groupMatches.find((m) => !involvesUser(m) && !m.played);
+  if (openNpc) simulate(state, openNpc);
+}
+
 /** NPC-Gruppenspiele simulieren und Achtelfinale bauen, sobald der Nutzer durch ist. */
 function maybeFinishGroup(state: ClState): void {
   if (state.ko.r16.length > 0) return;
@@ -250,6 +261,7 @@ function resolveKoRound(state: ClState, stage: Exclude<ClStage, 'group'>): void 
  * Runden zeigt der Screen dann Slot für Slot über simulateNextClRound.
  */
 export function advanceCl(state: ClState): void {
+  simulateParallelGroupGame(state);
   maybeFinishGroup(state);
   if (userDone(state)) return;
   for (const stage of KO_STAGES) {

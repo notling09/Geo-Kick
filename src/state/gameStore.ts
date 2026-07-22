@@ -44,7 +44,7 @@ interface GameState {
   setLineupSlot: (slot: number, playerId: number | null) => Promise<void>;
   /** Komplette Aufstellung setzen (V5: Halbzeit-Wechsel gelten nur im Spiel) */
   restoreLineup: (lineup: Array<number | null>) => Promise<void>;
-  autoLineup: () => Promise<void>;
+  autoLineup: (excludeIds?: Set<number>) => Promise<void>;
   addCoins: (amount: number) => Promise<void>;
   addLevelPoints: (amount: number) => Promise<void>;
   grantPack: (source: Pack['source']) => Promise<void>;
@@ -185,10 +185,15 @@ function lineupArray(map: Map<number, number>): Array<number | null> {
 function buildAutoLineup(
   players: OwnedPlayer[],
   formation: FormationId,
+  excludeIds?: Set<number>,
 ): Array<number | null> {
   const slots = FORMATIONS[formation];
   const used = new Set<number>();
-  const byOverall = [...players].sort(
+  // Gesperrte Spieler (rote Karte) werden nie automatisch aufgestellt (V7)
+  const pool = excludeIds && excludeIds.size > 0
+    ? players.filter((p) => !excludeIds.has(p.id))
+    : players;
+  const byOverall = [...pool].sort(
     (a, b) => effectiveOverall(b.pool, b.level) - effectiveOverall(a.pool, a.level),
   );
   const result: Array<number | null> = new Array(11).fill(null);
@@ -362,9 +367,9 @@ export const useGameStore = create<GameState>((set, get) => ({
     set({ lineup: [...lineup] });
   },
 
-  autoLineup: async () => {
+  autoLineup: async (excludeIds) => {
     const { players, club } = get();
-    const lineup = buildAutoLineup(players, club?.formation ?? '4-4-2');
+    const lineup = buildAutoLineup(players, club?.formation ?? '4-4-2', excludeIds);
     await playerRepo.replaceLineup(lineup.map((id, slot) => [slot, id]));
     set({ lineup });
   },
