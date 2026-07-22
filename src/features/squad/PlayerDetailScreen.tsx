@@ -145,7 +145,7 @@ export function PlayerDetailScreen({ route, navigation }: RootScreenProps<'Playe
                     : tf('pdSellInfo', { n: sellValue, rarity: RARITY_LABEL[player.pool.rarity] })}
               </Text>
               <GKButton
-                title={tf('pdSellBtn', { n: sellValue })}
+                title={tf('pdSellBtnChoice', { n: sellValue })}
                 variant="danger"
                 onPress={onSell}
                 disabled={inLineup || isCaptain}

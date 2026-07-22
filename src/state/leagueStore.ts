@@ -9,7 +9,7 @@ import { teamStrength } from '../core/engine/strength';
 import * as leagueRepo from '../core/db/repositories/leagueRepo';
 import * as metaRepo from '../core/db/repositories/metaRepo';
 import { clubList, createSeason, loadLeagueData, seasonFinished } from '../core/services/seasonService';
-import { addDouble, addLeagueTitle } from '../core/services/trophies';
+import { addDouble, addLeagueTitle, addRunnerUp } from '../core/services/trophies';
 import { useGameStore } from './gameStore';
 import { runUserMatch, type MatchPause } from './matchFlow';
 import { pick } from '../core/engine/random';
@@ -294,6 +294,8 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
     } else if (outcome.finalRank === 2) {
       prize = secondPrize;
       await g2.addCoins(prize);
+      // Vize-Meister/Aufstieg als Zweiter in den Trophäenschrank (V7)
+      await addRunnerUp(club.division);
     }
 
     // Karriere-Ende (V7): Liga-Meister in Division 1 UND CL-Sieger in

@@ -1,4 +1,4 @@
-import { POSITION_WEIGHTS, RARITY_OVERALL_RANGE, STARTER_OVERALL } from '../domain/constants';
+import { MAX_PLAYER_OVERALL, POSITION_WEIGHTS, RARITY_OVERALL_RANGE, STARTER_OVERALL } from '../domain/constants';
 import type { Attributes, PoolPlayer, Position, Rarity } from '../domain/types';
 import { FIRST_NAMES, GOLD_PLAYERS, LAST_NAMES, LEGENDARY_PLAYERS, STARTER_WINGERS } from './names';
 import { pick, randInt, shuffle } from './random';
@@ -84,8 +84,15 @@ export function effectiveAttributes(pool: PoolPlayer, level: number): Attributes
   };
 }
 
+/**
+ * Effektives Overall (V7-Fix): linear – Level 1 = Basis-Rating, jedes weitere
+ * Level +1, gedeckelt bei 99. Früher wurde das Overall aus den (bei 99
+ * gedeckelten) Attributen gemittelt; dadurch blieb es bei hohen Werten trotz
+ * teurer Level-ups oft auf demselben Wert stehen (z. B. hing bei 93 fest).
+ */
 export function effectiveOverall(pool: PoolPlayer, level: number): number {
-  return overallOf(effectiveAttributes(pool, level), pool.position);
+  const base = overallOf(pool, pool.position);
+  return Math.min(MAX_PLAYER_OVERALL, base + Math.max(0, level - 1));
 }
 
 export type NewPoolPlayer = Omit<PoolPlayer, 'id'>;

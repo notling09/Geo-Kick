@@ -43,6 +43,18 @@ function buildRows(c: TrophyCabinet): TrophyRow[] {
       });
     }
   }
+  // Vize-Meister (Platz 2) je Division
+  for (const div of [1, 2, 3, 4]) {
+    const n = c.runnerUps[div] ?? 0;
+    if (n > 0) {
+      rows.push({
+        key: `runner-${div}`,
+        label: tf('trRunnerUp', { n: div }),
+        count: n,
+        color: '#9BA6B2',
+      });
+    }
+  }
   return rows;
 }
 

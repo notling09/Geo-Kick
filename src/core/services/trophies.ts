@@ -9,26 +9,29 @@ import * as metaRepo from '../db/repositories/metaRepo';
 export interface TrophyCabinet {
   /** Liga-Meistertitel je Division (Division -> Anzahl) */
   leagueTitles: Record<number, number>;
+  /** Vize-Meister / Aufstieg als Zweiter je Division (Division -> Anzahl) */
+  runnerUps: Record<number, number>;
   /** Champions-League-Titel */
   clTitles: number;
   /** Vollendete Karrieren (Liga + Champions League in derselben Saison) */
   doubles: number;
 }
 
-const EMPTY: TrophyCabinet = { leagueTitles: {}, clTitles: 0, doubles: 0 };
+const EMPTY: TrophyCabinet = { leagueTitles: {}, runnerUps: {}, clTitles: 0, doubles: 0 };
 
 export async function loadTrophies(): Promise<TrophyCabinet> {
   const raw = await metaRepo.getMeta('trophyCabinet');
-  if (!raw) return { ...EMPTY, leagueTitles: {} };
+  if (!raw) return { leagueTitles: {}, runnerUps: {}, clTitles: 0, doubles: 0 };
   try {
     const parsed = JSON.parse(raw) as Partial<TrophyCabinet>;
     return {
       leagueTitles: parsed.leagueTitles ?? {},
+      runnerUps: parsed.runnerUps ?? {},
       clTitles: parsed.clTitles ?? 0,
       doubles: parsed.doubles ?? 0,
     };
   } catch {
-    return { ...EMPTY, leagueTitles: {} };
+    return { leagueTitles: {}, runnerUps: {}, clTitles: 0, doubles: 0 };
   }
 }
 
@@ -40,6 +43,13 @@ async function save(cabinet: TrophyCabinet): Promise<void> {
 export async function addLeagueTitle(division: number): Promise<void> {
   const c = await loadTrophies();
   c.leagueTitles[division] = (c.leagueTitles[division] ?? 0) + 1;
+  await save(c);
+}
+
+/** Vize-Meister (Platz 2, Aufstieg) einer Division gutschreiben. */
+export async function addRunnerUp(division: number): Promise<void> {
+  const c = await loadTrophies();
+  c.runnerUps[division] = (c.runnerUps[division] ?? 0) + 1;
   await save(c);
 }
 
@@ -60,5 +70,6 @@ export async function addDouble(): Promise<void> {
 /** Gesamtzahl aller Trophäen (für die Profil-Anzeige). */
 export function totalTrophies(c: TrophyCabinet): number {
   const league = Object.values(c.leagueTitles).reduce((a, b) => a + b, 0);
-  return league + c.clTitles + c.doubles;
+  const runner = Object.values(c.runnerUps).reduce((a, b) => a + b, 0);
+  return league + runner + c.clTitles + c.doubles;
 }
