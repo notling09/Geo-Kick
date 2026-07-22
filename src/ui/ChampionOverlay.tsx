@@ -109,9 +109,10 @@ export function ChampionOverlay({ visible, clubName, division, captain, onDismis
           <ConfettiPiece key={i} index={i} height={height} />
         ))}
         <View style={styles.content}>
-          <Text style={styles.title}>{t('champTitle')}</Text>
+          {/* division 0 = Champions-League-Titel (eigener Text, V7) */}
+          <Text style={styles.title}>{division === 0 ? t('clChampionTitle') : t('champTitle')}</Text>
           <Text style={styles.subtitle}>
-            {tf('champBody', { club: clubName, div: division })}
+            {division === 0 ? clubName : tf('champBody', { club: clubName, div: division })}
           </Text>
           {/* Captain steht hinter dem Pokal */}
           <View style={styles.stage}>

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { BALANCING, LEAGUE, LEAGUE_REWARDS, USER_CLUB_ID } from '../core/domain/constants';
+import { userHasClMatch } from '../core/engine/cl';
 import { tf } from '../core/i18n';
 import type { Match, MatchStats, NpcClub, OwnedPlayer, StandingRow, Tactic } from '../core/domain/types';
 import { computeStandings, generateNpcRoster, resolveSeason } from '../core/engine/league';
@@ -95,11 +96,23 @@ interface LeagueStateStore {
   /** Steht die Saison-Rückblick-Show noch aus? (V5) */
   seasonReview: SeasonReviewData | null;
 
+  /**
+   * Spiel-Slot in Division 1 (V7): 0..20. Jeder 3. Slot ist ein Champions-
+   * League-Spiel (14 Liga + 7 CL = 21 Spiele). In Division 2-4 ungenutzt.
+   */
+  div1Slot: number;
+
   hydrate: () => Promise<void>;
   acknowledgeCelebration: () => void;
   revealCelebration: () => void;
   matchReady: () => boolean;
   msUntilNextMatch: () => number;
+  /** Ist das nächste Saison-Spiel ein CL-Spiel? (nur Division 1, V7) */
+  nextIsCl: () => boolean;
+  /** Slot in Division 1 weiterschalten + ggf. Saison abschließen (V7). */
+  advanceDiv1Slot: () => Promise<void>;
+  /** Saison abschließen: Auf-/Abstieg, Rückblick, neue Saison + CL (V7). */
+  concludeSeason: () => Promise<void>;
   /**
    * Spieltag anpfeifen: NPC-Spiele komplett, das eigene Spiel nur bis zur
    * Halbzeit (V5). Die 2. Hälfte startet der Live-Ticker über matchFlow.
@@ -155,6 +168,7 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
   championCelebration: null,
   pendingCelebration: null,
   seasonReview: null,
+  div1Slot: 0,
 
   acknowledgeCelebration: () => set({ championCelebration: null }),
 
@@ -176,6 +190,7 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       nextMatchAt = maxNext;
       await metaRepo.setMeta('nextMatchAt', String(nextMatchAt));
     }
+    const div1Slot = await metaRepo.getMetaNumber('div1Slot', 0);
     set({
       season: data.season,
       round: data.round,
@@ -186,7 +201,19 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       seasonMessage: seasonMessage || null,
       suspensions: await loadSuspensions(),
       seasonReview: await loadSeasonReview(),
+      div1Slot,
     });
+    // Champions League der aktuellen Saison laden/anlegen (nur Division 1, V7)
+    const { useClStore } = await import('./clStore');
+    await useClStore.getState().hydrate(data.season);
+    if ((useGameStore.getState().club?.division ?? 4) === 1) {
+      await useClStore.getState().ensureSeason(data.season);
+    }
+  },
+
+  nextIsCl: () => {
+    const division = useGameStore.getState().club?.division ?? 4;
+    return division === 1 && get().div1Slot % 3 === 2;
   },
 
   matchReady: () => {
@@ -195,6 +222,124 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
   },
 
   msUntilNextMatch: () => Math.max(0, get().nextMatchAt - Date.now()),
+
+  advanceDiv1Slot: async () => {
+    const nextSlot = get().div1Slot + 1;
+    await metaRepo.setMeta('div1Slot', String(nextSlot));
+    set({ div1Slot: nextSlot });
+
+    // Alle 21 Slots gespielt → Division-1-Saison abschließen (V7)
+    if (nextSlot >= 21) {
+      await get().concludeSeason();
+      return;
+    }
+    // Timer nur setzen, wenn das nächste ein NUTZER-Spiel ist. An CL-Slots
+    // ohne eigenes Spiel (Nutzer ausgeschieden) soll es sofort weitergehen.
+    const { useClStore } = await import('./clStore');
+    const clState = useClStore.getState().state;
+    const nextCl = get().nextIsCl();
+    const userPlaysNext = nextCl ? (clState ? userHasClMatch(clState) : false) : true;
+    if (userPlaysNext) {
+      const at = Date.now() + BALANCING.matchIntervalMs;
+      await metaRepo.setMeta('nextMatchAt', String(at));
+      set({ nextMatchAt: at });
+    } else {
+      set({ nextMatchAt: Date.now() });
+    }
+  },
+
+  concludeSeason: async () => {
+    const { season, npcs } = get();
+    const g2 = useGameStore.getState();
+    const club = g2.club;
+    if (!club) return;
+
+    let seasonStats: Record<string, SeasonPlayerStat> = {};
+    try {
+      seasonStats = JSON.parse((await metaRepo.getMeta('seasonSquadStats')) || '{}');
+    } catch {
+      seasonStats = {};
+    }
+
+    const finalStandings = recomputeStandings(get().matches, npcs);
+    const outcome = resolveSeason(finalStandings, club.division);
+
+    const [firstPrize, secondPrize] = LEAGUE_REWARDS.seasonByDivision[club.division];
+    let prize = 0;
+    if (outcome.finalRank === 1) {
+      prize = firstPrize;
+      await g2.addCoins(prize);
+      await addLeagueTitle(club.division);
+      set({
+        pendingCelebration: {
+          clubName: club.name,
+          division: club.division,
+          captainPlayerId: g2.captainPlayerId,
+        },
+      });
+    } else if (outcome.finalRank === 2) {
+      prize = secondPrize;
+      await g2.addCoins(prize);
+    }
+
+    const bestEntry = Object.entries(seasonStats)
+      .filter(([, s]) => s.matches > 0)
+      .sort(([, a], [, b]) => b.ratingSum / b.matches - a.ratingSum / a.matches || b.goals - a.goals)[0];
+    const best = bestEntry
+      ? {
+          name: bestEntry[0],
+          goals: bestEntry[1].goals,
+          assists: bestEntry[1].assists,
+          avg: Math.round((bestEntry[1].ratingSum / bestEntry[1].matches) * 10) / 10,
+          matches: bestEntry[1].matches,
+        }
+      : null;
+
+    const review: SeasonReviewData = {
+      season,
+      oldDivision: club.division,
+      newDivision: outcome.newDivision,
+      finalRank: outcome.finalRank,
+      promoted: outcome.promoted,
+      relegated: outcome.relegated,
+      prize,
+      standings: finalStandings,
+      best,
+      squadStats: seasonStats,
+    };
+    await metaRepo.setMeta('seasonReview', JSON.stringify(review));
+    await metaRepo.setMeta('seasonSquadStats', '{}');
+    await metaRepo.setMeta('division', String(outcome.newDivision));
+    const bestDivision = await metaRepo.getMetaNumber('bestDivision', 4);
+    if (outcome.newDivision < bestDivision) {
+      await metaRepo.setMeta('bestDivision', String(outcome.newDivision));
+    }
+
+    const updatedSeason = season + 1;
+    await createSeason(updatedSeason, outcome.newDivision);
+    await metaRepo.setMeta('div1Slot', '0');
+    const updatedMatches = await leagueRepo.getMatches(updatedSeason);
+    const updatedNpcs = await leagueRepo.getNpcClubs(updatedSeason);
+
+    useGameStore.setState((s) => ({
+      club: s.club ? { ...s.club, division: outcome.newDivision } : s.club,
+    }));
+
+    // Champions League der neuen Saison anlegen (nur wenn Division 1, V7)
+    const { useClStore } = await import('./clStore');
+    if (outcome.newDivision === 1) await useClStore.getState().ensureSeason(updatedSeason);
+    else await useClStore.getState().clear();
+
+    set({
+      season: updatedSeason,
+      round: 1,
+      div1Slot: 0,
+      matches: updatedMatches,
+      npcs: updatedNpcs,
+      standings: recomputeStandings(updatedMatches, updatedNpcs),
+      seasonReview: review,
+    });
+  },
 
   playUserMatchday: async (tactic) => {
     const { round, season, npcs, matches } = get();
@@ -407,91 +552,14 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       // Spieltakt fortschreiben (siehe BALANCING.matchIntervalMs)
       const newRound = round + 1;
       await metaRepo.setMeta('round', String(newRound));
-      await metaRepo.setMeta('nextMatchAt', String(Date.now() + BALANCING.matchIntervalMs));
-
-      let updatedMatches = await leagueRepo.getMatches(season);
-      let updatedNpcs = npcs;
-      let updatedSeason = season;
-      let updatedRound = newRound;
-
-      // Saisonende: Auf-/Abstieg auflösen, Rückblick-Show vorbereiten (V5)
-      // und neue Saison anlegen
-      if (seasonFinished(newRound)) {
-        const finalStandings = recomputeStandings(updatedMatches, npcs);
-        const outcome = resolveSeason(finalStandings, club.division);
-
-        // Saisonprämie (V2): Platz 1/2, gestaffelt nach Division
-        const [firstPrize, secondPrize] = LEAGUE_REWARDS.seasonByDivision[club.division];
-        let prize = 0;
-        if (outcome.finalRank === 1) {
-          prize = firstPrize;
-          await g2.addCoins(prize);
-          // Meistertitel in den (Karriere-übergreifenden) Trophäenschrank (V7)
-          await addLeagueTitle(club.division);
-          // Meister: Pokal-Animation mit dem Captain – aber erst NACH dem
-          // Live-Ticker zeigen (revealCelebration in der Live-Ansicht)
-          set({
-            pendingCelebration: {
-              clubName: club.name,
-              division: club.division,
-              captainPlayerId: g2.captainPlayerId,
-            },
-          });
-        } else if (outcome.finalRank === 2) {
-          prize = secondPrize;
-          await g2.addCoins(prize);
-        }
-
-        // Spieler der Saison: bester Notenschnitt, bei Gleichstand die Tore
-        const bestEntry = Object.entries(seasonStats)
-          .filter(([, s]) => s.matches > 0)
-          .sort(
-            ([, a], [, b]) =>
-              b.ratingSum / b.matches - a.ratingSum / a.matches || b.goals - a.goals,
-          )[0];
-        const best = bestEntry
-          ? {
-              name: bestEntry[0],
-              goals: bestEntry[1].goals,
-              assists: bestEntry[1].assists,
-              avg: Math.round((bestEntry[1].ratingSum / bestEntry[1].matches) * 10) / 10,
-              matches: bestEntry[1].matches,
-            }
-          : null;
-
-        const review: SeasonReviewData = {
-          season,
-          oldDivision: club.division,
-          newDivision: outcome.newDivision,
-          finalRank: outcome.finalRank,
-          promoted: outcome.promoted,
-          relegated: outcome.relegated,
-          prize,
-          standings: finalStandings,
-          best,
-          squadStats: seasonStats,
-        };
-        await metaRepo.setMeta('seasonReview', JSON.stringify(review));
-        await metaRepo.setMeta('seasonSquadStats', '{}');
-
-        await metaRepo.setMeta('division', String(outcome.newDivision));
-        // Beste erreichte Division für Erfolge festhalten
-        const bestDivision = await metaRepo.getMetaNumber('bestDivision', 4);
-        if (outcome.newDivision < bestDivision) {
-          await metaRepo.setMeta('bestDivision', String(outcome.newDivision));
-        }
-
-        updatedSeason = season + 1;
-        await createSeason(updatedSeason, outcome.newDivision);
-        updatedMatches = await leagueRepo.getMatches(updatedSeason);
-        updatedNpcs = await leagueRepo.getNpcClubs(updatedSeason);
-        updatedRound = 1;
-
-        useGameStore.setState((s) => ({
-          club: s.club ? { ...s.club, division: outcome.newDivision } : s.club,
-        }));
-        set({ seasonReview: review });
+      const isDiv1 = club.division === 1;
+      // In Division 1 taktet advanceDiv1Slot den Timer (CL verschachtelt);
+      // sonst wie bisher direkt hier
+      if (!isDiv1) {
+        await metaRepo.setMeta('nextMatchAt', String(Date.now() + BALANCING.matchIntervalMs));
       }
+
+      const updatedMatches = await leagueRepo.getMatches(season);
 
       const played: PlayedUserMatch = {
         match: userMatch,
@@ -505,16 +573,25 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
         motm: result.motm,
       };
 
+      // Ergebnis der gespielten Runde in den State
       set({
-        season: updatedSeason,
-        round: updatedRound,
-        nextMatchAt: await metaRepo.getMetaNumber('nextMatchAt', 0),
+        round: newRound,
         matches: updatedMatches,
-        npcs: updatedNpcs,
-        standings: recomputeStandings(updatedMatches, updatedNpcs),
+        standings: recomputeStandings(updatedMatches, npcs),
         lastPlayedMatch: played,
         suspensions,
+        nextMatchAt: isDiv1
+          ? get().nextMatchAt
+          : Date.now() + BALANCING.matchIntervalMs,
       });
+
+      // Saisonabschluss: In Division 1 erst wenn alle 21 Slots durch sind
+      // (advanceDiv1Slot); in Division 2-4 direkt nach Runde 14.
+      if (isDiv1) {
+        await get().advanceDiv1Slot();
+      } else if (seasonFinished(newRound)) {
+        await get().concludeSeason();
+      }
       },
     });
 

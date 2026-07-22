@@ -122,9 +122,17 @@ const eggCount: Record<string, number> = { bronze: 0, silber: 0, gold: 0, legend
 for (let i = 0; i < 2000; i++) {
   eggCount[drawEggPlayer(pool, egg5).rarity]++;
 }
-check('5km egg: no bronze, no geheim', eggCount.bronze === 0 && eggCount.geheim === 0, JSON.stringify(eggCount));
-check('5km egg: legendaer ~20%', Math.abs(eggCount.legendaer / 2000 - 0.2) < 0.04);
+// V7: 5-km-Ei aufgewertet – nur noch Gold/Legendär (kein Bronze, kein Silber)
+check('5km egg: no bronze, no silber, no geheim',
+  eggCount.bronze === 0 && eggCount.silber === 0 && eggCount.geheim === 0, JSON.stringify(eggCount));
+check('5km egg: legendaer ~38%', Math.abs(eggCount.legendaer / 2000 - 0.38) < 0.05);
 check('egg distances 1/3/5 km', EGG_TYPES.map(t => t.km).join(',') === '1,3,5');
+
+// V7: 3-km-Ei enthält nie mehr Bronze
+const egg3 = EGG_TYPES.find(t => t.id === 'egg-3')!;
+const egg3Count: Record<string, number> = { bronze: 0, silber: 0, gold: 0, legendaer: 0, geheim: 0 };
+for (let i = 0; i < 2000; i++) egg3Count[drawEggPlayer(pool, egg3).rarity]++;
+check('3km egg: no bronze', egg3Count.bronze === 0, JSON.stringify(egg3Count));
 
 // V4: Platz-Kämpfe – deterministisch je Platz/Tag, Boss deutlich stärker
 const day = dayKey(new Date(2026, 6, 12));

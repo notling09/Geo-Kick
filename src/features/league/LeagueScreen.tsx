@@ -5,8 +5,10 @@ import { useIsFocused } from '@react-navigation/native';
 import { LEAGUE, TACTIC_LABEL, USER_CLUB_ID } from '../../core/domain/constants';
 import { t, tf } from '../../core/i18n';
 import type { Tactic } from '../../core/domain/types';
+import { nextUserClMatch, userHasClMatch } from '../../core/engine/cl';
 import { useGameStore } from '../../state/gameStore';
 import { useLeagueStore } from '../../state/leagueStore';
+import { useClStore } from '../../state/clStore';
 import { GKButton, Card, SectionTitle } from '../../ui/components';
 import { ChampionOverlay } from '../../ui/ChampionOverlay';
 import { Crest } from '../../ui/Crest';
@@ -39,6 +41,14 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
   } = useLeagueStore();
   const seasonReview = useLeagueStore((s) => s.seasonReview);
   const pendingCelebration = useLeagueStore((s) => s.pendingCelebration);
+  const div1Slot = useLeagueStore((s) => s.div1Slot);
+  const nextMatchAt = useLeagueStore((s) => s.nextMatchAt);
+  const clState = useClStore((s) => s.state);
+
+  // Champions League (V7, nur Division 1): jeder 3. Slot ist ein CL-Spiel
+  const isClNext = (club?.division ?? 4) === 1 && div1Slot % 3 === 2 && !!clState;
+  const clFixture = clState && isClNext ? nextUserClMatch(clState) : null;
+  const clUserOut = isClNext && clState ? !userHasClMatch(clState) : false;
 
   // Saison-Rückblick-Show (V5): startet automatisch, sobald der Liga-Tab
   // nach dem letzten Spieltag wieder sichtbar ist (nach der Meister-Feier)
@@ -133,8 +143,18 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
   const onKickoff = async () => {
     setStarting(true);
     try {
-      const played = await playUserMatchday(tactic);
-      if (played) navigation.navigate('MatchLive');
+      if (isClNext) {
+        if (clUserOut) {
+          // Nutzer raus: die nächste CL-Runde nur simulieren (kein Ticker)
+          await useClStore.getState().simulateNextRound();
+        } else {
+          const played = await useClStore.getState().playUserClMatch(tactic);
+          if (played) navigation.navigate('MatchLive');
+        }
+      } else {
+        const played = await playUserMatchday(tactic);
+        if (played) navigation.navigate('MatchLive');
+      }
     } finally {
       setStarting(false);
     }
@@ -175,59 +195,137 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
           </Card>
         ) : null}
 
-        <SectionTitle>{t('lgNextMatch')}</SectionTitle>
-        {nextUserMatch && !seasonOver ? (
-          <Card>
-            <View style={styles.matchupRow}>
-              <View style={styles.matchupSide}>
-                <Crest crestId={clubCrest(nextUserMatch.homeId)} size={52} />
-                <Text style={styles.matchupName} numberOfLines={2}>
-                  {clubName(nextUserMatch.homeId)}
-                </Text>
-              </View>
-              <Text style={styles.vs}>vs</Text>
-              <View style={styles.matchupSide}>
-                <Crest crestId={clubCrest(nextUserMatch.awayId)} size={52} />
-                <Text style={styles.matchupName} numberOfLines={2}>
-                  {clubName(nextUserMatch.awayId)}
-                </Text>
-              </View>
-            </View>
-
-            {ready ? (
+        {isClNext ? (
+          (() => {
+            const clOppId = clFixture
+              ? clFixture.homeId === USER_CLUB_ID
+                ? clFixture.awayId
+                : clFixture.homeId
+              : null;
+            const clOpp = clOppId && clState ? clState.teams[clOppId] : null;
+            const clReady = msUntilNextMatch() <= 0;
+            return (
               <>
-                <Text style={styles.tacticTitle}>{t('lgChooseTactic')}</Text>
-                <View style={styles.tacticRow}>
-                  {TACTICS.map((t) => (
-                    <Pressable
-                      key={t}
-                      onPress={() => setTactic(t)}
-                      style={[styles.tacticChip, tactic === t && styles.tacticActive]}
-                    >
-                      <Text style={[styles.tacticText, tactic === t && styles.tacticTextActive]}>
-                        {TACTIC_LABEL[t]}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-                <Text style={styles.tacticHint}>
-                  {tf('lgFormationHint', { f: club?.formation ?? '4-4-2' })}
-                </Text>
-                <GKButton title={t('lgKickoff')} onPress={onKickoff} loading={starting} />
+                <SectionTitle>{t('clNextMatch')}</SectionTitle>
+                <Card style={styles.clCard}>
+                  {clUserOut || !clOpp ? (
+                    <>
+                      <Text style={styles.clOut}>{t('clOut')}</Text>
+                      <GKButton
+                        title={t('clWatchRound')}
+                        variant="secondary"
+                        onPress={onKickoff}
+                        loading={starting}
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <View style={styles.matchupRow}>
+                        <View style={styles.matchupSide}>
+                          <Crest crestId={club?.crest ?? 'crest-0'} size={52} />
+                          <Text style={styles.matchupName} numberOfLines={2}>{club?.name}</Text>
+                        </View>
+                        <Text style={styles.vs}>vs</Text>
+                        <View style={styles.matchupSide}>
+                          <Crest crestId={clOpp.crest} size={52} />
+                          <Text style={styles.matchupName} numberOfLines={2}>{clOpp.name}</Text>
+                        </View>
+                      </View>
+                      {clReady ? (
+                        <>
+                          <Text style={styles.tacticTitle}>{t('lgChooseTactic')}</Text>
+                          <View style={styles.tacticRow}>
+                            {TACTICS.map((tc) => (
+                              <Pressable
+                                key={tc}
+                                onPress={() => setTactic(tc)}
+                                style={[styles.tacticChip, tactic === tc && styles.tacticActive]}
+                              >
+                                <Text style={[styles.tacticText, tactic === tc && styles.tacticTextActive]}>
+                                  {TACTIC_LABEL[tc]}
+                                </Text>
+                              </Pressable>
+                            ))}
+                          </View>
+                          <GKButton title={t('clKickoff')} onPress={onKickoff} loading={starting} />
+                        </>
+                      ) : (
+                        <View style={styles.countdownRow}>
+                          <IconClock size={20} color={colors.accentDark} />
+                          <Text style={styles.countdown}>
+                            {tf('lgCountdown', { time: formatCountdown(msUntilNextMatch()) })}
+                          </Text>
+                        </View>
+                      )}
+                    </>
+                  )}
+                  <GKButton
+                    title={t('clBracket')}
+                    variant="ghost"
+                    style={{ marginTop: spacing.sm }}
+                    onPress={() => navigation.navigate('ChampionsLeague')}
+                  />
+                </Card>
               </>
-            ) : (
-              <View style={styles.countdownRow}>
-                <IconClock size={20} color={colors.accentDark} />
-                <Text style={styles.countdown}>
-                  {tf('lgCountdown', { time: formatCountdown(msUntilNextMatch()) })}
-                </Text>
-              </View>
-            )}
-          </Card>
+            );
+          })()
         ) : (
-          <Card>
-            <Text style={styles.countdown}>{t('lgSeasonDone')}</Text>
-          </Card>
+          <>
+            <SectionTitle>{t('lgNextMatch')}</SectionTitle>
+            {nextUserMatch && !seasonOver ? (
+              <Card>
+                <View style={styles.matchupRow}>
+                  <View style={styles.matchupSide}>
+                    <Crest crestId={clubCrest(nextUserMatch.homeId)} size={52} />
+                    <Text style={styles.matchupName} numberOfLines={2}>
+                      {clubName(nextUserMatch.homeId)}
+                    </Text>
+                  </View>
+                  <Text style={styles.vs}>vs</Text>
+                  <View style={styles.matchupSide}>
+                    <Crest crestId={clubCrest(nextUserMatch.awayId)} size={52} />
+                    <Text style={styles.matchupName} numberOfLines={2}>
+                      {clubName(nextUserMatch.awayId)}
+                    </Text>
+                  </View>
+                </View>
+
+                {ready ? (
+                  <>
+                    <Text style={styles.tacticTitle}>{t('lgChooseTactic')}</Text>
+                    <View style={styles.tacticRow}>
+                      {TACTICS.map((tc) => (
+                        <Pressable
+                          key={tc}
+                          onPress={() => setTactic(tc)}
+                          style={[styles.tacticChip, tactic === tc && styles.tacticActive]}
+                        >
+                          <Text style={[styles.tacticText, tactic === tc && styles.tacticTextActive]}>
+                            {TACTIC_LABEL[tc]}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                    <Text style={styles.tacticHint}>
+                      {tf('lgFormationHint', { f: club?.formation ?? '4-4-2' })}
+                    </Text>
+                    <GKButton title={t('lgKickoff')} onPress={onKickoff} loading={starting} />
+                  </>
+                ) : (
+                  <View style={styles.countdownRow}>
+                    <IconClock size={20} color={colors.accentDark} />
+                    <Text style={styles.countdown}>
+                      {tf('lgCountdown', { time: formatCountdown(msUntilNextMatch()) })}
+                    </Text>
+                  </View>
+                )}
+              </Card>
+            ) : (
+              <Card>
+                <Text style={styles.countdown}>{t('lgSeasonDone')}</Text>
+              </Card>
+            )}
+          </>
         )}
 
         <Card style={styles.friendliesCard}>
@@ -423,6 +521,16 @@ const styles = StyleSheet.create({
   subtitle: {
     color: colors.inkSoft,
     marginBottom: spacing.md,
+  },
+  clCard: {
+    borderColor: colors.sky,
+    borderWidth: 2,
+  },
+  clOut: {
+    color: colors.inkSoft,
+    fontSize: font.small,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
   },
   messageCard: {
     backgroundColor: '#FFF8E1',

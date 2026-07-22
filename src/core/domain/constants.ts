@@ -437,6 +437,26 @@ export const LEAGUE = {
   } as Record<number, [number, number]>,
 } as const;
 
+/**
+ * Champions League (V7): nur in Division 1. Läuft parallel zur Liga –
+ * jedes 3. Spiel der Saison ist ein CL-Spiel (14 Liga + 7 CL = 21 Slots).
+ * 4er-Gruppe (Top 2 weiter), dann Achtel-, Viertel-, Halbfinale, Finale.
+ */
+export const CHAMPIONS_LEAGUE = {
+  /** Nutzer + 3 Gegner in der Gruppe */
+  groupSize: 4,
+  /** Wie viele der Gruppe weiterkommen */
+  advancePerGroup: 2,
+  /** Teams im Achtelfinale */
+  koTeams: 16,
+  /** Basis-Stärke der CL-Teams (über Div-1-Niveau) */
+  strengthRange: [820, 1010] as [number, number],
+  /** Coins pro Sieg je Runde (steigend) */
+  winReward: { group: 10, r16: 20, qf: 40, sf: 80, final: 150 } as Record<string, number>,
+  /** Gegner-Schwierigkeit für den Nutzer je Runde (Stärke-Faktor, steigend) */
+  difficulty: { group: 0.98, r16: 1.06, qf: 1.14, sf: 1.22, final: 1.32 } as Record<string, number>,
+} as const;
+
 /** Wappen-Vorlagen-IDs (Kapitel 3.5); Rendering: src/ui/Crest.tsx */
 export const CREST_IDS = Array.from({ length: 10 }, (_, i) => `crest-${i}`);
 

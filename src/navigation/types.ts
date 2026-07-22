@@ -18,6 +18,7 @@ export type RootStackParamList = {
   OnlineShootout: undefined;
   Leaderboard: undefined;
   Trophies: undefined;
+  ChampionsLeague: undefined;
 };
 
 export type MainTabParamList = {

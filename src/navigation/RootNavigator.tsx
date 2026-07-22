@@ -7,6 +7,7 @@ import { SquadScreen } from '../features/squad/SquadScreen';
 import { PlayerDetailScreen } from '../features/squad/PlayerDetailScreen';
 import { LeagueScreen } from '../features/league/LeagueScreen';
 import { LeaderboardScreen } from '../features/league/LeaderboardScreen';
+import { ChampionsLeagueScreen } from '../features/league/ChampionsLeagueScreen';
 import { MatchLiveScreen } from '../features/league/MatchLiveScreen';
 import { PacksScreen } from '../features/packs/PacksScreen';
 import { PackOpeningScreen } from '../features/packs/PackOpeningScreen';
@@ -100,6 +101,7 @@ export function RootNavigator() {
         options={{ gestureEnabled: false, animation: 'fade' }}
       />
       <Stack.Screen name="Leaderboard" component={LeaderboardScreen} />
+      <Stack.Screen name="ChampionsLeague" component={ChampionsLeagueScreen} />
       <Stack.Screen name="OnlineLobby" component={OnlineLobbyScreen} />
       <Stack.Screen
         name="OnlineShootout"

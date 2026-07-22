@@ -111,3 +111,14 @@ export const NPC_CLUB_PLACES = [
   'Stormhage', 'Kickoff Vale', 'Netherfield', 'Counterford', 'Dribbleburn', 'Wingdale',
   'Netham', 'Boxmoor', 'Awayside', 'Homewin', 'Doublepass',
 ];
+
+/**
+ * Champions-League-Teams (V7): an echte Spitzenklubs angelehnt, aber mit
+ * abgewandelten Buchstaben – so wie die Spielernamen frei erfunden sind.
+ */
+export const CL_TEAM_NAMES = [
+  'Rial Madryd', 'FC Barcelano', 'Bayarn Munchen', 'Manchestar Sity', 'Livarpool',
+  'Paras SG', 'Juvantus', 'Intar Milano', 'AC Milaan', 'Chelsae',
+  'Arsenol', 'Dortmond', 'Atletiko Madryd', 'Napolli', 'Portu',
+  'Benfika', 'Ajaks', 'Tottanham', 'RB Leipsig', 'Sevilha',
+];
