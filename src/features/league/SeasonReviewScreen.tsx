@@ -98,7 +98,12 @@ export function SeasonReviewScreen({ navigation }: RootScreenProps<'SeasonReview
 
   const onFinish = async () => {
     await finishSeasonReview();
-    navigation.goBack();
+    // Karriere vollendet (Liga + CL, V7): in die Abschluss-Show statt zurück
+    if (useLeagueStore.getState().careerComplete) {
+      navigation.replace('CareerComplete');
+    } else {
+      navigation.goBack();
+    }
   };
 
   const bestPool = review.best

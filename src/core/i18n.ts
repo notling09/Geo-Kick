@@ -570,6 +570,10 @@ const en = {
   champTitle: 'CHAMPIONS!',
   champBody: '{club} wins Division {div}!',
   champHint: 'Tap to continue',
+  ccTitle: 'CAREER COMPLETE!',
+  ccBody: 'You won the league AND the Champions League in one season. You have achieved everything there is.',
+  ccHint: 'A legend retires...',
+  ccNewCareer: 'Start a new career',
 
   // Erfolge
   achFirstSession: 'First Kick-off',
@@ -1175,6 +1179,10 @@ const de: typeof en = {
   champTitle: 'MEISTER!',
   champBody: '{club} gewinnt Division {div}!',
   champHint: 'Tippen zum Fortfahren',
+  ccTitle: 'KARRIERE VOLLENDET!',
+  ccBody: 'Du hast die Liga UND die Champions League in einer Saison gewonnen. Du hast alles erreicht, was es zu erreichen gibt.',
+  ccHint: 'Eine Legende tritt ab...',
+  ccNewCareer: 'Neue Karriere starten',
 
   achFirstSession: 'Erster Anstoß',
   achFirstSessionD: 'Schließe deine erste Session an einem Platz ab',
@@ -1778,6 +1786,10 @@ const pt: typeof en = {
   champTitle: 'CAMPEÕES!',
   champBody: '{club} vence a Divisão {div}!',
   champHint: 'Toque para continuar',
+  ccTitle: 'CARREIRA CONCLUÍDA!',
+  ccBody: 'Você venceu a liga E a Champions League em uma temporada. Você conquistou tudo o que havia para conquistar.',
+  ccHint: 'Uma lenda se aposenta...',
+  ccNewCareer: 'Começar nova carreira',
 
   achFirstSession: 'Primeiro pontapé',
   achFirstSessionD: 'Conclua sua primeira sessão em um campo',

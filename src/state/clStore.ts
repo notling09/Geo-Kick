@@ -3,7 +3,7 @@ import { CHAMPIONS_LEAGUE, USER_CLUB_ID } from '../core/domain/constants';
 import type { Tactic } from '../core/domain/types';
 import type { SimTeam } from '../core/engine/matchSim';
 import {
-  advanceCl, applyUserClResult, clWinReward, createClState, nextUserClMatch,
+  applyUserClResult, clWinReward, createClState, nextUserClMatch, simulateNextClRound,
   type ClMatch, type ClStage, type ClState,
 } from '../core/engine/cl';
 import { generateNpcRoster } from '../core/engine/league';
@@ -210,8 +210,8 @@ export const useClStore = create<ClStore>((set, get) => ({
   simulateNextRound: async () => {
     const state = get().state;
     if (!state) return;
-    // Der Nutzer ist raus: die nächste CL-Runde komplett simulieren
-    advanceCl(state);
+    // Der Nutzer ist raus: nur die nächste offene CL-Runde simulieren
+    simulateNextClRound(state);
     await persist(state);
     set({ state: { ...state } });
     await useLeagueStore.getState().advanceDiv1Slot();

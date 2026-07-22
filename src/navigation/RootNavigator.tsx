@@ -17,6 +17,7 @@ import { PassportScreen } from '../features/profile/PassportScreen';
 import { TrophiesScreen } from '../features/profile/TrophiesScreen';
 import { PenaltyShootoutScreen } from '../features/map/PenaltyShootoutScreen';
 import { SeasonReviewScreen } from '../features/league/SeasonReviewScreen';
+import { CareerCompleteScreen } from '../features/league/CareerCompleteScreen';
 import { OnlineLobbyScreen } from '../features/friends/OnlineLobbyScreen';
 import { OnlineShootoutScreen } from '../features/friends/OnlineShootoutScreen';
 import { StartScreen } from '../features/start/StartScreen';
@@ -98,6 +99,11 @@ export function RootNavigator() {
       <Stack.Screen
         name="SeasonReview"
         component={SeasonReviewScreen}
+        options={{ gestureEnabled: false, animation: 'fade' }}
+      />
+      <Stack.Screen
+        name="CareerComplete"
+        component={CareerCompleteScreen}
         options={{ gestureEnabled: false, animation: 'fade' }}
       />
       <Stack.Screen name="Leaderboard" component={LeaderboardScreen} />

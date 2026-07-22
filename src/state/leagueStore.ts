@@ -9,7 +9,7 @@ import { teamStrength } from '../core/engine/strength';
 import * as leagueRepo from '../core/db/repositories/leagueRepo';
 import * as metaRepo from '../core/db/repositories/metaRepo';
 import { clubList, createSeason, loadLeagueData, seasonFinished } from '../core/services/seasonService';
-import { addLeagueTitle } from '../core/services/trophies';
+import { addDouble, addLeagueTitle } from '../core/services/trophies';
 import { useGameStore } from './gameStore';
 import { runUserMatch, type MatchPause } from './matchFlow';
 import { pick } from '../core/engine/random';
@@ -101,6 +101,8 @@ interface LeagueStateStore {
    * League-Spiel (14 Liga + 7 CL = 21 Spiele). In Division 2-4 ungenutzt.
    */
   div1Slot: number;
+  /** Karriere vollendet (V7): Liga + CL in derselben Saison gewonnen. */
+  careerComplete: boolean;
 
   hydrate: () => Promise<void>;
   acknowledgeCelebration: () => void;
@@ -169,6 +171,7 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
   pendingCelebration: null,
   seasonReview: null,
   div1Slot: 0,
+  careerComplete: false,
 
   acknowledgeCelebration: () => set({ championCelebration: null }),
 
@@ -202,11 +205,18 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       suspensions: await loadSuspensions(),
       seasonReview: await loadSeasonReview(),
       div1Slot,
+      careerComplete: (await metaRepo.getMeta('careerComplete')) === '1',
     });
-    // Champions League der aktuellen Saison laden/anlegen (nur Division 1, V7)
+    // Champions League der aktuellen Saison laden/anlegen (nur Division 1, V7).
+    // Neu anlegen nur am Saisonanfang: bestehende Div-1-Spielstände (vor V7)
+    // spielen ihre laufende Saison CL-los zu Ende, ab der nächsten gibt es die CL.
     const { useClStore } = await import('./clStore');
     await useClStore.getState().hydrate(data.season);
-    if ((useGameStore.getState().club?.division ?? 4) === 1) {
+    if (
+      (useGameStore.getState().club?.division ?? 4) === 1 &&
+      data.round === 1 &&
+      div1Slot === 0
+    ) {
       await useClStore.getState().ensureSeason(data.season);
     }
   },
@@ -270,16 +280,31 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       prize = firstPrize;
       await g2.addCoins(prize);
       await addLeagueTitle(club.division);
-      set({
-        pendingCelebration: {
-          clubName: club.name,
-          division: club.division,
-          captainPlayerId: g2.captainPlayerId,
-        },
-      });
+      // Liga-Meister-Animation nur setzen, wenn nicht gerade eine CL-Feier
+      // aussteht (beim Doppel wurde die CL-Feier soeben gesetzt, V7)
+      if (!get().pendingCelebration) {
+        set({
+          pendingCelebration: {
+            clubName: club.name,
+            division: club.division,
+            captainPlayerId: g2.captainPlayerId,
+          },
+        });
+      }
     } else if (outcome.finalRank === 2) {
       prize = secondPrize;
       await g2.addCoins(prize);
+    }
+
+    // Karriere-Ende (V7): Liga-Meister in Division 1 UND CL-Sieger in
+    // derselben Saison → alles erreicht, das Spiel ist durchgespielt.
+    const { useClStore } = await import('./clStore');
+    const clSt = useClStore.getState().state;
+    let careerComplete = get().careerComplete;
+    if (club.division === 1 && outcome.finalRank === 1 && clSt?.champion === USER_CLUB_ID) {
+      await addDouble();
+      await metaRepo.setMeta('careerComplete', '1');
+      careerComplete = true;
     }
 
     const bestEntry = Object.entries(seasonStats)
@@ -326,7 +351,6 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
     }));
 
     // Champions League der neuen Saison anlegen (nur wenn Division 1, V7)
-    const { useClStore } = await import('./clStore');
     if (outcome.newDivision === 1) await useClStore.getState().ensureSeason(updatedSeason);
     else await useClStore.getState().clear();
 
@@ -338,6 +362,7 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       npcs: updatedNpcs,
       standings: recomputeStandings(updatedMatches, updatedNpcs),
       seasonReview: review,
+      careerComplete,
     });
   },
 
@@ -552,7 +577,11 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       // Spieltakt fortschreiben (siehe BALANCING.matchIntervalMs)
       const newRound = round + 1;
       await metaRepo.setMeta('round', String(newRound));
-      const isDiv1 = club.division === 1;
+      // Div-1-Saison mit CL taktet über div1Slot; ein bestehender Div-1-
+      // Spielstand ohne CL endet normal nach Runde 14 (Migration, V7)
+      const { useClStore: clStoreMod } = await import('./clStore');
+      const hasCl = clStoreMod.getState().state !== null;
+      const isDiv1 = club.division === 1 && hasCl;
       // In Division 1 taktet advanceDiv1Slot den Timer (CL verschachtelt);
       // sonst wie bisher direkt hier
       if (!isDiv1) {

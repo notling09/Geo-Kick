@@ -191,63 +191,85 @@ function winners(matches: ClMatch[]): string[] {
   return matches.map((m) => (m.homeGoals >= m.awayGoals ? m.homeId : m.awayId));
 }
 
-/**
- * Nach einem eingetragenen Ergebnis den Turnierbaum vorantreiben: NPC-Spiele
- * der aktuellen Runde simulieren, dann – wenn die Runde komplett ist – die
- * nächste erzeugen und den Nutzer-Status aktualisieren. Läuft bis zum
- * nächsten offenen Nutzer-Spiel oder bis zum Champion.
- */
-export function advanceCl(state: ClState): void {
-  const involvesUser = (m: ClMatch) => m.homeId === USER_CLUB_ID || m.awayId === USER_CLUB_ID;
-  const userAlive = state.userStage !== 'out' && state.userStage !== 'champion';
+const involvesUser = (m: ClMatch) => m.homeId === USER_CLUB_ID || m.awayId === USER_CLUB_ID;
 
-  // Gruppenphase
-  if (state.ko.r16.length === 0) {
-    // NPC-Gruppenspiele simulieren, sobald der Nutzer seine 3 gespielt hat
-    const userGroupOpen = state.groupMatches.some((m) => involvesUser(m) && !m.played);
-    if (userGroupOpen) return; // erst spielt der Nutzer weiter
-    state.groupMatches.filter((m) => !m.played).forEach((m) => simulate(state, m));
-    buildR16(state);
+/** Ist der Nutzer aus dem Turnier (ausgeschieden oder Sieger)? */
+function userDone(state: ClState): boolean {
+  return state.userStage === 'out' || state.userStage === 'champion';
+}
+
+/** NPC-Gruppenspiele simulieren und Achtelfinale bauen, sobald der Nutzer durch ist. */
+function maybeFinishGroup(state: ClState): void {
+  if (state.ko.r16.length > 0) return;
+  if (state.groupMatches.some((m) => involvesUser(m) && !m.played)) return;
+  state.groupMatches.filter((m) => !m.played).forEach((m) => simulate(state, m));
+  buildR16(state);
+}
+
+/**
+ * Genau EINE K.o.-Runde auflösen: alle offenen Spiele simulieren, den Nutzer
+ * auswerten und die nächste Runde bauen bzw. den Champion küren.
+ */
+function resolveKoRound(state: ClState, stage: Exclude<ClStage, 'group'>): void {
+  const round = state.ko[stage];
+  if (round.length === 0) return;
+  // Offene Spiele simulieren (das Nutzer-Spiel ist ggf. schon eingetragen)
+  round.filter((m) => !m.played).forEach((m) => simulate(state, m));
+
+  const userMatch = round.find(involvesUser);
+  if (userMatch && !userDone(state)) {
+    const userWon =
+      (userMatch.homeId === USER_CLUB_ID && userMatch.homeGoals >= userMatch.awayGoals) ||
+      (userMatch.awayId === USER_CLUB_ID && userMatch.awayGoals >= userMatch.homeGoals);
+    if (!userWon) state.userStage = 'out';
   }
 
-  // K.o.-Runden
-  for (let s = 0; s < KO_STAGES.length; s++) {
-    const stage = KO_STAGES[s];
-    const round = state.ko[stage];
-    if (round.length === 0) break;
-
-    // Nutzer lebt noch und hat in dieser Runde ein offenes Spiel → warten
-    const userOpenHere = round.some((m) => involvesUser(m) && !m.played);
-    if (userOpenHere && userAlive) return;
-
-    // Alle anderen (bzw. bei ausgeschiedenem Nutzer: alle) Spiele simulieren
-    round.filter((m) => !m.played).forEach((m) => simulate(state, m));
-
-    // Ist der Nutzer in dieser Runde ausgeschieden?
-    if (userAlive) {
-      const userMatch = round.find(involvesUser);
-      if (userMatch) {
-        const userWon =
-          (userMatch.homeId === USER_CLUB_ID && userMatch.homeGoals >= userMatch.awayGoals) ||
-          (userMatch.awayId === USER_CLUB_ID && userMatch.awayGoals >= userMatch.homeGoals);
-        if (!userWon) state.userStage = 'out';
-      }
-    }
-
-    // Nächste Runde erzeugen (oder Champion küren)
-    const advancing = winners(round);
-    if (stage === 'final') {
+  // Ausgang bestimmen – idempotent, damit eine bereits vollständig gespielte
+  // Runde (z. B. nach dem Nutzer-Finale) den Champion/nächste Runde nachträgt
+  const advancing = winners(round);
+  const idx = KO_STAGES.indexOf(stage);
+  if (stage === 'final') {
+    if (state.champion === null) {
       state.champion = advancing[0] ?? null;
       if (state.champion === USER_CLUB_ID) state.userStage = 'champion';
-      return;
     }
-    const nextStage = KO_STAGES[s + 1];
-    if (state.ko[nextStage].length === 0) {
-      state.ko[nextStage] = pairUp(nextStage, shuffle(advancing));
-      // userStage auf die nächste Runde heben, falls der Nutzer weiter ist
-      if (state.userStage !== 'out' && advancing.includes(USER_CLUB_ID)) {
-        state.userStage = nextStage;
-      }
+    return;
+  }
+  const nextStage = KO_STAGES[idx + 1];
+  if (state.ko[nextStage].length === 0) {
+    state.ko[nextStage] = pairUp(nextStage, shuffle(advancing));
+    if (!userDone(state) && advancing.includes(USER_CLUB_ID)) {
+      state.userStage = nextStage;
+    }
+  }
+}
+
+/**
+ * Nach einem Nutzer-Spiel den Turnierbaum bis zum NÄCHSTEN Nutzer-Spiel
+ * treiben. Scheidet der Nutzer aus, wird hier gestoppt – die restlichen
+ * Runden zeigt der Screen dann Slot für Slot über simulateNextClRound.
+ */
+export function advanceCl(state: ClState): void {
+  maybeFinishGroup(state);
+  if (userDone(state)) return;
+  for (const stage of KO_STAGES) {
+    const round = state.ko[stage];
+    if (round.length === 0) break;
+    // Nutzer hat in dieser Runde noch ein offenes Spiel → auf ihn warten
+    if (round.some((m) => involvesUser(m) && !m.played)) return;
+    resolveKoRound(state, stage);
+    if (userDone(state)) return;
+  }
+}
+
+/** Genau eine offene Runde simulieren (Anzeige nach dem Ausscheiden, Slot für Slot). */
+export function simulateNextClRound(state: ClState): void {
+  maybeFinishGroup(state);
+  for (const stage of KO_STAGES) {
+    if (state.ko[stage].length === 0) break;
+    if (state.ko[stage].some((m) => !m.played)) {
+      resolveKoRound(state, stage);
+      return;
     }
   }
 }

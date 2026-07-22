@@ -19,6 +19,7 @@ export type RootStackParamList = {
   Leaderboard: undefined;
   Trophies: undefined;
   ChampionsLeague: undefined;
+  CareerComplete: undefined;
 };
 
 export type MainTabParamList = {

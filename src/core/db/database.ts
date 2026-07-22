@@ -154,3 +154,25 @@ export async function resetDatabase(): Promise<void> {
     DELETE FROM packs; DELETE FROM npc_clubs; DELETE FROM matches;
   `);
 }
+
+/**
+ * Karriere-Reset (V7): alles auf null für eine neue Karriere – ABER der
+ * Trophäenschrank, die App-Einstellungen (Sprache/Theme) und der Cloud-Login
+ * (damit Konto und Freunde erhalten bleiben) werden bewahrt.
+ */
+export async function resetCareer(): Promise<void> {
+  await runExclusive(async () => {
+    const database = await getDb();
+    const authRows = await database.getAllAsync<{ key: string }>(
+      "SELECT key FROM meta WHERE key LIKE 'sb-auth:%'",
+    );
+    const keepKeys = ['trophyCabinet', 'language', 'themeMode', ...authRows.map((r) => r.key)];
+    const placeholders = keepKeys.map(() => '?').join(',');
+    await database.runAsync(`DELETE FROM meta WHERE key NOT IN (${placeholders})`, ...keepKeys);
+    await database.execAsync(`
+      DELETE FROM player_pool; DELETE FROM players; DELETE FROM lineup;
+      DELETE FROM spots; DELETE FROM sessions; DELETE FROM packs;
+      DELETE FROM npc_clubs; DELETE FROM matches;
+    `);
+  });
+}
