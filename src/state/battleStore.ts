@@ -94,8 +94,8 @@ function rolledOver(state: { day: string; foughtSpotIds: string[] }): {
   return state.day === today ? state : { day: today, foughtSpotIds: [] };
 }
 
-/** Umkreis, in dem der Gold-Platz des Tages liegen muss (V5) */
-const SPECIAL_RANGE_M = 20000;
+/** Umkreis, in dem der Gold-Platz des Tages liegen muss (V7.4: 5 km) */
+const SPECIAL_RANGE_M = 5000;
 
 export const useBattleStore = create<BattleState>((set, get) => ({
   day: dayKey(),
