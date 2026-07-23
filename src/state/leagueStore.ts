@@ -67,6 +67,21 @@ export interface SeasonReviewData {
   cup: CupJourney | null;
 }
 
+/**
+ * Endstand der Liga-Saison, festgeschrieben direkt nach dem letzten Ligaspiel
+ * (V7.4-Fix). Der Rückblick nach dem Turnierfinale nutzt GENAU diese Werte,
+ * damit dort nie ein anderer Platz steht als in der Tabelle nach dem Spiel.
+ */
+interface LeagueFinal {
+  season: number;
+  standings: StandingRow[];
+  finalRank: number;
+  newDivision: number;
+  promoted: boolean;
+  relegated: boolean;
+  prize: number;
+}
+
 /** Zusammenfassung des Turnier-Wegs (Champions League / Pokal) für den Rückblick. */
 export interface CupJourney {
   /** 'cl' oder 'cup' – für den Titeltext im Rückblick */
@@ -184,6 +199,15 @@ async function chooseRival(season: number, npcs: NpcClub[]): Promise<string | nu
   const clubId = String(pick(npcs).id);
   await metaRepo.setMeta('rival', JSON.stringify({ season, clubId }));
   return clubId;
+}
+
+/** Festgeschriebenen Liga-Endstand laden (V7.4-Fix). */
+async function loadLeagueFinal(): Promise<LeagueFinal | null> {
+  try {
+    return JSON.parse((await metaRepo.getMeta('leagueFinal')) || 'null') as LeagueFinal | null;
+  } catch {
+    return null;
+  }
 }
 
 async function loadSeasonReview(): Promise<SeasonReviewData | null> {
@@ -311,7 +335,7 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
     const club = g2.club;
     if (!club) return;
     // Nur einmal pro Saison
-    if ((await metaRepo.getMetaNumber('leaguePhaseSeason', -1)) === season) return;
+    if ((await loadLeagueFinal())?.season === season) return;
 
     const finalStandings = recomputeStandings(get().matches, npcs);
     const outcome = resolveSeason(finalStandings, club.division);
@@ -333,10 +357,18 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       await g2.addCoins(prize);
       await addRunnerUp(club.division);
     }
-    // Merken, dass die Liga-Phase abgeschlossen ist (concludeSeason vergibt
-    // Titel/Prämie dann nicht erneut, zeigt die Prämie aber im Rückblick)
-    await metaRepo.setMeta('leaguePhaseSeason', String(season));
-    await metaRepo.setMeta('leaguePhasePrize', String(prize));
+    // Endstand festschreiben: der Rückblick nach dem Turnierfinale nutzt GENAU
+    // diese Tabelle und diesen Platz – nie eine neu gerechnete (V7.4-Fix).
+    const leagueFinal: LeagueFinal = {
+      season,
+      standings: finalStandings,
+      finalRank: outcome.finalRank,
+      newDivision: outcome.newDivision,
+      promoted: outcome.promoted,
+      relegated: outcome.relegated,
+      prize,
+    };
+    await metaRepo.setMeta('leagueFinal', JSON.stringify(leagueFinal));
   },
 
   concludeSeason: async () => {
@@ -352,17 +384,28 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       seasonStats = {};
     }
 
-    const finalStandings = recomputeStandings(get().matches, npcs);
-    const outcome = resolveSeason(finalStandings, club.division);
+    // Endstand: bei Turnier-Saisons wurde er direkt nach dem letzten Ligaspiel
+    // festgeschrieben – genau den benutzen, damit der Rückblick nie einen
+    // anderen Platz zeigt als die Tabelle nach dem Spiel (V7.4-Fix).
+    const loaded = await loadLeagueFinal();
+    const sealed = loaded && loaded.season === season ? loaded : null;
+    const finalStandings = sealed ? sealed.standings : recomputeStandings(get().matches, npcs);
+    const outcome = sealed
+      ? {
+          finalRank: sealed.finalRank,
+          newDivision: sealed.newDivision,
+          promoted: sealed.promoted,
+          relegated: sealed.relegated,
+        }
+      : resolveSeason(finalStandings, club.division);
 
     const [firstPrize, secondPrize] = LEAGUE_REWARDS.seasonByDivision[club.division];
     // Liga-Titel/Prämie/Feier wurden bei Turnier-Saisons schon nach dem letzten
-    // Ligaspiel vergeben (concludeLeaguePhase, V7.4). Dann hier nicht erneut,
-    // aber die Prämie für den Rückblick übernehmen.
-    const leaguePhaseDone = (await metaRepo.getMetaNumber('leaguePhaseSeason', -1)) === season;
+    // Ligaspiel vergeben (concludeLeaguePhase). Dann hier nicht erneut, aber die
+    // Prämie für den Rückblick übernehmen.
     let prize = 0;
-    if (leaguePhaseDone) {
-      prize = await metaRepo.getMetaNumber('leaguePhasePrize', 0);
+    if (sealed) {
+      prize = sealed.prize;
     } else if (outcome.finalRank === 1) {
       prize = firstPrize;
       await g2.addCoins(prize);

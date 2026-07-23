@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { fetchLeaderboard, type CloudSquadPlayer, type LeaderboardEntry } from '../../core/services/cloud';
+import {
+  fetchLeaderboard, getSupabase, type CloudSquadPlayer, type LeaderboardEntry,
+} from '../../core/services/cloud';
 import { overallOf } from '../../core/engine/playerGen';
 import type { Position } from '../../core/domain/types';
 import { t, tf } from '../../core/i18n';
@@ -25,18 +27,34 @@ function squadOverall(p: CloudSquadPlayer): number {
   return overallOf(p, p.position as Position);
 }
 
+/** Wie viele Klubs geladen werden, um den eigenen Platz zu bestimmen (V7.4). */
+const RANK_SCAN_LIMIT = 200;
+const TOP_COUNT = 10;
+
 export function LeaderboardScreen({ navigation }: RootScreenProps<'Leaderboard'>) {
   const cloudStatus = useCloudStore((s) => s.status);
   const [entries, setEntries] = useState<LeaderboardEntry[] | null>(null);
+  const [myId, setMyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (cloudStatus !== 'online') return;
-    setEntries(await fetchLeaderboard(squadOverall, 10));
+    // Mehr als die Top 10 laden, damit auch ein Platz dahinter bestimmbar ist
+    setEntries(await fetchLeaderboard(squadOverall, RANK_SCAN_LIMIT));
+    const supabase = getSupabase();
+    if (supabase) {
+      const { data } = await supabase.auth.getSession();
+      setMyId(data.session?.user.id ?? null);
+    }
   }, [cloudStatus]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Eigener Platz in der gesamten geladenen Liste
+  const myIndex = entries && myId ? entries.findIndex((e) => e.id === myId) : -1;
+  const myEntry = myIndex >= 0 && entries ? entries[myIndex] : null;
+  const top = entries ? entries.slice(0, TOP_COUNT) : [];
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -55,39 +73,58 @@ export function LeaderboardScreen({ navigation }: RootScreenProps<'Leaderboard'>
             <Text style={styles.info}>{t('lbEmpty')}</Text>
           </Card>
         ) : (
-          entries.map((e, i) => {
-            const podium = i < 3 ? PODIUM[i] : null;
+          (() => {
+            /** Eine Zeile; der eigene Klub wird grün hervorgehoben (V7.4). */
+            const renderRow = (e: LeaderboardEntry, index: number) => {
+              const podium = index < 3 ? PODIUM[index] : null;
+              const isMe = myId !== null && e.id === myId;
+              return (
+                <Card
+                  key={`${e.id}-${index}`}
+                  style={[
+                    styles.row,
+                    podium ? { borderColor: podium, borderWidth: 3 } : null,
+                    isMe ? styles.myRow : null,
+                  ]}
+                >
+                  <View style={[styles.rankBadge, podium ? { backgroundColor: podium } : null]}>
+                    <Text style={[styles.rankText, podium ? { color: '#1A2E1A' } : null]}>
+                      {index + 1}
+                    </Text>
+                  </View>
+                  <Crest crestId={e.crest} size={40} />
+                  <View style={styles.info2}>
+                    <Text style={[styles.clubName, isMe && styles.myText]} numberOfLines={1}>
+                      {e.clubName}
+                      {isMe ? ` · ${t('lbYou')}` : ''}
+                    </Text>
+                    <Text style={styles.best} numberOfLines={1}>
+                      {e.bestPlayer
+                        ? tf('lbBest', { name: e.bestPlayer, ovr: e.bestOverall })
+                        : tf('rvDivision', { n: e.division })}
+                    </Text>
+                  </View>
+                  <View style={styles.strengthWrap}>
+                    <IconStar size={14} color={podium ?? colors.pitch} />
+                    <Text style={styles.strength}>{e.strength}</Text>
+                  </View>
+                </Card>
+              );
+            };
             return (
-              <Card
-                key={e.id}
-                style={[
-                  styles.row,
-                  podium ? { borderColor: podium, borderWidth: 3 } : null,
-                ]}
-              >
-                <View style={[styles.rankBadge, podium ? { backgroundColor: podium } : null]}>
-                  <Text style={[styles.rankText, podium ? { color: '#1A2E1A' } : null]}>
-                    {i + 1}
-                  </Text>
-                </View>
-                <Crest crestId={e.crest} size={40} />
-                <View style={styles.info2}>
-                  <Text style={styles.clubName} numberOfLines={1}>
-                    {e.clubName}
-                  </Text>
-                  <Text style={styles.best} numberOfLines={1}>
-                    {e.bestPlayer
-                      ? tf('lbBest', { name: e.bestPlayer, ovr: e.bestOverall })
-                      : tf('rvDivision', { n: e.division })}
-                  </Text>
-                </View>
-                <View style={styles.strengthWrap}>
-                  <IconStar size={14} color={podium ?? colors.pitch} />
-                  <Text style={styles.strength}>{e.strength}</Text>
-                </View>
-              </Card>
+              <>
+                {top.map((e, i) => renderRow(e, i))}
+                {/* Eigener Klub außerhalb der Top 10: eigenen Platz extra zeigen */}
+                {myEntry && myIndex >= TOP_COUNT && (
+                  <>
+                    <Text style={styles.myHint}>{t('lbYourPosition')}</Text>
+                    {renderRow(myEntry, myIndex)}
+                  </>
+                )}
+                {!myEntry && <Text style={styles.myHint}>{t('lbNotRanked')}</Text>}
+              </>
             );
-          })
+          })()
         )}
 
         <GKButton
@@ -129,6 +166,22 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     padding: spacing.sm,
     marginBottom: spacing.sm,
+  },
+  myRow: {
+    borderColor: colors.pitch,
+    borderWidth: 3,
+    backgroundColor: colors.grass,
+  },
+  myText: {
+    color: colors.pitchDark,
+    fontWeight: '900',
+  },
+  myHint: {
+    color: colors.inkSoft,
+    fontSize: font.small,
+    fontWeight: '800',
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
   },
   rankBadge: {
     width: 28,

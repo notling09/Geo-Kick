@@ -374,6 +374,9 @@ const en = {
   lbBest: 'Best: {name} ({ovr})',
   lbOffline: 'The leaderboard needs an internet connection.',
   lbEmpty: 'No clubs yet. Be the first!',
+  lbYou: 'you',
+  lbYourPosition: 'Your position',
+  lbNotRanked: 'Your club is not ranked yet – play a match so your squad gets synced.',
 
   // Squad
   sqTitle: 'Squad',
@@ -1037,6 +1040,9 @@ const de: typeof en = {
   lbBest: 'Bester: {name} ({ovr})',
   lbOffline: 'Die Bestenliste braucht eine Internetverbindung.',
   lbEmpty: 'Noch keine Klubs. Sei der Erste!',
+  lbYou: 'du',
+  lbYourPosition: 'Dein Platz',
+  lbNotRanked: 'Dein Klub ist noch nicht gewertet – spiel ein Match, damit dein Kader synchronisiert wird.',
 
   sqTitle: 'Kader',
   sqStrength: 'Stärke {n}',
@@ -1689,6 +1695,9 @@ const pt: typeof en = {
   lbBest: 'Melhor: {name} ({ovr})',
   lbOffline: 'A classificação precisa de conexão com a internet.',
   lbEmpty: 'Nenhum clube ainda. Seja o primeiro!',
+  lbYou: 'você',
+  lbYourPosition: 'Sua posição',
+  lbNotRanked: 'Seu clube ainda não está classificado – jogue uma partida para sincronizar o elenco.',
 
   sqTitle: 'Elenco',
   sqStrength: 'Força {n}',

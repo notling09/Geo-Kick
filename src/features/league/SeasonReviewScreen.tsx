@@ -274,6 +274,13 @@ export function SeasonReviewScreen({ navigation }: RootScreenProps<'SeasonReview
 
       {step === 4 && (
         <View style={styles.stepWrap}>
+          {/* Inhalt scrollbar, Button fest unten: sonst rutscht er bei vielen
+              bewerteten Spielern aus dem Bild und ist kaum klickbar (V7.4) */}
+          <ScrollView
+            style={styles.ratingsScroll}
+            contentContainerStyle={styles.ratingsContent}
+            showsVerticalScrollIndicator={false}
+          >
           <Text style={styles.title}>{t('rvRatings')}</Text>
           <Text style={styles.subtitle}>{t('rvRatingsSub')}</Text>
           <View style={styles.pitchWrap}>
@@ -316,6 +323,7 @@ export function SeasonReviewScreen({ navigation }: RootScreenProps<'SeasonReview
               ))}
             </Card>
           )}
+          </ScrollView>
           <GKButton title={t('finish')} onPress={onFinish} />
         </View>
       )}
@@ -493,6 +501,12 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.75)',
     fontSize: font.small,
     fontWeight: '700',
+  },
+  ratingsScroll: {
+    flex: 1,
+  },
+  ratingsContent: {
+    paddingBottom: spacing.md,
   },
   pitchWrap: {
     alignSelf: 'center',
