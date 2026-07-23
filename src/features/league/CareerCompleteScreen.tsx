@@ -5,6 +5,7 @@ import { resetCareer } from '../../core/db/database';
 import { t } from '../../core/i18n';
 import { useClStore } from '../../state/clStore';
 import { useEggStore } from '../../state/eggStore';
+import { useFriendsStore } from '../../state/friendsStore';
 import { useGameStore } from '../../state/gameStore';
 import { useLeagueStore } from '../../state/leagueStore';
 import { useSessionStore } from '../../state/sessionStore';
@@ -39,6 +40,8 @@ export function CareerCompleteScreen({ navigation }: RootScreenProps<'CareerComp
   const onNewCareer = async () => {
     setResetting(true);
     await resetCareer();
+    // Freunde entfernen: der neue Klub startet ohne alte Freundschaften (V7.4)
+    await useFriendsStore.getState().wipeFriends();
     // In-Memory-Stände zurücksetzen, dann Grundzustand neu laden
     useLeagueStore.setState({
       season: 1, round: 1, div1Slot: 0, careerComplete: false,

@@ -124,14 +124,6 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
     [matches, round],
   );
 
-  const playedUserMatches = useMemo(
-    () =>
-      matches
-        .filter((m) => m.played && (m.homeId === USER_CLUB_ID || m.awayId === USER_CLUB_ID))
-        .sort((a, b) => b.round - a.round),
-    [matches],
-  );
-
   // Topscorer/Assists der Saison aus den strukturierten Tor-Events aggregieren
   const { topScorers, topAssists } = useMemo(() => {
     const goals = new Map<string, { player: string; clubId: string; count: number }>();
@@ -200,6 +192,37 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
   // Im Spielplan-Blätterer gewählter Slot (Default = aktueller Slot)
   const maxSlot = seasonPlan.length - 1;
   const selectedFixtureSlot = Math.min(fixtureSlot ?? currentPlanSlot, maxSlot);
+
+  // Eigene Ergebnisse (V7.4): Liga UND Turnier zusammen, gekennzeichnet. In
+  // Slot-Reihenfolge, neueste zuerst. Ausgeschiedene/kommende Runden erzeugen
+  // kein Ergebnis (ts.status !== 'played'), das ergibt Sinn.
+  const userResults = useMemo(() => {
+    const out: Array<{
+      key: string; kind: 'league' | 'cl' | 'cup'; labelText: string;
+      homeName: string; awayName: string; homeGoals: number; awayGoals: number; userIsHome: boolean;
+    }> = [];
+    for (const e of seasonPlan) {
+      if (e.type === 'league') {
+        const f = e.fixture;
+        if (f && f.played) {
+          out.push({
+            key: `l${f.id}`, kind: 'league', labelText: tf('lgPlanMatchday', { n: e.round }),
+            homeName: clubName(f.homeId), awayName: clubName(f.awayId),
+            homeGoals: f.homeGoals, awayGoals: f.awayGoals, userIsHome: f.homeId === USER_CLUB_ID,
+          });
+        }
+      } else if (clState && e.ts.status === 'played' && e.ts.match) {
+        const m = e.ts.match;
+        out.push({
+          key: `t${e.slot}`, kind: isCup ? 'cup' : 'cl', labelText: t(CL_STAGE_LABEL[e.ts.stage]),
+          homeName: clState.teams[m.homeId]?.name ?? '?', awayName: clState.teams[m.awayId]?.name ?? '?',
+          homeGoals: m.homeGoals, awayGoals: m.awayGoals, userIsHome: m.homeId === USER_CLUB_ID,
+        });
+      }
+    }
+    return out.reverse();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seasonPlan, clState, isCup]);
 
   const onKickoff = async () => {
     // Gesperrte Spieler (rote Karte) müssen erst raus – gilt auch für die CL
@@ -643,20 +666,23 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
         </Card>
 
         <SectionTitle>{t('lgYourResults')}</SectionTitle>
-        {playedUserMatches.length === 0 ? (
+        {userResults.length === 0 ? (
           <Text style={styles.emptyText}>{t('lgNoMatches')}</Text>
         ) : (
-          playedUserMatches.map((m) => {
-            const userIsHome = m.homeId === USER_CLUB_ID;
-            const userGoals = userIsHome ? m.homeGoals : m.awayGoals;
-            const oppGoals = userIsHome ? m.awayGoals : m.homeGoals;
+          userResults.map((r) => {
+            const userGoals = r.userIsHome ? r.homeGoals : r.awayGoals;
+            const oppGoals = r.userIsHome ? r.awayGoals : r.homeGoals;
             const ResultIcon = userGoals > oppGoals ? IconCheck : userGoals < oppGoals ? IconCross : IconMinus;
             return (
-              <Card key={m.id} style={styles.resultCard}>
+              <Card key={r.key} style={styles.resultCard}>
                 <ResultIcon size={16} />
-                <Text style={styles.resultText}>
-                  {tf('lgMdShort', { n: m.round })} {clubName(m.homeId)} {m.homeGoals}:{m.awayGoals}{' '}
-                  {clubName(m.awayId)}
+                <Text
+                  style={[styles.planTag, r.kind === 'league' ? styles.planTagLeague : styles.planTagCl]}
+                >
+                  {r.kind === 'league' ? t('lgPlanLeague') : r.kind === 'cup' ? 'CUP' : 'CL'}
+                </Text>
+                <Text style={styles.resultText} numberOfLines={1}>
+                  {r.labelText} · {r.homeName} {r.homeGoals}:{r.awayGoals} {r.awayName}
                 </Text>
               </Card>
             );

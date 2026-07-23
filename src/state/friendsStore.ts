@@ -48,6 +48,8 @@ interface FriendsState {
   /** Eingehende Anfrage ablehnen (Zeile des Anfragenden löschen). */
   declineRequest: (friendId: string) => Promise<void>;
   removeFriend: (friendId: string) => Promise<void>;
+  /** Alle Freundschaften löschen (Karriere-Neustart, V7.4). */
+  wipeFriends: () => Promise<void>;
   /**
    * Freundschaftsspiel gegen den aktuellsten Kader des Freundes simulieren.
    * Ergebnis landet als lastPlayedMatch im leagueStore (Live-Ticker-Replay).
@@ -238,6 +240,23 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
       });
     } catch (e) {
       console.warn('[friends] remove failed:', String(e));
+    }
+  },
+
+  wipeFriends: async () => {
+    // Karriere-Neustart: alle Freundschaften entfernen, damit der neue Klub
+    // wirklich frisch startet (beide Richtungen, plus lokale Bilanzen).
+    set({ friends: [], incoming: [], outgoing: [], onlineIds: [], records: {} });
+    await metaRepo.setMeta('friendlyRecords', '');
+    const supabase = getSupabase();
+    if (!supabase) return;
+    try {
+      const userId = await currentUserId();
+      if (!userId) return;
+      await supabase.from('friendships').delete().eq('user_id', userId);
+      await supabase.from('friendships').delete().eq('friend_id', userId);
+    } catch (e) {
+      console.warn('[friends] wipe failed:', String(e));
     }
   },
 
