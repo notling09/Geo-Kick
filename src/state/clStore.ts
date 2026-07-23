@@ -87,6 +87,18 @@ export const useClStore = create<ClStore>((set, get) => ({
     }
     // Nur die CL der aktuellen Saison ist gültig
     if (state && state.season !== season) state = null;
+    // Migration (V7.3): alte Turnier-Teams ohne festen Kader nachrüsten, damit
+    // die restlichen Spiele der Saison konsistente Torschützen-Namen liefern.
+    if (state) {
+      let changed = false;
+      for (const id of Object.keys(state.teams)) {
+        if (!state.teams[id].roster) {
+          state.teams[id].roster = generateNpcRoster();
+          changed = true;
+        }
+      }
+      if (changed) await persist(state);
+    }
     set({ state });
   },
 

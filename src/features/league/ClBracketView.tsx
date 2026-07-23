@@ -77,6 +77,7 @@ export function ClBracketView({ state }: { state: ClState }) {
   const table = groupStandings(state);
   const groupDone = state.ko.r16.length > 0;
   const { topScorers, topAssists } = clScorerTables(state);
+  const compName = state.kind === 'cup' ? t('cupName') : t('clName');
 
   return (
     <View>
@@ -130,7 +131,7 @@ export function ClBracketView({ state }: { state: ClState }) {
 
       {(topScorers.length > 0 || topAssists.length > 0) && (
         <>
-          <Text style={styles.section}>{t('lgTopScorers')}</Text>
+          <Text style={styles.section}>{compName} · {t('lgTopScorers')}</Text>
           <Card style={{ paddingVertical: spacing.sm }}>
             <ScorerRows rows={topScorers} />
             {topAssists.length > 0 && <Text style={styles.assistHeader}>{t('lgTopAssists')}</Text>}

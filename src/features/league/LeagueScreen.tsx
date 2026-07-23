@@ -99,7 +99,6 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
   const [tactic, setTactic] = useState<Tactic>(club?.tactic ?? 'ausgewogen');
   const [starting, setStarting] = useState(false);
   const [, forceTick] = useState(0);
-  const [fixtureRound, setFixtureRound] = useState<number | null>(null);
   // Tabelle-Tab (V7.1): in Division 1 zwischen Ligatabelle und CL-Bracket
   const [tableTab, setTableTab] = useState<'league' | 'cl'>('league');
 
@@ -162,42 +161,41 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
     return { topScorers: top(goals), topAssists: top(assists) };
   }, [matches]);
 
-  // Spielplan: angezeigte Runde (Default = aktueller Spieltag)
-  const displayedRound = fixtureRound ?? Math.min(round, LEAGUE.roundsPerSeason);
-  const roundFixtures = useMemo(
-    () => matches.filter((m) => m.round === displayedRound),
-    [matches, displayedRound],
-  );
-
-  // Saison-Kalender (V7.3): alle 21 Slots (14 Liga + 7 Turnier) in Reihenfolge,
-  // je Slot ob Liga oder Turnier – inklusive Turnier-Ergebnissen und den noch
-  // offenen K.o.-Plätzen. Nur wenn ein Turnier läuft (sonst zeigt der normale
-  // Spielplan die 14 Ligaspiele).
+  // Spielplan (V7.3): der persönliche Ablauf der Saison. Mit Turnier sind es
+  // 21 Slots (14 Liga + 7 Turnier) in Reihenfolge, je Slot ob Liga oder Turnier
+  // – inklusive Turnier-Ergebnissen und den noch offenen K.o.-Plätzen. Ohne
+  // Turnier (Alt-Spielstand) sind es die 14 Ligaspiele.
+  const userFixtureFor = (r: number): Match | null =>
+    matches.find(
+      (m) => m.round === r && (m.homeId === USER_CLUB_ID || m.awayId === USER_CLUB_ID),
+    ) ?? null;
   const seasonPlan = useMemo(() => {
-    if (!clState) return [];
-    const tSlots = userTournamentSlots(clState);
     const plan: Array<
       | { slot: number; type: 'league'; round: number; fixture: Match | null }
       | { slot: number; type: 'tournament'; ts: UserClSlot }
     > = [];
-    let leagueRound = 0;
-    let tournIdx = 0;
-    for (let slot = 0; slot < 21; slot++) {
-      if (slot % 3 === 2) {
-        plan.push({ slot, type: 'tournament', ts: tSlots[tournIdx++] });
-      } else {
-        leagueRound++;
-        const fixture =
-          matches.find(
-            (m) =>
-              m.round === leagueRound &&
-              (m.homeId === USER_CLUB_ID || m.awayId === USER_CLUB_ID),
-          ) ?? null;
-        plan.push({ slot, type: 'league', round: leagueRound, fixture });
+    if (clState) {
+      const tSlots = userTournamentSlots(clState);
+      let leagueRound = 0;
+      let tournIdx = 0;
+      for (let slot = 0; slot < 21; slot++) {
+        if (slot % 3 === 2) {
+          plan.push({ slot, type: 'tournament', ts: tSlots[tournIdx++] });
+        } else {
+          leagueRound++;
+          plan.push({ slot, type: 'league', round: leagueRound, fixture: userFixtureFor(leagueRound) });
+        }
+      }
+    } else {
+      for (let r = 1; r <= LEAGUE.roundsPerSeason; r++) {
+        plan.push({ slot: r - 1, type: 'league', round: r, fixture: userFixtureFor(r) });
       }
     }
     return plan;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clState, matches]);
+  // Aktueller Slot (Turnier: div1Slot; sonst der laufende Spieltag)
+  const currentPlanSlot = clState ? div1Slot : Math.min(round, LEAGUE.roundsPerSeason) - 1;
 
   const onKickoff = async () => {
     // Gesperrte Spieler (rote Karte) müssen erst raus – gilt auch für die CL
@@ -516,94 +514,50 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
           </>
         )}
 
-        {seasonPlan.length > 0 && clState && (
-          <>
-            <SectionTitle>{t('lgSeasonPlan')}</SectionTitle>
-            <Card>
-              {seasonPlan.map((e) => {
-                const current = e.slot === div1Slot;
-                if (e.type === 'league') {
-                  const f = e.fixture;
-                  return (
-                    <View key={e.slot} style={[styles.planRow, current && styles.planRowCurrent]}>
-                      <Text style={[styles.planTag, styles.planTagLeague]}>{t('lgPlanLeague')}</Text>
-                      <View style={styles.planMid}>
-                        <Text style={styles.planStage}>{tf('lgPlanMatchday', { n: e.round })}</Text>
-                        <Text style={styles.planMatch} numberOfLines={1}>
-                          {f ? `${clubName(f.homeId)} – ${clubName(f.awayId)}` : '–'}
-                        </Text>
-                      </View>
-                      <Text style={styles.planResult}>
-                        {f && f.played ? `${f.homeGoals}:${f.awayGoals}` : '–:–'}
-                      </Text>
-                    </View>
-                  );
-                }
-                const ts = e.ts;
-                let matchup = '';
-                let result = '';
-                if ((ts.status === 'played' || ts.status === 'upcoming') && ts.match) {
-                  matchup = `${clState.teams[ts.match.homeId]?.name ?? '?'} – ${clState.teams[ts.match.awayId]?.name ?? '?'}`;
-                  result = ts.status === 'played' ? `${ts.match.homeGoals}:${ts.match.awayGoals}` : '–:–';
-                } else if (ts.status === 'unknown') {
-                  matchup = t('lgPlanUnknown');
-                  result = '?';
-                } else {
-                  matchup = t('lgPlanEliminated');
-                  result = '—';
-                }
-                return (
-                  <View key={e.slot} style={[styles.planRow, current && styles.planRowCurrent]}>
-                    <Text style={[styles.planTag, styles.planTagCl]}>{isCup ? 'CUP' : 'CL'}</Text>
-                    <View style={styles.planMid}>
-                      <Text style={styles.planStage}>{t(CL_STAGE_LABEL[ts.stage])}</Text>
-                      <Text style={styles.planMatch} numberOfLines={1}>{matchup}</Text>
-                    </View>
-                    <Text style={styles.planResult}>{result}</Text>
-                  </View>
-                );
-              })}
-            </Card>
-          </>
-        )}
-
+        {/* Spielplan (V7.3): alle Spiele der Saison in Reihenfolge – mit Turnier
+            21 Spiele (Liga + CL/Pokal gekennzeichnet), sonst 14 Ligaspiele */}
         <SectionTitle>{t('lgFixtures')}</SectionTitle>
         <Card>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.roundPicker}>
-            {Array.from({ length: LEAGUE.roundsPerSeason }, (_, i) => i + 1).map((r) => {
-              const active = r === displayedRound;
+          {seasonPlan.map((e) => {
+            const current = e.slot === currentPlanSlot;
+            if (e.type === 'league') {
+              const f = e.fixture;
               return (
-                <Pressable
-                  key={r}
-                  onPress={() => setFixtureRound(r)}
-                  style={[styles.roundChip, active && styles.roundChipActive]}
-                >
-                  <Text style={[styles.roundChipText, active && styles.roundChipTextActive]}>
-                    {r}
+                <View key={e.slot} style={[styles.planRow, current && styles.planRowCurrent]}>
+                  <Text style={[styles.planTag, styles.planTagLeague]}>{t('lgPlanLeague')}</Text>
+                  <View style={styles.planMid}>
+                    <Text style={styles.planStage}>{tf('lgPlanMatchday', { n: e.round })}</Text>
+                    <Text style={styles.planMatch} numberOfLines={1}>
+                      {f ? `${clubName(f.homeId)} – ${clubName(f.awayId)}` : '–'}
+                    </Text>
+                  </View>
+                  <Text style={styles.planResult}>
+                    {f && f.played ? `${f.homeGoals}:${f.awayGoals}` : '–:–'}
                   </Text>
-                </Pressable>
+                </View>
               );
-            })}
-          </ScrollView>
-          {roundFixtures.map((m) => {
-            const involvesUser = m.homeId === USER_CLUB_ID || m.awayId === USER_CLUB_ID;
+            }
+            const ts = e.ts;
+            let matchup = '';
+            let result = '';
+            if ((ts.status === 'played' || ts.status === 'upcoming') && ts.match && clState) {
+              matchup = `${clState.teams[ts.match.homeId]?.name ?? '?'} – ${clState.teams[ts.match.awayId]?.name ?? '?'}`;
+              result = ts.status === 'played' ? `${ts.match.homeGoals}:${ts.match.awayGoals}` : '–:–';
+            } else if (ts.status === 'unknown') {
+              matchup = t('lgPlanUnknown');
+              result = '?';
+            } else {
+              matchup = t('lgPlanEliminated');
+              result = '—';
+            }
             return (
-              <View key={m.id} style={[styles.fixtureRow, involvesUser && styles.fixtureUserRow]}>
-                <Text
-                  style={[styles.fixtureName, styles.fixtureHome, involvesUser && styles.userText]}
-                  numberOfLines={1}
-                >
-                  {clubName(m.homeId)}
-                </Text>
-                <Text style={styles.fixtureScore}>
-                  {m.played ? `${m.homeGoals}:${m.awayGoals}` : '–:–'}
-                </Text>
-                <Text
-                  style={[styles.fixtureName, involvesUser && styles.userText]}
-                  numberOfLines={1}
-                >
-                  {clubName(m.awayId)}
-                </Text>
+              <View key={e.slot} style={[styles.planRow, current && styles.planRowCurrent]}>
+                <Text style={[styles.planTag, styles.planTagCl]}>{isCup ? 'CUP' : 'CL'}</Text>
+                <View style={styles.planMid}>
+                  <Text style={styles.planStage}>{t(CL_STAGE_LABEL[ts.stage])}</Text>
+                  <Text style={styles.planMatch} numberOfLines={1}>{matchup}</Text>
+                </View>
+                <Text style={styles.planResult}>{result}</Text>
               </View>
             );
           })}
