@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { BALANCING, LEAGUE, LEAGUE_REWARDS, USER_CLUB_ID } from '../core/domain/constants';
-import { userHasClMatch } from '../core/engine/cl';
+import { groupStandings, userHasClMatch, KO_STAGES, type ClStage } from '../core/engine/cl';
 import { tf } from '../core/i18n';
 import type { Match, MatchStats, NpcClub, OwnedPlayer, StandingRow, Tactic } from '../core/domain/types';
 import { computeStandings, generateNpcRoster, resolveSeason } from '../core/engine/league';
@@ -63,6 +63,18 @@ export interface SeasonReviewData {
   standings: StandingRow[];
   best: { name: string; goals: number; assists: number; avg: number; matches: number } | null;
   squadStats: Record<string, SeasonPlayerStat>;
+  /** Turnier-Weg dieser Saison (V7.4): Gruppenplatz + erreichte Runde. */
+  cup: CupJourney | null;
+}
+
+/** Zusammenfassung des Turnier-Wegs (Champions League / Pokal) für den Rückblick. */
+export interface CupJourney {
+  /** 'cl' oder 'cup' – für den Titeltext im Rückblick */
+  kind: 'cl' | 'cup';
+  /** Platz in der Gruppenphase (1–4) */
+  groupRank: number;
+  /** Weiteste erreichte Runde */
+  reachedStage: ClStage | 'champion';
 }
 
 /** Ein Spieler ist für genau dieses (Saison, Runde)-Paar gesperrt. */
@@ -118,6 +130,9 @@ interface LeagueStateStore {
   nextIsCl: () => boolean;
   /** Slot in Division 1 weiterschalten + ggf. Saison abschließen (V7). */
   advanceDiv1Slot: () => Promise<void>;
+  /** Nach dem letzten Ligaspiel (V7.4): Liga-Titel + Meister-Animation sofort,
+   *  der Rückblick kommt erst nach dem Turnierfinale. */
+  concludeLeaguePhase: () => Promise<void>;
   /** Saison abschließen: Auf-/Abstieg, Rückblick, neue Saison + CL (V7). */
   concludeSeason: () => Promise<void>;
   /**
@@ -288,6 +303,42 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
     }
   },
 
+  concludeLeaguePhase: async () => {
+    // Nach dem letzten Ligaspiel (V7.4): Liga-Titel + Prämie + Meister-Animation
+    // sofort. Der Saison-Rückblick kommt erst nach dem Turnierfinale.
+    const { season, npcs } = get();
+    const g2 = useGameStore.getState();
+    const club = g2.club;
+    if (!club) return;
+    // Nur einmal pro Saison
+    if ((await metaRepo.getMetaNumber('leaguePhaseSeason', -1)) === season) return;
+
+    const finalStandings = recomputeStandings(get().matches, npcs);
+    const outcome = resolveSeason(finalStandings, club.division);
+    const [firstPrize, secondPrize] = LEAGUE_REWARDS.seasonByDivision[club.division];
+    let prize = 0;
+    if (outcome.finalRank === 1) {
+      prize = firstPrize;
+      await g2.addCoins(prize);
+      await addLeagueTitle(club.division);
+      set({
+        pendingCelebration: {
+          clubName: club.name,
+          division: club.division,
+          captainPlayerId: g2.captainPlayerId,
+        },
+      });
+    } else if (outcome.finalRank === 2) {
+      prize = secondPrize;
+      await g2.addCoins(prize);
+      await addRunnerUp(club.division);
+    }
+    // Merken, dass die Liga-Phase abgeschlossen ist (concludeSeason vergibt
+    // Titel/Prämie dann nicht erneut, zeigt die Prämie aber im Rückblick)
+    await metaRepo.setMeta('leaguePhaseSeason', String(season));
+    await metaRepo.setMeta('leaguePhasePrize', String(prize));
+  },
+
   concludeSeason: async () => {
     const { season, npcs } = get();
     const g2 = useGameStore.getState();
@@ -305,8 +356,14 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
     const outcome = resolveSeason(finalStandings, club.division);
 
     const [firstPrize, secondPrize] = LEAGUE_REWARDS.seasonByDivision[club.division];
+    // Liga-Titel/Prämie/Feier wurden bei Turnier-Saisons schon nach dem letzten
+    // Ligaspiel vergeben (concludeLeaguePhase, V7.4). Dann hier nicht erneut,
+    // aber die Prämie für den Rückblick übernehmen.
+    const leaguePhaseDone = (await metaRepo.getMetaNumber('leaguePhaseSeason', -1)) === season;
     let prize = 0;
-    if (outcome.finalRank === 1) {
+    if (leaguePhaseDone) {
+      prize = await metaRepo.getMetaNumber('leaguePhasePrize', 0);
+    } else if (outcome.finalRank === 1) {
       prize = firstPrize;
       await g2.addCoins(prize);
       await addLeagueTitle(club.division);
@@ -332,6 +389,24 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
     // derselben Saison → alles erreicht, das Spiel ist durchgespielt.
     const { useClStore } = await import('./clStore');
     const clSt = useClStore.getState().state;
+
+    // Turnier-Weg für den Rückblick erfassen, BEVOR das Turnier verworfen wird
+    let cup: CupJourney | null = null;
+    if (clSt) {
+      const table = groupStandings(clSt);
+      const groupRank = table.findIndex((r) => r.clubId === USER_CLUB_ID) + 1;
+      let reachedStage: ClStage | 'champion' = 'group';
+      if (clSt.champion === USER_CLUB_ID) {
+        reachedStage = 'champion';
+      } else {
+        for (const stage of KO_STAGES) {
+          if (clSt.ko[stage].some((m) => m.homeId === USER_CLUB_ID || m.awayId === USER_CLUB_ID)) {
+            reachedStage = stage;
+          }
+        }
+      }
+      cup = { kind: clSt.kind === 'cup' ? 'cup' : 'cl', groupRank: groupRank || 0, reachedStage };
+    }
     let careerComplete = get().careerComplete;
     if (club.division === 1 && outcome.finalRank === 1 && clSt?.champion === USER_CLUB_ID) {
       await addDouble();
@@ -363,6 +438,7 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       standings: finalStandings,
       best,
       squadStats: seasonStats,
+      cup,
     };
     await metaRepo.setMeta('seasonReview', JSON.stringify(review));
     await metaRepo.setMeta('seasonSquadStats', '{}');
@@ -699,6 +775,9 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       // Saisonabschluss: mit Turnier erst wenn alle 21 Slots durch sind
       // (advanceDiv1Slot); ohne Turnier direkt nach Runde 14.
       if (hasTournament) {
+        // War das das letzte Ligaspiel? Dann Liga-Titel + Meister-Animation
+        // jetzt (V7.4), der Rückblick kommt erst nach dem Turnierfinale.
+        if (seasonFinished(newRound)) await get().concludeLeaguePhase();
         await get().advanceDiv1Slot();
       } else if (seasonFinished(newRound)) {
         await get().concludeSeason();

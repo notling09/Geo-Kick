@@ -1,10 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { t, type TKey } from '../../core/i18n';
 import type { ClMatch, ClStage } from '../../core/engine/cl';
 import { useClStore } from '../../state/clStore';
-import { playSound } from '../../core/services/sound';
 import { GKButton } from '../../ui/components';
 import { Crest } from '../../ui/Crest';
 import { colors, font, radius, spacing } from '../../ui/theme';
@@ -33,7 +32,6 @@ export function TournamentPlaybackScreen({ navigation }: RootScreenProps<'Tourna
   const playback = useClStore((s) => s.lastPlayback);
   const state = useClStore((s) => s.state);
   const [minute, setMinute] = useState(0);
-  const goalCount = useRef(0);
 
   useEffect(() => {
     if (!playback) {
@@ -49,26 +47,14 @@ export function TournamentPlaybackScreen({ navigation }: RootScreenProps<'Tourna
   const done = minute >= FULL_TIME;
 
   // Toranzahl je Team bis zur aktuellen Minute (am Ende der echte Endstand,
-  // damit ein K.o.-Entscheidungstor ohne eigenes Event trotzdem stimmt)
+  // damit ein K.o.-Entscheidungstor ohne eigenes Event trotzdem stimmt).
+  // Kein Tor-Sound: bei vielen Spielen gleichzeitig würde er nur nerven.
   const goalsUpTo = (m: ClMatch, side: 'home' | 'away'): number => {
     if (done) return side === 'home' ? m.homeGoals : m.awayGoals;
     return (m.events ?? []).filter(
       (e) => e.type === 'tor' && e.team === side && e.minute <= minute,
     ).length;
   };
-
-  // Sound, wenn während des Laufs ein neues Tor auftaucht
-  useEffect(() => {
-    if (!playback || done) return;
-    const total = playback.matches.reduce(
-      (sum, m) =>
-        sum +
-        (m.events ?? []).filter((e) => e.type === 'tor' && e.minute <= minute).length,
-      0,
-    );
-    if (total > goalCount.current) playSound('goal');
-    goalCount.current = total;
-  }, [minute, playback, done]);
 
   if (!playback || !state) return null;
 

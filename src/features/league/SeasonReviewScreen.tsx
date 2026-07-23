@@ -3,7 +3,8 @@ import { Animated, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { USER_CLUB_ID } from '../../core/domain/constants';
 import type { StandingRow } from '../../core/domain/types';
-import { t, tf } from '../../core/i18n';
+import type { ClStage } from '../../core/engine/cl';
+import { t, tf, type TKey } from '../../core/i18n';
 import { useGameStore } from '../../state/gameStore';
 import { useLeagueStore, type SeasonPlayerStat } from '../../state/leagueStore';
 import { GKButton, Card } from '../../ui/components';
@@ -27,6 +28,16 @@ import type { RootScreenProps } from '../../navigation/types';
 function avgOf(s: SeasonPlayerStat): string {
   return (s.ratingSum / Math.max(1, s.matches)).toFixed(1);
 }
+
+/** Runden-Label für den Pokal-Weg (V7.4). */
+const CUP_STAGE_LABEL: Record<ClStage | 'champion', TKey> = {
+  group: 'rvCupStageGroup',
+  r16: 'clStageR16',
+  qf: 'clStageQf',
+  sf: 'clStageSf',
+  final: 'clStageFinal',
+  champion: 'rvCupStageChampion',
+};
 
 /** Tabellenzeile, die gestaffelt hereinslidet. */
 function TableRow({ row, rank, isUser, delay }: {
@@ -77,11 +88,11 @@ export function SeasonReviewScreen({ navigation }: RootScreenProps<'SeasonReview
     }
   }, [step, ladderAnim]);
 
-  // Suspense beim Spieler der Saison: Name, dann Zahlen
+  // Suspense beim Spieler der Saison: Name, dann Zahlen (Schritt 3, V7.4)
   const posName = useRef(new Animated.Value(0)).current;
   const posStats = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    if (step === 2) {
+    if (step === 3) {
       posName.setValue(0);
       posStats.setValue(0);
       Animated.sequence([
@@ -201,13 +212,38 @@ export function SeasonReviewScreen({ navigation }: RootScreenProps<'SeasonReview
             <Text style={styles.prizeLine}>{tf('rvPrize', { n: review.prize })}</Text>
           )}
           <GKButton
-            title={review.best ? t('rvPosButton') : t('continue')}
-            onPress={() => setStep(review.best ? 2 : 3)}
+            title={t('continue')}
+            onPress={() => setStep(review.cup ? 2 : review.best ? 3 : 4)}
           />
         </View>
       )}
 
-      {step === 2 && review.best && (
+      {step === 2 && review.cup && (
+        <View style={styles.stepWrap}>
+          <Text style={styles.title}>
+            {review.cup.kind === 'cup' ? t('rvCupTitle') : t('rvClTitle')}
+          </Text>
+          <Text style={styles.subtitle}>{t('rvCupSub')}</Text>
+          <View style={styles.cupWrap}>
+            <View style={styles.cupCard}>
+              <Text style={styles.cupLabel}>{t('rvCupGroup')}</Text>
+              <Text style={styles.cupValue}>
+                {review.cup.groupRank > 0 ? tf('rvCupPlace', { n: review.cup.groupRank }) : '–'}
+              </Text>
+            </View>
+            <View style={styles.cupCard}>
+              <Text style={styles.cupLabel}>{t('rvCupReached')}</Text>
+              <Text style={styles.cupValue}>{t(CUP_STAGE_LABEL[review.cup.reachedStage])}</Text>
+            </View>
+          </View>
+          {review.cup.reachedStage === 'champion' && (
+            <Text style={styles.cupWin}>{t('rvCupWon')}</Text>
+          )}
+          <GKButton title={t('continue')} onPress={() => setStep(review.best ? 3 : 4)} />
+        </View>
+      )}
+
+      {step === 3 && review.best && (
         <View style={[styles.stepWrap, styles.posWrap]}>
           <Text style={styles.posHeading}>{t('rvPosHeading')}</Text>
           <Animated.View style={[styles.posCard, { opacity: posName }]}>
@@ -232,11 +268,11 @@ export function SeasonReviewScreen({ navigation }: RootScreenProps<'SeasonReview
               <Text style={styles.posStatLabel}>{t('rvAvg')}</Text>
             </View>
           </Animated.View>
-          <GKButton title={t('continue')} onPress={() => setStep(3)} />
+          <GKButton title={t('continue')} onPress={() => setStep(4)} />
         </View>
       )}
 
-      {step === 3 && (
+      {step === 4 && (
         <View style={styles.stepWrap}>
           <Text style={styles.title}>{t('rvRatings')}</Text>
           <Text style={styles.subtitle}>{t('rvRatingsSub')}</Text>
@@ -382,6 +418,40 @@ const styles = StyleSheet.create({
     color: colors.gold,
     fontWeight: '900',
     fontSize: font.h2,
+    textAlign: 'center',
+    marginBottom: spacing.md,
+  },
+  cupWrap: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginVertical: spacing.xl,
+    justifyContent: 'center',
+  },
+  cupCard: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: radius.md,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.md,
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  cupLabel: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: font.small,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  cupValue: {
+    color: colors.gold,
+    fontSize: font.h1,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  cupWin: {
+    color: colors.gold,
+    fontSize: font.h2,
+    fontWeight: '900',
     textAlign: 'center',
     marginBottom: spacing.md,
   },

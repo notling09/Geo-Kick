@@ -231,6 +231,43 @@ export const useClStore = create<ClStore>((set, get) => ({
           }
           if (coins > 0) await g2.addCoins(coins);
 
+          // Saison-Statistik (V7.4): auch Turnierspiele zählen für den Spieler
+          // der Saison – dieselbe Notenlogik wie in der Liga, Startelf des Spiels.
+          try {
+            const seasonStats: Record<
+              string,
+              { goals: number; assists: number; ratingSum: number; matches: number }
+            > = JSON.parse((await metaRepo.getMeta('seasonSquadStats')) || '{}');
+            const side = userIsHome ? 'home' : 'away';
+            const resultBonus = won ? 0.4 : draw ? 0.1 : -0.3;
+            const oppScored = userIsHome ? ag : hg;
+            for (const p of g2.lineupPlayers()) {
+              if (!p) continue;
+              const name = p.pool.name;
+              const goals = result.events.filter(
+                (e) => e.type === 'tor' && e.team === side && e.player === name,
+              ).length;
+              const assists = result.events.filter(
+                (e) => e.type === 'tor' && e.team === side && e.assist === name,
+              ).length;
+              const cleanSheetBonus =
+                oppScored === 0 && (p.pool.position === 'TW' || p.pool.position === 'ABW') ? 0.6 : 0;
+              const rating = Math.min(
+                10,
+                Math.max(4, 6.5 + goals * 1.2 + assists * 0.6 + resultBonus + cleanSheetBonus),
+              );
+              const entry = seasonStats[name] ?? { goals: 0, assists: 0, ratingSum: 0, matches: 0 };
+              entry.goals += goals;
+              entry.assists += assists;
+              entry.ratingSum += rating;
+              entry.matches += 1;
+              seasonStats[name] = entry;
+            }
+            await metaRepo.setMeta('seasonSquadStats', JSON.stringify(seasonStats));
+          } catch {
+            // Statistik ist optional – ein Fehler hier darf das Spiel nicht stören
+          }
+
           // Ergebnis (samt Events für die Torschützen-Tabelle) in den Baum
           applyUserClResult(state, hg, ag, result.events);
           await persist(state);
