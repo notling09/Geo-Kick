@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -6,11 +6,15 @@ import {
 } from '../../core/domain/constants';
 import { t, tf, type TKey } from '../../core/i18n';
 import { effectiveAttributes, effectiveOverall } from '../../core/engine/playerGen';
+import { formOf, formStage, loadForm } from '../../core/services/form';
 import { useGameStore } from '../../state/gameStore';
 import { GKButton, Card, SectionTitle } from '../../ui/components';
 import { PlayerAvatar } from '../../ui/PlayerAvatar';
+import { FormBars } from '../../ui/PlayerCard';
 import { colors, font, radius, spacing } from '../../ui/theme';
 import type { RootScreenProps } from '../../navigation/types';
+
+const FORM_STAGE_LABELS: TKey[] = ['formPoor', 'formWeak', 'formAverage', 'formGood', 'formTop'];
 
 /**
  * Player detail: attributes, level-ups (spend level-up points earned from
@@ -32,6 +36,18 @@ export function PlayerDetailScreen({ route, navigation }: RootScreenProps<'Playe
   const player = players.find((p) => p.id === playerId);
   const inLineup = lineup.includes(playerId);
   const isCaptain = playerId === captainPlayerId;
+
+  // Spielerform laden (V7.2)
+  const [formValue, setFormValue] = useState<number | null>(null);
+  useEffect(() => {
+    let active = true;
+    loadForm().then((f) => {
+      if (active && player) setFormValue(formOf(f, player.pool.name));
+    });
+    return () => {
+      active = false;
+    };
+  }, [player?.pool.name]);
 
   if (!player) {
     return (
@@ -101,6 +117,17 @@ export function PlayerDetailScreen({ route, navigation }: RootScreenProps<'Playe
               <Text style={styles.attrValue}>{attrs[key]}</Text>
             </View>
           ))}
+        </Card>
+
+        <SectionTitle>{t('pdForm')}</SectionTitle>
+        <Card>
+          <View style={styles.formRow}>
+            <FormBars stage={formValue !== null ? formStage(formValue) : 2} />
+            <Text style={styles.formLabel}>
+              {formValue !== null ? t(FORM_STAGE_LABELS[formStage(formValue)]) : '...'}
+            </Text>
+          </View>
+          <Text style={styles.trainText}>{t('pdFormHint')}</Text>
         </Card>
 
         <SectionTitle>{t('pdLevelUp')}</SectionTitle>
@@ -230,6 +257,17 @@ const styles = StyleSheet.create({
     color: colors.inkSoft,
     fontSize: font.small,
     marginBottom: spacing.sm,
+  },
+  formRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  formLabel: {
+    fontSize: font.body,
+    fontWeight: '900',
+    color: colors.ink,
   },
   emptyText: {
     padding: spacing.lg,

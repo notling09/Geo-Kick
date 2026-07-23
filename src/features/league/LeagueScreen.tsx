@@ -43,6 +43,7 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
   const seasonReview = useLeagueStore((s) => s.seasonReview);
   const pendingCelebration = useLeagueStore((s) => s.pendingCelebration);
   const div1Slot = useLeagueStore((s) => s.div1Slot);
+  const rivalClubId = useLeagueStore((s) => s.rivalClubId);
   const nextMatchAt = useLeagueStore((s) => s.nextMatchAt);
   const clState = useClStore((s) => s.state);
   const lineup = useGameStore((s) => s.lineup);
@@ -305,6 +306,14 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
                   </View>
                 </View>
 
+                {rivalClubId != null &&
+                  (String(nextUserMatch.homeId) === String(rivalClubId) ||
+                    String(nextUserMatch.awayId) === String(rivalClubId)) && (
+                    <View style={styles.rivalBanner}>
+                      <Text style={styles.rivalBannerText}>{t('lgRivalMatch')}</Text>
+                    </View>
+                  )}
+
                 {ready ? (
                   <>
                     <Text style={styles.tacticTitle}>{t('lgChooseTactic')}</Text>
@@ -397,21 +406,26 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
           </View>
           {standings.map((row, i) => {
             const isUser = row.clubId === USER_CLUB_ID;
+            const isRival = !isUser && rivalClubId != null && String(row.clubId) === String(rivalClubId);
             const promo = i < LEAGUE.promotionSpots;
             const releg = i >= standings.length - LEAGUE.relegationSpots;
             return (
               <View
                 key={row.clubId}
-                style={[styles.tableRow, isUser && styles.userRow]}
+                style={[styles.tableRow, isUser && styles.userRow, isRival && styles.rivalRow]}
               >
                 <Text style={[styles.td, styles.colPos, promo && styles.promoText, releg && styles.relegText]}>
                   {i + 1}
                 </Text>
                 <View style={[styles.clubCell, styles.colClub]}>
                   <Crest crestId={row.crest} size={18} />
-                  <Text style={[styles.td, styles.clubCellName, isUser && styles.userText]} numberOfLines={1}>
+                  <Text
+                    style={[styles.td, styles.clubCellName, isUser && styles.userText, isRival && styles.rivalText]}
+                    numberOfLines={1}
+                  >
                     {row.name}
                   </Text>
+                  {isRival && <Text style={styles.rivalTag}>{t('lgRivalTag')}</Text>}
                 </View>
                 <Text style={[styles.td, styles.colNum]}>{row.played}</Text>
                 <Text style={[styles.td, styles.colNum]}>{row.goalsFor - row.goalsAgainst}</Text>
@@ -750,6 +764,38 @@ const styles = StyleSheet.create({
   },
   userText: {
     fontWeight: '900',
+  },
+  rivalRow: {
+    borderWidth: 1,
+    borderColor: colors.accent,
+    borderRadius: radius.sm,
+  },
+  rivalText: {
+    color: colors.accent,
+    fontWeight: '900',
+  },
+  rivalTag: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#fff',
+    backgroundColor: colors.accent,
+    borderRadius: radius.sm,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    overflow: 'hidden',
+  },
+  rivalBanner: {
+    backgroundColor: colors.accent,
+    borderRadius: radius.sm,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    marginTop: spacing.sm,
+    alignItems: 'center',
+  },
+  rivalBannerText: {
+    color: '#fff',
+    fontWeight: '900',
+    fontSize: font.small,
   },
   promoText: {
     color: colors.pitch,

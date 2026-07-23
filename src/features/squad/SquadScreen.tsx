@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
   Modal,
@@ -13,6 +13,7 @@ import { FORMATIONS, FORMATION_IDS, LEAGUE_REWARDS, POSITION_LABEL } from '../..
 import { t, tf } from '../../core/i18n';
 import type { FormationId } from '../../core/domain/types';
 import { effectiveOverall } from '../../core/engine/playerGen';
+import { loadForm } from '../../core/services/form';
 import { teamStrength } from '../../core/engine/strength';
 import { useGameStore } from '../../state/gameStore';
 import { useLeagueStore } from '../../state/leagueStore';
@@ -36,7 +37,19 @@ export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
   const suspensions = useLeagueStore((s) => s.suspensions);
   const [pickSlot, setPickSlot] = useState<number | null>(null);
   const [pickingCaptain, setPickingCaptain] = useState(false);
+  const [form, setForm] = useState<Record<string, number>>({});
   const insets = useSafeAreaInsets();
+
+  // Spielerform laden (V7.2): Formbalken in den Kaderkarten
+  useEffect(() => {
+    let active = true;
+    loadForm().then((f) => {
+      if (active) setForm(f);
+    });
+    return () => {
+      active = false;
+    };
+  }, [players]);
 
   // Für das NÄCHSTE Ligaspiel gesperrte Spieler (rote Karte)
   const suspendedIds = useMemo(
@@ -132,6 +145,7 @@ export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
           <PlayerCard
             key={p.id}
             player={p}
+            form={form[p.pool.name] ?? 50}
             onPress={() => navigation.navigate('PlayerDetail', { playerId: p.id })}
           />
         ))}

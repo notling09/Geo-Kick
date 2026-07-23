@@ -10,6 +10,7 @@ import * as leagueRepo from '../core/db/repositories/leagueRepo';
 import * as metaRepo from '../core/db/repositories/metaRepo';
 import { clubList, createSeason, loadLeagueData, seasonFinished } from '../core/services/seasonService';
 import { addDouble, addLeagueTitle, addRunnerUp } from '../core/services/trophies';
+import { averageForm, formFactor, loadForm, updateFormAfterMatch } from '../core/services/form';
 import { useGameStore } from './gameStore';
 import { runUserMatch, type MatchPause } from './matchFlow';
 import { pick } from '../core/engine/random';
@@ -103,6 +104,8 @@ interface LeagueStateStore {
   div1Slot: number;
   /** Karriere vollendet (V7): Liga + CL in derselben Saison gewonnen. */
   careerComplete: boolean;
+  /** Rivalen-Klub dieser Saison (V7.2): zufälliger NPC, in der Tabelle markiert. */
+  rivalClubId: string | null;
 
   hydrate: () => Promise<void>;
   acknowledgeCelebration: () => void;
@@ -147,6 +150,25 @@ async function loadSuspensions(): Promise<Suspension[]> {
   }
 }
 
+/** Rivalen-Klub der Saison laden bzw. zufällig wählen (V7.2). */
+async function loadRival(season: number): Promise<string | null> {
+  try {
+    const r = JSON.parse((await metaRepo.getMeta('rival')) || 'null') as
+      | { season: number; clubId: string }
+      | null;
+    return r && r.season === season ? r.clubId : null;
+  } catch {
+    return null;
+  }
+}
+
+async function chooseRival(season: number, npcs: NpcClub[]): Promise<string | null> {
+  if (npcs.length === 0) return null;
+  const clubId = String(pick(npcs).id);
+  await metaRepo.setMeta('rival', JSON.stringify({ season, clubId }));
+  return clubId;
+}
+
 async function loadSeasonReview(): Promise<SeasonReviewData | null> {
   const raw = await metaRepo.getMeta('seasonReview');
   if (!raw) return null;
@@ -172,6 +194,7 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
   seasonReview: null,
   div1Slot: 0,
   careerComplete: false,
+  rivalClubId: null,
 
   acknowledgeCelebration: () => set({ championCelebration: null }),
 
@@ -194,6 +217,11 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       await metaRepo.setMeta('nextMatchAt', String(nextMatchAt));
     }
     const div1Slot = await metaRepo.getMetaNumber('div1Slot', 0);
+    // Rivale dieser Saison (V7.2): laden oder zufällig wählen
+    let rivalClubId = await loadRival(data.season);
+    if (!rivalClubId && data.npcs.length > 0) {
+      rivalClubId = await chooseRival(data.season, data.npcs);
+    }
     set({
       season: data.season,
       round: data.round,
@@ -206,6 +234,7 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       seasonReview: await loadSeasonReview(),
       div1Slot,
       careerComplete: (await metaRepo.getMeta('careerComplete')) === '1',
+      rivalClubId,
     });
     // Champions League der aktuellen Saison laden/anlegen (nur Division 1, V7).
     // Neu anlegen nur am Saisonanfang: bestehende Div-1-Spielstände (vor V7)
@@ -370,6 +399,8 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
     if (outcome.newDivision === 1) await useClStore.getState().ensureSeason(updatedSeason);
     else await useClStore.getState().clear();
 
+    const newRival = await chooseRival(updatedSeason, updatedNpcs);
+
     set({
       season: updatedSeason,
       round: 1,
@@ -379,6 +410,7 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       standings: recomputeStandings(updatedMatches, updatedNpcs),
       seasonReview: review,
       careerComplete,
+      rivalClubId: newRival,
     });
   },
 
@@ -449,6 +481,8 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
     const opponent = simTeamFor(userIsHome ? fixture.awayId : fixture.homeId, pick(npcTactics));
     // Für die Saisonnoten: Startelf UND Eingewechselte
     const participants = new Map<number, NonNullable<ReturnType<typeof game.lineupPlayers>[number]>>();
+    // Spielerform (V7.2): die Durchschnittsform der Elf wirkt ±4 % auf die Stärke
+    const form = await loadForm();
     const buildUserTeam = async (t: Tactic): Promise<SimTeam> => {
       const g = useGameStore.getState();
       await g.setTactic(t);
@@ -457,9 +491,14 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
         .map((p) => (p && suspendedIds.has(p.id) ? null : p));
       const xi = lineupNow.filter((p): p is NonNullable<typeof p> => p !== null);
       xi.forEach((p) => participants.set(p.id, p));
+      const names = xi.map((p) => p.pool.name);
+      const strength = Math.round(
+        teamStrength(lineupNow, g.club?.formation ?? club.formation) *
+          formFactor(averageForm(form, names)),
+      );
       return {
         name: club.name,
-        strength: teamStrength(lineupNow, g.club?.formation ?? club.formation),
+        strength,
         tactic: t,
         roster: xi.map((p) => ({ name: p.pool.name, position: p.pool.position })),
         captainName: g.players.find((p) => p.id === g.captainPlayerId)?.pool.name,
@@ -563,8 +602,33 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
           breakdown.push(tf('rewardCaptainAssist', { c: captainAssists, n: captainAssists * LEAGUE_REWARDS.captainAssist }));
         }
       }
+      // Rivalen-System (V7.2): Sieg gegen den Saison-Rivalen bringt Extra-Coins,
+      // eine Niederlage drueckt zusaetzlich auf die Spielerform
+      const opponentId = userIsHome ? fixture.awayId : fixture.homeId;
+      const isRival =
+        get().rivalClubId != null && String(opponentId) === String(get().rivalClubId);
+      if (isRival && userGoals > oppGoals) {
+        total += LEAGUE_REWARDS.rivalWin;
+        breakdown.push(tf('rewardRivalWin', { n: LEAGUE_REWARDS.rivalWin }));
+      }
       if (total > 0) await g2.addCoins(total);
       const coinReward = { total, breakdown };
+
+      // Spielerform nach dem Spiel fortschreiben (V7.2)
+      const formResult: 'win' | 'draw' | 'loss' =
+        userGoals > oppGoals ? 'win' : userGoals < oppGoals ? 'loss' : 'draw';
+      const lineupNames = [...participants.values()].map((p) => p.pool.name);
+      const benchNames = g2.players
+        .filter((p) => !participants.has(p.id))
+        .map((p) => p.pool.name);
+      await updateFormAfterMatch({
+        events: userMatch.events,
+        userSide,
+        lineupNames,
+        benchNames,
+        result: formResult,
+        extraMalus: isRival && formResult === 'loss' ? 6 : 0,
+      });
 
       // Rote Karten eigener Spieler: Sperre für das nächste Ligaspiel;
       // abgelaufene Sperren gleichzeitig aufräumen

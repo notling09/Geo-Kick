@@ -411,6 +411,8 @@ export const LEAGUE_REWARDS = {
   draw: 5,
   captainGoal: 3,
   captainAssist: 2,
+  /** V7.2: Extra-Coins fuer einen Sieg gegen den Saison-Rivalen */
+  rivalWin: 25,
   /** [Platz-1-Prämie, Platz-2-Prämie] je Division (V3: Platz 2 gestaffelt 50/75/100/125) */
   seasonByDivision: {
     4: [100, 50],
