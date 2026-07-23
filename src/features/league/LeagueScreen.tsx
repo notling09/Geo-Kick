@@ -554,7 +554,7 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
                 }
                 return (
                   <View key={e.slot} style={[styles.planRow, current && styles.planRowCurrent]}>
-                    <Text style={[styles.planTag, styles.planTagCl]}>{isCup ? t('cupName') : t('clName')}</Text>
+                    <Text style={[styles.planTag, styles.planTagCl]}>{isCup ? 'CUP' : 'CL'}</Text>
                     <View style={styles.planMid}>
                       <Text style={styles.planStage}>{t(CL_STAGE_LABEL[ts.stage])}</Text>
                       <Text style={styles.planMatch} numberOfLines={1}>{matchup}</Text>
