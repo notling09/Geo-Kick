@@ -7,6 +7,7 @@ import { t, tf } from '../../core/i18n';
 import { promptBossReward } from '../map/bossReward';
 import { effectiveOverall } from '../../core/engine/playerGen';
 import { useBattleStore } from '../../state/battleStore';
+import { useClStore } from '../../state/clStore';
 import { useGameStore } from '../../state/gameStore';
 import { useLeagueStore } from '../../state/leagueStore';
 import { useOnlineStore } from '../../state/onlineStore';
@@ -159,17 +160,28 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
   const isBattleMatch = played?.match.awayId.startsWith('battle-') ?? false;
   const isOnlineMatch =
     played?.match.homeId === 'online' || played?.match.awayId === 'online';
-  const isLeagueMatch = (played?.match.season ?? 0) > 0;
+  const isClMatch = played?.match.homeId === 'cl' || played?.match.awayId === 'cl';
+  const isLeagueMatch = (played?.match.season ?? 0) > 0 && !isClMatch;
   const pendingShootoutRaw = useBattleStore((s) => s.pendingShootout);
   const pendingShootout = isBattleMatch ? pendingShootoutRaw : null;
+  // Turnier-K.o. remis: Elfmeterschießen (V7.3)
+  const clShootout = useClStore((s) => s.pendingShootout);
+  const clShootoutPending = isClMatch ? clShootout : null;
   const shootoutStarted = useRef(false);
   useEffect(() => {
     if (minute >= 90 && pendingShootout && !shootoutStarted.current) {
       shootoutStarted.current = true;
-      const t = setTimeout(() => navigation.replace('Shootout'), 2200);
+      const t = setTimeout(() => navigation.replace('Shootout', { mode: 'battle' }), 2200);
       return () => clearTimeout(t);
     }
   }, [minute, pendingShootout, navigation]);
+  useEffect(() => {
+    if (minute >= 90 && clShootoutPending && !shootoutStarted.current) {
+      shootoutStarted.current = true;
+      const t = setTimeout(() => navigation.replace('Shootout', { mode: 'cl' }), 2200);
+      return () => clearTimeout(t);
+    }
+  }, [minute, clShootoutPending, navigation]);
 
   // Boss in 90 Minuten besiegt (V7): nach dem Abpfiff die Belohnung wählen
   const pendingBossReward = useBattleStore((s) => s.pendingBossReward);
@@ -468,7 +480,13 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
               <GKButton
                 title={t('matchShootout')}
                 variant="secondary"
-                onPress={() => navigation.replace('Shootout')}
+                onPress={() => navigation.replace('Shootout', { mode: 'battle' })}
+              />
+            ) : clShootoutPending ? (
+              <GKButton
+                title={t('matchShootout')}
+                variant="secondary"
+                onPress={() => navigation.replace('Shootout', { mode: 'cl' })}
               />
             ) : isOnlineMatch && onlinePhase === 'shootout' ? (
               // Online-Remis: KEIN Continue (das würde das Spiel abbrechen),

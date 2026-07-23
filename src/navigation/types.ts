@@ -12,7 +12,7 @@ export type RootStackParamList = {
   PackOpening: { packId?: number; egg?: boolean; eggIndex?: number };
   Help: undefined;
   Passport: undefined;
-  Shootout: undefined;
+  Shootout: { mode?: 'battle' | 'cl' } | undefined;
   SeasonReview: undefined;
   OnlineLobby: undefined;
   OnlineShootout: undefined;

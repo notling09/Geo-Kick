@@ -15,6 +15,7 @@ import { useGameStore } from './gameStore';
 import { useLeagueStore, type PlayedUserMatch } from './leagueStore';
 import { runUserMatch } from './matchFlow';
 import { addClTitle } from '../core/services/trophies';
+import type { ShootoutSetup } from './battleStore';
 
 /**
  * Champions League (V7): hält den Turnierzustand für die aktuelle Division-1-
@@ -25,6 +26,8 @@ import { addClTitle } from '../core/services/trophies';
 
 interface ClStore {
   state: ClState | null;
+  /** Anstehendes K.o.-Elfmeterschießen (V7.3), falls ein KO-Spiel remis endet. */
+  pendingShootout: ShootoutSetup | null;
 
   hydrate: (season: number) => Promise<void>;
   /** CL für die Saison sicherstellen (in Division 1 anlegen). */
@@ -35,11 +38,21 @@ interface ClStore {
   playUserClMatch: (tactic: Tactic) => Promise<PlayedUserMatch | null>;
   /** Nutzer ausgeschieden: die nächste CL-Runde simulieren (nur Anzeige). */
   simulateNextRound: () => Promise<void>;
+  /** Elfmeterschießen auswerten: Sieger kommt weiter, Belohnungstext zurück. */
+  resolveClShootout: (won: boolean) => Promise<string | null>;
+  /** Elfmeterschießen ohne Ende verlassen: zufällig entscheiden, damit es weitergeht. */
+  abandonClShootout: () => void;
 }
 
 async function persist(state: ClState | null): Promise<void> {
   await metaRepo.setMeta('clState', state ? JSON.stringify(state) : '');
 }
+
+/**
+ * Abschluss eines K.o.-Spiels nach dem Elfmeterschießen (V7.3). In-Memory, weil
+ * es die 90-Minuten-Daten (Events/Stats) des laufenden Spiels enthält.
+ */
+let pendingClFinish: ((userWon: boolean) => Promise<string | null>) | null = null;
 
 function userTeamFactory(): (t: Tactic) => Promise<SimTeam> {
   return async (t) => {
@@ -60,6 +73,7 @@ function userTeamFactory(): (t: Tactic) => Promise<SimTeam> {
 
 export const useClStore = create<ClStore>((set, get) => ({
   state: null,
+  pendingShootout: null,
 
   hydrate: async (season) => {
     const raw = await metaRepo.getMeta('clState');
@@ -118,7 +132,7 @@ export const useClStore = create<ClStore>((set, get) => ({
       name: oppTeamData.name,
       strength: Math.round(oppTeamData.strength * factor),
       tactic: 'ausgewogen',
-      roster: generateNpcRoster(),
+      roster: oppTeamData.roster ?? generateNpcRoster(),
     };
 
     const baseMatch = {
@@ -147,86 +161,131 @@ export const useClStore = create<ClStore>((set, get) => ({
           },
         }),
       finalize: async (result) => {
-        const g2 = useGameStore.getState();
-        const userGoals = userIsHome ? result.homeGoals : result.awayGoals;
-        const oppGoals = userIsHome ? result.awayGoals : result.homeGoals;
-        // K.o.-Spiele dürfen nicht remis enden: der Nutzer bekommt bei
-        // Gleichstand einen knappen Zufalls-Ausgang (fair, aber spannend)
-        let hg = result.homeGoals;
-        let ag = result.awayGoals;
-        if (fixture.stage !== 'group' && hg === ag) {
-          if (Math.random() < 0.5) (userIsHome ? (hg++) : (ag++));
-          else (userIsHome ? (ag++) : (hg++));
-        }
-        const finalUserGoals = userIsHome ? hg : ag;
-        const finalOppGoals = userIsHome ? ag : hg;
-        const won = finalUserGoals > finalOppGoals;
-        const draw = finalUserGoals === finalOppGoals;
+        // Turnier-Spiel abschließen: Coins berechnen, Ergebnis in den Baum
+        // eintragen, Feier/Anzeige setzen, Slot weiterschalten. hg/ag sind das
+        // ENDGÜLTIGE Ergebnis (nach evtl. Elfmeterschießen). Gibt einen
+        // Belohnungstext zurück (für die Elfmeter-Anzeige).
+        const finishClResult = async (
+          hg: number,
+          ag: number,
+          viaShootout: boolean,
+        ): Promise<string | null> => {
+          const g2 = useGameStore.getState();
+          const finalUserGoals = userIsHome ? hg : ag;
+          const finalOppGoals = userIsHome ? ag : hg;
+          const won = finalUserGoals > finalOppGoals;
+          const draw = finalUserGoals === finalOppGoals;
 
-        // CL-Coins: Sieg (steigend je Runde), Gruppen-Remis 5, plus Captain-
-        // Boni die je Runde steigen (V7.1)
-        const breakdown: string[] = [];
-        let coins = 0;
-        if (won) {
-          const w = clWinReward(state, fixture.stage);
-          coins += w;
-          breakdown.push(tf(isCup ? 'cupRewardWin' : 'clRewardWin', { n: w }));
-        } else if (draw) {
-          coins += cfg.drawReward;
-          breakdown.push(tf('rewardDraw', { n: cfg.drawReward }));
-        }
-        const captain = g2.players.find((p) => p.id === g2.captainPlayerId);
-        if (captain) {
-          const side = userIsHome ? 'home' : 'away';
-          const cg = result.events.filter(
-            (e) => e.type === 'tor' && e.team === side && e.player === captain.pool.name,
-          ).length;
-          const ca = result.events.filter(
-            (e) => e.type === 'tor' && e.team === side && e.assist === captain.pool.name,
-          ).length;
-          const goalV = cfg.captainGoal[fixture.stage] ?? 0;
-          const assistV = cfg.captainAssist[fixture.stage] ?? 0;
-          if (cg > 0) {
-            coins += cg * goalV;
-            breakdown.push(tf('rewardCaptainGoal', { c: cg, n: cg * goalV }));
+          // Coins: Sieg (steigend je Runde), Gruppen-Remis, plus Captain-Boni.
+          // Captain-Boni zählen nur die Tore aus den 90 Minuten (result.events).
+          const breakdown: string[] = [];
+          let coins = 0;
+          if (won) {
+            const w = clWinReward(state, fixture.stage);
+            coins += w;
+            breakdown.push(tf(isCup ? 'cupRewardWin' : 'clRewardWin', { n: w }));
+          } else if (draw) {
+            coins += cfg.drawReward;
+            breakdown.push(tf('rewardDraw', { n: cfg.drawReward }));
           }
-          if (ca > 0) {
-            coins += ca * assistV;
-            breakdown.push(tf('rewardCaptainAssist', { c: ca, n: ca * assistV }));
+          const captain = g2.players.find((p) => p.id === g2.captainPlayerId);
+          if (captain) {
+            const side = userIsHome ? 'home' : 'away';
+            const cg = result.events.filter(
+              (e) => e.type === 'tor' && e.team === side && e.player === captain.pool.name,
+            ).length;
+            const ca = result.events.filter(
+              (e) => e.type === 'tor' && e.team === side && e.assist === captain.pool.name,
+            ).length;
+            const goalV = cfg.captainGoal[fixture.stage] ?? 0;
+            const assistV = cfg.captainAssist[fixture.stage] ?? 0;
+            if (cg > 0) {
+              coins += cg * goalV;
+              breakdown.push(tf('rewardCaptainGoal', { c: cg, n: cg * goalV }));
+            }
+            if (ca > 0) {
+              coins += ca * assistV;
+              breakdown.push(tf('rewardCaptainAssist', { c: ca, n: ca * assistV }));
+            }
           }
-        }
-        if (coins > 0) await g2.addCoins(coins);
+          if (coins > 0) await g2.addCoins(coins);
 
-        // Ergebnis in den Turnierbaum eintragen und vorantreiben
-        applyUserClResult(state, hg, ag);
-        await persist(state);
-        set({ state: { ...state } });
+          // Ergebnis (samt Events für die Torschützen-Tabelle) in den Baum
+          applyUserClResult(state, hg, ag, result.events);
+          await persist(state);
+          set({ state: { ...state } });
 
-        // Turnier-Sieg: CL-Titel in den Schrank (nur CL) + Meister-Animation.
-        // division 0 = Champions League, -1 = Nationaler Pokal (eigene Texte).
-        if (state.champion === USER_CLUB_ID) {
-          if (!isCup) await addClTitle();
+          // Turnier-Sieg: CL-Titel in den Schrank (nur CL) + Meister-Animation.
+          // division 0 = Champions League, -1 = Nationaler Pokal (eigene Texte).
+          if (state.champion === USER_CLUB_ID) {
+            if (!isCup) await addClTitle();
+            useLeagueStore.setState({
+              pendingCelebration: {
+                clubName: club.name,
+                division: isCup ? -1 : 0,
+                captainPlayerId: g2.captainPlayerId,
+              },
+            });
+          }
+
           useLeagueStore.setState({
-            pendingCelebration: {
-              clubName: club.name,
-              division: isCup ? -1 : 0,
-              captainPlayerId: g2.captainPlayerId,
+            lastPlayedMatch: {
+              match: { ...baseMatch, homeGoals: hg, awayGoals: ag, played: true, events: result.events },
+              homeName, awayName, homeCrest, awayCrest, userIsHome,
+              stats: result.stats,
+              coinReward: { total: coins, breakdown },
+              motm: result.motm,
             },
           });
+
+          // Slot weiterschalten + ggf. Saison abschließen
+          await useLeagueStore.getState().advanceDiv1Slot();
+          return won ? (viaShootout ? tf(isCup ? 'cupRewardWin' : 'clRewardWin', { n: clWinReward(state, fixture.stage) }) : null) : null;
+        };
+
+        const hg0 = result.homeGoals;
+        const ag0 = result.awayGoals;
+        const isKoTie = fixture.stage !== 'group' && hg0 === ag0;
+
+        if (isKoTie) {
+          // K.o. und nach 90 Min remis → Elfmeterschießen (V7.3). Die 90-Minuten-
+          // Anzeige bleibt stehen; erst nach dem Schießen wird abgeschlossen.
+          const g2 = useGameStore.getState();
+          const userShooters = g2
+            .lineupPlayers()
+            .filter((p): p is NonNullable<typeof p> => p !== null)
+            .sort((a, b) => b.pool.abschluss - a.pool.abschluss)
+            .map((p) => p.pool.name);
+          const oppShooters = (oppTeamData.roster ?? []).map((r) => r.name);
+          pendingClFinish = async (userWon) => {
+            // Der Sieger bekommt +1 Tor im Baum, damit winners() korrekt weiterkommt
+            let hg = hg0;
+            let ag = ag0;
+            if (userWon) userIsHome ? hg++ : ag++;
+            else userIsHome ? ag++ : hg++;
+            return finishClResult(hg, ag, true);
+          };
+          set({
+            pendingShootout: {
+              isBoss: false,
+              opponentName: oppTeamData.name,
+              userShooters: userShooters.length > 0 ? userShooters : ['Your player'],
+              oppShooters: oppShooters.length > 0 ? oppShooters : ['Opponent'],
+            },
+          });
+          // Endstand-Anzeige (90 Min), Ergebnis wird erst nach dem Schießen gesetzt
+          useLeagueStore.setState({
+            lastPlayedMatch: {
+              match: { ...baseMatch, homeGoals: hg0, awayGoals: ag0, played: true, events: result.events },
+              homeName, awayName, homeCrest, awayCrest, userIsHome,
+              stats: result.stats,
+              motm: result.motm,
+            },
+          });
+          return;
         }
 
-        useLeagueStore.setState({
-          lastPlayedMatch: {
-            match: { ...baseMatch, homeGoals: hg, awayGoals: ag, played: true, events: result.events },
-            homeName, awayName, homeCrest, awayCrest, userIsHome,
-            stats: result.stats,
-            coinReward: { total: coins, breakdown },
-            motm: result.motm,
-          },
-        });
-
-        // Slot weiterschalten + ggf. Div-1-Saison abschließen
-        await useLeagueStore.getState().advanceDiv1Slot();
+        await finishClResult(hg0, ag0, false);
       },
     });
 
@@ -241,6 +300,22 @@ export const useClStore = create<ClStore>((set, get) => ({
     await persist(state);
     set({ state: { ...state } });
     await useLeagueStore.getState().advanceDiv1Slot();
+  },
+
+  resolveClShootout: async (won) => {
+    const finish = pendingClFinish;
+    pendingClFinish = null;
+    set({ pendingShootout: null });
+    if (!finish) return null;
+    return finish(won);
+  },
+
+  abandonClShootout: () => {
+    // Ohne Ende verlassen: zufällig entscheiden, damit das Turnier weiterläuft
+    const finish = pendingClFinish;
+    pendingClFinish = null;
+    set({ pendingShootout: null });
+    if (finish) void finish(Math.random() < 0.5);
   },
 }));
 

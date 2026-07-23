@@ -1,5 +1,5 @@
 import { CHAMPIONS_LEAGUE, NATIONAL_CUP, USER_CLUB_ID } from '../domain/constants';
-import type { StandingRow } from '../domain/types';
+import type { MatchEvent, StandingRow } from '../domain/types';
 import { CL_TEAM_NAMES, CUP_TEAM_NAMES } from './names';
 import { simulateMatch, type SimTeam } from './matchSim';
 import { generateNpcRoster } from './league';
@@ -34,6 +34,8 @@ export interface ClTeam {
   name: string;
   crest: string;
   strength: number;
+  /** Fester Kader (V7.3): damit Turnier-Torschützen konsistent bleiben. */
+  roster?: SimTeam['roster'];
 }
 
 export interface ClMatch {
@@ -43,6 +45,8 @@ export interface ClMatch {
   homeGoals: number;
   awayGoals: number;
   played: boolean;
+  /** Tor-Events (V7.3): Grundlage für die Torschützen-/Vorlagen-Tabelle. */
+  events?: MatchEvent[];
 }
 
 export interface ClState {
@@ -103,7 +107,10 @@ function createTournamentState(
       : () => randInt(CHAMPIONS_LEAGUE.strengthRange[0], CHAMPIONS_LEAGUE.strengthRange[1]);
 
   const teams: Record<string, ClTeam> = {
-    [USER_CLUB_ID]: { id: USER_CLUB_ID, name: user.name, crest: user.crest, strength: user.strength },
+    [USER_CLUB_ID]: {
+      id: USER_CLUB_ID, name: user.name, crest: user.crest, strength: user.strength,
+      roster: generateNpcRoster(),
+    },
   };
   names.forEach((name, i) => {
     teams[`cl-${i}`] = {
@@ -111,6 +118,7 @@ function createTournamentState(
       name,
       crest: `crest-${randInt(0, 9)}`,
       strength: strengthFor(),
+      roster: generateNpcRoster(),
     };
   });
 
@@ -148,7 +156,7 @@ function mkMatch(stage: ClStage, homeId: string, awayId: string): ClMatch {
 }
 
 function toSim(team: ClTeam): SimTeam {
-  return { name: team.name, strength: team.strength, tactic: 'ausgewogen', roster: clRoster() };
+  return { name: team.name, strength: team.strength, tactic: 'ausgewogen', roster: team.roster ?? clRoster() };
 }
 
 /** Ein CL-Spiel simulieren und Tore eintragen (kein Ticker – nur Ergebnis). */
@@ -164,6 +172,7 @@ function simulate(state: ClState, m: ClMatch): void {
   m.homeGoals = hg;
   m.awayGoals = ag;
   m.played = true;
+  m.events = r.events;
 }
 
 /** Tabelle der 4er-Gruppe. */
@@ -336,12 +345,18 @@ export function simulateNextClRound(state: ClState): void {
 }
 
 /** Nutzer-Ergebnis in die CL eintragen und den Baum vorantreiben. */
-export function applyUserClResult(state: ClState, homeGoals: number, awayGoals: number): void {
+export function applyUserClResult(
+  state: ClState,
+  homeGoals: number,
+  awayGoals: number,
+  events?: MatchEvent[],
+): void {
   const m = nextUserClMatch(state);
   if (!m) return;
   m.homeGoals = homeGoals;
   m.awayGoals = awayGoals;
   m.played = true;
+  if (events) m.events = events;
   advanceCl(state);
 }
 
@@ -353,4 +368,88 @@ export function userHasClMatch(state: ClState): boolean {
 /** Belohnung (Coins) für einen Nutzer-Sieg in der gegebenen Runde. */
 export function clWinReward(state: ClState, stage: ClStage): number {
   return tournamentConfig(state.kind).winReward[stage] ?? 0;
+}
+
+/** Alle gespielten Turnier-Partien (Gruppe + K.o.) mit Events. */
+function playedClMatches(state: ClState): ClMatch[] {
+  return [
+    ...state.groupMatches,
+    ...KO_STAGES.flatMap((s) => state.ko[s]),
+  ].filter((m) => m.played);
+}
+
+export interface ClScorer {
+  player: string;
+  teamName: string;
+  isUser: boolean;
+  count: number;
+}
+
+/** Torschützen- und Vorlagen-Tabelle des Turniers (wie in der Liga, V7.3). */
+export function clScorerTables(state: ClState): { topScorers: ClScorer[]; topAssists: ClScorer[] } {
+  const goals = new Map<string, { player: string; teamId: string; count: number }>();
+  const assists = new Map<string, { player: string; teamId: string; count: number }>();
+  const bump = (map: typeof goals, player: string, teamId: string) => {
+    const key = `${player}|${teamId}`;
+    const entry = map.get(key) ?? { player, teamId, count: 0 };
+    entry.count++;
+    map.set(key, entry);
+  };
+  playedClMatches(state).forEach((m) => {
+    (m.events ?? [])
+      .filter((e) => e.type === 'tor' && e.team)
+      .forEach((e) => {
+        const teamId = e.team === 'home' ? m.homeId : m.awayId;
+        if (e.player) bump(goals, e.player, teamId);
+        if (e.assist) bump(assists, e.assist, teamId);
+      });
+  });
+  const top = (map: typeof goals): ClScorer[] =>
+    [...map.values()]
+      .sort((a, b) => b.count - a.count || a.player.localeCompare(b.player))
+      .slice(0, 5)
+      .map((x) => ({
+        player: x.player,
+        teamName: state.teams[x.teamId]?.name ?? '?',
+        isUser: x.teamId === USER_CLUB_ID,
+        count: x.count,
+      }));
+  return { topScorers: top(goals), topAssists: top(assists) };
+}
+
+/** Die 7 Turnier-Slots einer Saison in Reihenfolge (Gruppe x3, R16, VF, HF, Finale). */
+export const TOURNAMENT_STAGES: ClStage[] = ['group', 'group', 'group', 'r16', 'qf', 'sf', 'final'];
+
+export interface UserClSlot {
+  stage: ClStage;
+  /** played = Ergebnis steht, upcoming = Gegner bekannt/noch offen,
+   *  unknown = hängt vom Weiterkommen ab, eliminated = Nutzer ausgeschieden. */
+  status: 'played' | 'upcoming' | 'unknown' | 'eliminated';
+  match: ClMatch | null;
+}
+
+/** Turnierplan des Nutzers: 7 Slots mit Status für den Saison-Kalender (V7.3). */
+export function userTournamentSlots(state: ClState): UserClSlot[] {
+  const userGroup = state.groupMatches.filter(involvesUser);
+  const slots: UserClSlot[] = [];
+  let groupIdx = 0;
+  for (const stage of TOURNAMENT_STAGES) {
+    if (stage === 'group') {
+      const m = userGroup[groupIdx++] ?? null;
+      slots.push({ stage, status: m?.played ? 'played' : 'upcoming', match: m });
+      continue;
+    }
+    const reached = state.ko[stage].length > 0;
+    const userMatch = state.ko[stage].find(involvesUser) ?? null;
+    if (userMatch) {
+      slots.push({ stage, status: userMatch.played ? 'played' : 'upcoming', match: userMatch });
+    } else if (reached) {
+      // Runde existiert, aber der Nutzer ist nicht dabei → ausgeschieden
+      slots.push({ stage, status: 'eliminated', match: null });
+    } else {
+      // Runde noch nicht erreicht: ausgeschieden oder noch ungewiss
+      slots.push({ stage, status: state.userStage === 'out' ? 'eliminated' : 'unknown', match: null });
+    }
+  }
+  return slots;
 }

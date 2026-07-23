@@ -1,7 +1,10 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { CHAMPIONS_LEAGUE, USER_CLUB_ID } from '../../core/domain/constants';
-import { groupStandings, KO_STAGES, type ClMatch, type ClStage, type ClState } from '../../core/engine/cl';
+import {
+  clScorerTables, groupStandings, KO_STAGES,
+  type ClMatch, type ClScorer, type ClStage, type ClState,
+} from '../../core/engine/cl';
 import { t, tf, type TKey } from '../../core/i18n';
 import { Card } from '../../ui/components';
 import { Crest } from '../../ui/Crest';
@@ -53,9 +56,27 @@ function TieCard({ state, m }: { state: ClState; m: ClMatch }) {
   );
 }
 
+/** Torschützen-/Vorlagen-Zeilen (V7.3), wie in der Liga. */
+function ScorerRows({ rows }: { rows: ClScorer[] }) {
+  return (
+    <>
+      {rows.map((s, i) => (
+        <View key={`${s.player}|${s.teamName}`} style={styles.scorerRow}>
+          <Text style={[styles.td, styles.colPos]}>{i + 1}</Text>
+          <Text style={[styles.td, styles.colClub, s.isUser && styles.userText]} numberOfLines={1}>
+            {s.player} · {s.teamName}
+          </Text>
+          <Text style={[styles.td, styles.colNum, styles.points]}>{s.count}</Text>
+        </View>
+      ))}
+    </>
+  );
+}
+
 export function ClBracketView({ state }: { state: ClState }) {
   const table = groupStandings(state);
   const groupDone = state.ko.r16.length > 0;
+  const { topScorers, topAssists } = clScorerTables(state);
 
   return (
     <View>
@@ -106,6 +127,17 @@ export function ClBracketView({ state }: { state: ClState }) {
           })}
         </>
       )}
+
+      {(topScorers.length > 0 || topAssists.length > 0) && (
+        <>
+          <Text style={styles.section}>{t('lgTopScorers')}</Text>
+          <Card style={{ paddingVertical: spacing.sm }}>
+            <ScorerRows rows={topScorers} />
+            {topAssists.length > 0 && <Text style={styles.assistHeader}>{t('lgTopAssists')}</Text>}
+            <ScorerRows rows={topAssists} />
+          </Card>
+        </>
+      )}
     </View>
   );
 }
@@ -143,4 +175,9 @@ const styles = StyleSheet.create({
   teamName: { flex: 1, fontSize: font.small, color: colors.ink },
   winnerText: { fontWeight: '900' },
   teamGoals: { fontWeight: '900', color: colors.pitchDark, fontSize: font.body, width: 20, textAlign: 'center' },
+  scorerRow: { flexDirection: 'row', paddingVertical: 5, alignItems: 'center' },
+  assistHeader: {
+    fontWeight: '900', color: colors.accentDark, fontSize: font.small,
+    marginTop: spacing.sm, marginBottom: 4,
+  },
 });

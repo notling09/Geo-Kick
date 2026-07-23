@@ -7,6 +7,7 @@ import { t, tf } from '../../core/i18n';
 import { promptBossReward } from './bossReward';
 import { playSound } from '../../core/services/sound';
 import { useBattleStore } from '../../state/battleStore';
+import { useClStore } from '../../state/clStore';
 import { useGameStore } from '../../state/gameStore';
 import { GKButton, Card } from '../../ui/components';
 import { colors, font, radius, spacing } from '../../ui/theme';
@@ -83,8 +84,13 @@ function Keeper({ size = 58 }: { size?: number }) {
   );
 }
 
-export function PenaltyShootoutScreen({ navigation }: RootScreenProps<'Shootout'>) {
-  const setup = useBattleStore((s) => s.pendingShootout);
+export function PenaltyShootoutScreen({ navigation, route }: RootScreenProps<'Shootout'>) {
+  // V7.3: derselbe Screen für Platz-Kämpfe (battle) und K.o.-Turnierspiele (cl)
+  const mode = route.params?.mode ?? 'battle';
+  const isCl = mode === 'cl';
+  const battleSetup = useBattleStore((s) => s.pendingShootout);
+  const clSetup = useClStore((s) => s.pendingShootout);
+  const setup = isCl ? clSetup : battleSetup;
   const clubName = useGameStore((s) => s.club?.name ?? '');
 
   const [kicks, setKicks] = useState<Kick[]>([]);
@@ -104,9 +110,12 @@ export function PenaltyShootoutScreen({ navigation }: RootScreenProps<'Shootout'
   useEffect(
     () => () => {
       if (timer.current) clearTimeout(timer.current);
-      if (!resolved.current) useBattleStore.getState().abandonShootout();
+      if (!resolved.current) {
+        if (isCl) useClStore.getState().abandonClShootout();
+        else useBattleStore.getState().abandonShootout();
+      }
     },
-    [],
+    [isCl],
   );
 
   if (!setup) return null;
@@ -140,15 +149,23 @@ export function PenaltyShootoutScreen({ navigation }: RootScreenProps<'Shootout'
       if (decided) {
         setWinner(decided);
         resolved.current = true;
-        void useBattleStore
-          .getState()
-          .resolveShootout(decided === 'user')
-          .then((text) => {
-            // Boss besiegt (V7): Belohnung wählen (Coins+Punkte / 2 Packs),
-            // sonst den festen Belohnungstext anzeigen
-            if (useBattleStore.getState().pendingBossReward) promptBossReward(setRewardText);
-            else setRewardText(text);
-          });
+        if (isCl) {
+          // Turnier-K.o.: Sieger kommt weiter, Belohnungstext anzeigen (V7.3)
+          void useClStore
+            .getState()
+            .resolveClShootout(decided === 'user')
+            .then((text) => setRewardText(text));
+        } else {
+          void useBattleStore
+            .getState()
+            .resolveShootout(decided === 'user')
+            .then((text) => {
+              // Boss besiegt (V7): Belohnung wählen (Coins+Punkte / 2 Packs),
+              // sonst den festen Belohnungstext anzeigen
+              if (useBattleStore.getState().pendingBossReward) promptBossReward(setRewardText);
+              else setRewardText(text);
+            });
+        }
         // Der entscheidende Elfmeter bleibt erst ~2 s sichtbar, bevor die
         // Ergebnis-Box darüberliegt (V6.3, Nutzerwunsch)
         timer.current = setTimeout(() => setPhase('done'), 2000);
@@ -266,7 +283,7 @@ export function PenaltyShootoutScreen({ navigation }: RootScreenProps<'Shootout'
               {tf('soScoreLine', { score: `${userGoals}:${oppGoals}` })}
             </Text>
             {rewardText && <Text style={styles.doneReward}>{rewardText}</Text>}
-            <GKButton title={t('soBackMap')} onPress={() => navigation.goBack()} />
+            <GKButton title={isCl ? t('soBackLeague') : t('soBackMap')} onPress={() => navigation.goBack()} />
           </Card>
         </View>
       )}

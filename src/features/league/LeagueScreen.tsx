@@ -3,9 +3,12 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useIsFocused } from '@react-navigation/native';
 import { LEAGUE, TACTIC_LABEL, USER_CLUB_ID } from '../../core/domain/constants';
-import { t, tf } from '../../core/i18n';
-import type { Tactic } from '../../core/domain/types';
-import { nextUserClMatch, userHasClMatch } from '../../core/engine/cl';
+import { t, tf, type TKey } from '../../core/i18n';
+import type { Match, Tactic } from '../../core/domain/types';
+import {
+  nextUserClMatch, userHasClMatch, userTournamentSlots,
+  type ClStage, type UserClSlot,
+} from '../../core/engine/cl';
 import { ClBracketView } from './ClBracketView';
 import { useGameStore } from '../../state/gameStore';
 import { useLeagueStore } from '../../state/leagueStore';
@@ -24,6 +27,15 @@ import type { TabScreenProps } from '../../navigation/types';
  */
 
 const TACTICS: Tactic[] = ['offensiv', 'ausgewogen', 'defensiv'];
+
+/** Runden-Labels für den Turnier-Teil des Saison-Kalenders (V7.3). */
+const CL_STAGE_LABEL: Record<ClStage, TKey> = {
+  group: 'clGroupStage',
+  r16: 'clStageR16',
+  qf: 'clStageQf',
+  sf: 'clStageSf',
+  final: 'clStageFinal',
+};
 
 function formatCountdown(ms: number): string {
   const h = Math.floor(ms / 3600000);
@@ -156,6 +168,36 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
     () => matches.filter((m) => m.round === displayedRound),
     [matches, displayedRound],
   );
+
+  // Saison-Kalender (V7.3): alle 21 Slots (14 Liga + 7 Turnier) in Reihenfolge,
+  // je Slot ob Liga oder Turnier – inklusive Turnier-Ergebnissen und den noch
+  // offenen K.o.-Plätzen. Nur wenn ein Turnier läuft (sonst zeigt der normale
+  // Spielplan die 14 Ligaspiele).
+  const seasonPlan = useMemo(() => {
+    if (!clState) return [];
+    const tSlots = userTournamentSlots(clState);
+    const plan: Array<
+      | { slot: number; type: 'league'; round: number; fixture: Match | null }
+      | { slot: number; type: 'tournament'; ts: UserClSlot }
+    > = [];
+    let leagueRound = 0;
+    let tournIdx = 0;
+    for (let slot = 0; slot < 21; slot++) {
+      if (slot % 3 === 2) {
+        plan.push({ slot, type: 'tournament', ts: tSlots[tournIdx++] });
+      } else {
+        leagueRound++;
+        const fixture =
+          matches.find(
+            (m) =>
+              m.round === leagueRound &&
+              (m.homeId === USER_CLUB_ID || m.awayId === USER_CLUB_ID),
+          ) ?? null;
+        plan.push({ slot, type: 'league', round: leagueRound, fixture });
+      }
+    }
+    return plan;
+  }, [clState, matches]);
 
   const onKickoff = async () => {
     // Gesperrte Spieler (rote Karte) müssen erst raus – gilt auch für die CL
@@ -470,6 +512,57 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
                   <Text style={[styles.td, styles.colNum, styles.points]}>{s.count}</Text>
                 </View>
               ))}
+            </Card>
+          </>
+        )}
+
+        {seasonPlan.length > 0 && clState && (
+          <>
+            <SectionTitle>{t('lgSeasonPlan')}</SectionTitle>
+            <Card>
+              {seasonPlan.map((e) => {
+                const current = e.slot === div1Slot;
+                if (e.type === 'league') {
+                  const f = e.fixture;
+                  return (
+                    <View key={e.slot} style={[styles.planRow, current && styles.planRowCurrent]}>
+                      <Text style={[styles.planTag, styles.planTagLeague]}>{t('lgPlanLeague')}</Text>
+                      <View style={styles.planMid}>
+                        <Text style={styles.planStage}>{tf('lgPlanMatchday', { n: e.round })}</Text>
+                        <Text style={styles.planMatch} numberOfLines={1}>
+                          {f ? `${clubName(f.homeId)} – ${clubName(f.awayId)}` : '–'}
+                        </Text>
+                      </View>
+                      <Text style={styles.planResult}>
+                        {f && f.played ? `${f.homeGoals}:${f.awayGoals}` : '–:–'}
+                      </Text>
+                    </View>
+                  );
+                }
+                const ts = e.ts;
+                let matchup = '';
+                let result = '';
+                if ((ts.status === 'played' || ts.status === 'upcoming') && ts.match) {
+                  matchup = `${clState.teams[ts.match.homeId]?.name ?? '?'} – ${clState.teams[ts.match.awayId]?.name ?? '?'}`;
+                  result = ts.status === 'played' ? `${ts.match.homeGoals}:${ts.match.awayGoals}` : '–:–';
+                } else if (ts.status === 'unknown') {
+                  matchup = t('lgPlanUnknown');
+                  result = '?';
+                } else {
+                  matchup = t('lgPlanEliminated');
+                  result = '—';
+                }
+                return (
+                  <View key={e.slot} style={[styles.planRow, current && styles.planRowCurrent]}>
+                    <Text style={[styles.planTag, styles.planTagCl]}>{isCup ? t('cupName') : t('clName')}</Text>
+                    <View style={styles.planMid}>
+                      <Text style={styles.planStage}>{t(CL_STAGE_LABEL[ts.stage])}</Text>
+                      <Text style={styles.planMatch} numberOfLines={1}>{matchup}</Text>
+                    </View>
+                    <Text style={styles.planResult}>{result}</Text>
+                  </View>
+                );
+              })}
             </Card>
           </>
         )}
@@ -825,6 +918,54 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.line,
     paddingTop: spacing.sm,
+  },
+  planRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+  },
+  planRowCurrent: {
+    backgroundColor: colors.grass,
+    borderRadius: radius.sm,
+  },
+  planTag: {
+    width: 62,
+    textAlign: 'center',
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#fff',
+    borderRadius: radius.sm,
+    paddingVertical: 3,
+    overflow: 'hidden',
+  },
+  planTagLeague: {
+    backgroundColor: colors.pitch,
+  },
+  planTagCl: {
+    backgroundColor: colors.accent,
+  },
+  planMid: {
+    flex: 1,
+  },
+  planStage: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.inkSoft,
+  },
+  planMatch: {
+    fontSize: font.small,
+    fontWeight: '700',
+    color: colors.ink,
+  },
+  planResult: {
+    width: 46,
+    textAlign: 'center',
+    fontWeight: '900',
+    color: colors.pitchDark,
+    fontSize: font.small,
   },
   roundPicker: {
     marginBottom: spacing.sm,
