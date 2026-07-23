@@ -1,9 +1,10 @@
 import { create } from 'zustand';
-import { CHAMPIONS_LEAGUE, USER_CLUB_ID } from '../core/domain/constants';
+import { USER_CLUB_ID } from '../core/domain/constants';
 import type { Tactic } from '../core/domain/types';
 import type { SimTeam } from '../core/engine/matchSim';
 import {
-  applyUserClResult, clWinReward, createClState, nextUserClMatch, simulateNextClRound,
+  applyUserClResult, clWinReward, createClState, createCupState, nextUserClMatch,
+  simulateNextClRound, tournamentConfig,
   type ClMatch, type ClStage, type ClState,
 } from '../core/engine/cl';
 import { generateNpcRoster } from '../core/engine/league';
@@ -77,18 +78,16 @@ export const useClStore = create<ClStore>((set, get) => ({
 
   ensureSeason: async (season) => {
     const game = useGameStore.getState();
-    if ((game.club?.division ?? 4) !== 1) {
-      set({ state: null });
-      await persist(null);
-      return;
-    }
     if (get().state && get().state?.season === season) return;
+    const division = game.club?.division ?? 4;
     const strength = teamStrength(game.lineupPlayers(), game.club?.formation ?? '4-4-2');
-    const state = createClState(season, {
+    const user = {
       strength,
       name: game.club?.name ?? 'My Club',
       crest: game.club?.crest ?? 'crest-0',
-    });
+    };
+    // Division 1: Champions League. Division 2–4: Nationaler Pokal (V7.2).
+    const state = division === 1 ? createClState(season, user) : createCupState(season, user);
     await persist(state);
     set({ state });
   },
@@ -108,11 +107,13 @@ export const useClStore = create<ClStore>((set, get) => ({
     const club = game.club;
     if (!club) return null;
 
+    const cfg = tournamentConfig(state.kind);
+    const isCup = state.kind === 'cup';
     const userIsHome = fixture.homeId === USER_CLUB_ID;
     const oppId = userIsHome ? fixture.awayId : fixture.homeId;
     const oppTeamData = state.teams[oppId];
     // Steigende Schwierigkeit: Gegnerstärke je Runde skaliert (Nutzerwunsch)
-    const factor = CHAMPIONS_LEAGUE.difficulty[fixture.stage] ?? 1;
+    const factor = cfg.difficulty[fixture.stage] ?? 1;
     const oppTeam: SimTeam = {
       name: oppTeamData.name,
       strength: Math.round(oppTeamData.strength * factor),
@@ -123,7 +124,7 @@ export const useClStore = create<ClStore>((set, get) => ({
     const baseMatch = {
       id: 0,
       season: state.season,
-      division: 1,
+      division: club.division,
       round: 0,
       homeId: fixture.homeId === USER_CLUB_ID ? USER_CLUB_ID : 'cl',
       awayId: fixture.awayId === USER_CLUB_ID ? USER_CLUB_ID : 'cl',
@@ -167,12 +168,12 @@ export const useClStore = create<ClStore>((set, get) => ({
         const breakdown: string[] = [];
         let coins = 0;
         if (won) {
-          const w = clWinReward(fixture.stage);
+          const w = clWinReward(state, fixture.stage);
           coins += w;
-          breakdown.push(tf('clRewardWin', { n: w }));
+          breakdown.push(tf(isCup ? 'cupRewardWin' : 'clRewardWin', { n: w }));
         } else if (draw) {
-          coins += CHAMPIONS_LEAGUE.drawReward;
-          breakdown.push(tf('rewardDraw', { n: CHAMPIONS_LEAGUE.drawReward }));
+          coins += cfg.drawReward;
+          breakdown.push(tf('rewardDraw', { n: cfg.drawReward }));
         }
         const captain = g2.players.find((p) => p.id === g2.captainPlayerId);
         if (captain) {
@@ -183,8 +184,8 @@ export const useClStore = create<ClStore>((set, get) => ({
           const ca = result.events.filter(
             (e) => e.type === 'tor' && e.team === side && e.assist === captain.pool.name,
           ).length;
-          const goalV = CHAMPIONS_LEAGUE.captainGoal[fixture.stage] ?? 0;
-          const assistV = CHAMPIONS_LEAGUE.captainAssist[fixture.stage] ?? 0;
+          const goalV = cfg.captainGoal[fixture.stage] ?? 0;
+          const assistV = cfg.captainAssist[fixture.stage] ?? 0;
           if (cg > 0) {
             coins += cg * goalV;
             breakdown.push(tf('rewardCaptainGoal', { c: cg, n: cg * goalV }));
@@ -201,13 +202,14 @@ export const useClStore = create<ClStore>((set, get) => ({
         await persist(state);
         set({ state: { ...state } });
 
-        // CL-Titel + Meister-Animation, wenn der Nutzer die CL gewinnt
+        // Turnier-Sieg: CL-Titel in den Schrank (nur CL) + Meister-Animation.
+        // division 0 = Champions League, -1 = Nationaler Pokal (eigene Texte).
         if (state.champion === USER_CLUB_ID) {
-          await addClTitle();
+          if (!isCup) await addClTitle();
           useLeagueStore.setState({
             pendingCelebration: {
               clubName: club.name,
-              division: 0, // 0 = Champions League (eigener Titeltext)
+              division: isCup ? -1 : 0,
               captainPlayerId: g2.captainPlayerId,
             },
           });

@@ -186,3 +186,12 @@ export const CL_TEAM_NAMES = [
   'Arsenol', 'Dortmond', 'Atletiko Madryd', 'Napolli', 'Portu',
   'Benfika', 'Ajaks', 'Tottanham', 'RB Leipsig', 'Sevilha',
 ];
+
+/** Zufällige Vereinsnamen für den Nationalen Pokal (V7.2), bewusst generisch. */
+export const CUP_TEAM_NAMES = [
+  'Riverside United', 'Oakfield Town', 'Kingsbridge FC', 'Ironvale Rovers', 'Norwood Athletic',
+  'Ashford City', 'Blackmoor FC', 'Greenhill United', 'Stonewall Town', 'Redcliff Rovers',
+  'Whitmore FC', 'Fairwind Athletic', 'Elmwood City', 'Cranford United', 'Harborline FC',
+  'Silverbrook Town', 'Thornbury Rovers', 'Westgate United', 'Millrock FC', 'Brookside Athletic',
+  'Deanport City', 'Larkfield United', 'Coalburn FC', 'Havenwood Rovers', 'Marshend Town',
+];

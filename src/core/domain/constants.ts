@@ -465,6 +465,27 @@ export const CHAMPIONS_LEAGUE = {
   difficulty: { group: 0.98, r16: 1.06, qf: 1.14, sf: 1.22, final: 1.32 } as Record<string, number>,
 } as const;
 
+/**
+ * Nationaler Pokal (V7.2): dasselbe Turnierformat wie die Champions League,
+ * aber nur in den Divisionen 2–4 (Division 1 hat die CL). Zufällige Gegner,
+ * ungefähr HALBE Coins der CL. Gruppenphase + Achtelfinale absichtlich noch auf
+ * CL-Niveau (10 Coins), danach halbiert. Gegnerstärke skaliert relativ zum
+ * Nutzer (createCupState), damit der Pokal in jeder Division fair bleibt.
+ */
+export const NATIONAL_CUP = {
+  groupSize: 4,
+  advancePerGroup: 2,
+  koTeams: 16,
+  /** Gegnerstärke als Faktor auf die Nutzer-Stärke (Min/Max) */
+  strengthRelative: [0.82, 1.18] as [number, number],
+  strengthRange: [520, 760] as [number, number],
+  winReward: { group: 10, r16: 10, qf: 20, sf: 40, final: 75 } as Record<string, number>,
+  drawReward: 5,
+  captainGoal: { group: 3, r16: 3, qf: 6, sf: 12, final: 23 } as Record<string, number>,
+  captainAssist: { group: 2, r16: 2, qf: 4, sf: 8, final: 15 } as Record<string, number>,
+  difficulty: { group: 0.98, r16: 1.06, qf: 1.14, sf: 1.22, final: 1.32 } as Record<string, number>,
+} as const;
+
 /** Wappen-Vorlagen-IDs (Kapitel 3.5); Rendering: src/ui/Crest.tsx */
 export const CREST_IDS = Array.from({ length: 10 }, (_, i) => `crest-${i}`);
 

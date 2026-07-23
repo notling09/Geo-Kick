@@ -1,6 +1,6 @@
-import { CHAMPIONS_LEAGUE, USER_CLUB_ID } from '../domain/constants';
+import { CHAMPIONS_LEAGUE, NATIONAL_CUP, USER_CLUB_ID } from '../domain/constants';
 import type { StandingRow } from '../domain/types';
-import { CL_TEAM_NAMES } from './names';
+import { CL_TEAM_NAMES, CUP_TEAM_NAMES } from './names';
 import { simulateMatch, type SimTeam } from './matchSim';
 import { generateNpcRoster } from './league';
 import { pick, randInt, shuffle } from './random';
@@ -21,6 +21,14 @@ import { pick, randInt, shuffle } from './random';
 export type ClStage = 'group' | 'r16' | 'qf' | 'sf' | 'final';
 export const KO_STAGES: Exclude<ClStage, 'group'>[] = ['r16', 'qf', 'sf', 'final'];
 
+/** Turnier-Art: Champions League (Div 1) oder Nationaler Pokal (Div 2–4), V7.2. */
+export type TournamentKind = 'cl' | 'cup';
+
+/** Konfiguration je Turnier-Art (Coins, Schwierigkeit, Format). */
+export function tournamentConfig(kind: TournamentKind | undefined) {
+  return kind === 'cup' ? NATIONAL_CUP : CHAMPIONS_LEAGUE;
+}
+
 export interface ClTeam {
   id: string; // USER_CLUB_ID | 'cl-0' … 'cl-18'
   name: string;
@@ -38,8 +46,10 @@ export interface ClMatch {
 }
 
 export interface ClState {
-  /** Liga-Saison, in der diese CL läuft */
+  /** Liga-Saison, in der dieses Turnier läuft */
   season: number;
+  /** V7.2: 'cl' (Div 1) oder 'cup' (Div 2–4). Alt-Spielstände ohne Feld = 'cl'. */
+  kind?: TournamentKind;
   teams: Record<string, ClTeam>;
   /** Die 4 Gruppen-Teams (inkl. Nutzer) */
   groupIds: string[];
@@ -60,8 +70,38 @@ export function createClState(
   season: number,
   user: { strength: number; name: string; crest: string },
 ): ClState {
-  const [minS, maxS] = CHAMPIONS_LEAGUE.strengthRange;
-  const names = shuffle(CL_TEAM_NAMES).slice(0, 19);
+  return createTournamentState('cl', season, user);
+}
+
+/**
+ * Neuen Nationalen Pokal anlegen (V7.2, Div 2–4). Gleiche Struktur wie die CL,
+ * aber zufällige Vereine und Gegnerstärke relativ zur Nutzer-Elf.
+ */
+export function createCupState(
+  season: number,
+  user: { strength: number; name: string; crest: string },
+): ClState {
+  return createTournamentState('cup', season, user);
+}
+
+function createTournamentState(
+  kind: TournamentKind,
+  season: number,
+  user: { strength: number; name: string; crest: string },
+): ClState {
+  const cfg = tournamentConfig(kind);
+  const namePool = kind === 'cup' ? CUP_TEAM_NAMES : CL_TEAM_NAMES;
+  const names = shuffle(namePool).slice(0, 19);
+  // CL: feste Stärke über Div-1-Niveau. Pokal: relativ zur Nutzer-Elf, damit er
+  // in jeder Division (2–4) fair bleibt.
+  const strengthFor =
+    kind === 'cup'
+      ? () => {
+          const [lo, hi] = NATIONAL_CUP.strengthRelative;
+          return Math.round(user.strength * (lo + Math.random() * (hi - lo)));
+        }
+      : () => randInt(CHAMPIONS_LEAGUE.strengthRange[0], CHAMPIONS_LEAGUE.strengthRange[1]);
+
   const teams: Record<string, ClTeam> = {
     [USER_CLUB_ID]: { id: USER_CLUB_ID, name: user.name, crest: user.crest, strength: user.strength },
   };
@@ -70,13 +110,13 @@ export function createClState(
       id: `cl-${i}`,
       name,
       crest: `crest-${randInt(0, 9)}`,
-      strength: randInt(minS, maxS),
+      strength: strengthFor(),
     };
   });
 
-  // Gruppe: Nutzer + 3 zufällige CL-Teams
+  // Gruppe: Nutzer + 3 zufällige Teams
   const others = shuffle(Object.keys(teams).filter((id) => id !== USER_CLUB_ID));
-  const groupIds = [USER_CLUB_ID, ...others.slice(0, CHAMPIONS_LEAGUE.groupSize - 1)];
+  const groupIds = [USER_CLUB_ID, ...others.slice(0, cfg.groupSize - 1)];
 
   // 6 Gruppenspiele als 3 Spieltage (V7.1-Fix): die ersten 3 sind die
   // Nutzer-Spiele, die letzten 3 die NPC-Spiele DESSELBEN Spieltags (gleicher
@@ -93,6 +133,7 @@ export function createClState(
 
   return {
     season,
+    kind,
     teams,
     groupIds,
     groupMatches,
@@ -169,11 +210,12 @@ export function nextUserClMatch(state: ClState): ClMatch | null {
 
 /** Baut die Achtelfinal-Paarungen: die 2 Gruppen-Überlebenden + 14 gesetzte Teams. */
 function buildR16(state: ClState): void {
+  const cfg = tournamentConfig(state.kind);
   const table = groupStandings(state);
-  const advancing = table.slice(0, CHAMPIONS_LEAGUE.advancePerGroup).map((r) => r.clubId);
+  const advancing = table.slice(0, cfg.advancePerGroup).map((r) => r.clubId);
   const groupSet = new Set(state.groupIds);
   const seeded = Object.keys(state.teams).filter((id) => !groupSet.has(id));
-  const koTeams = shuffle([...advancing, ...shuffle(seeded).slice(0, CHAMPIONS_LEAGUE.koTeams - advancing.length)]);
+  const koTeams = shuffle([...advancing, ...shuffle(seeded).slice(0, cfg.koTeams - advancing.length)]);
   state.ko.r16 = pairUp('r16', koTeams);
   state.userStage = advancing.includes(USER_CLUB_ID) ? 'r16' : 'out';
 }
@@ -309,6 +351,6 @@ export function userHasClMatch(state: ClState): boolean {
 }
 
 /** Belohnung (Coins) für einen Nutzer-Sieg in der gegebenen Runde. */
-export function clWinReward(stage: ClStage): number {
-  return CHAMPIONS_LEAGUE.winReward[stage] ?? 0;
+export function clWinReward(state: ClState, stage: ClStage): number {
+  return tournamentConfig(state.kind).winReward[stage] ?? 0;
 }

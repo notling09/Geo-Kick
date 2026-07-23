@@ -58,8 +58,10 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
     [suspensions, season, round, lineup],
   );
 
-  // Champions League (V7, nur Division 1): jeder 3. Slot ist ein CL-Spiel
-  const isClNext = (club?.division ?? 4) === 1 && div1Slot % 3 === 2 && !!clState;
+  // Turnier (V7/V7.2): jeder 3. Slot ist ein Turnierspiel. CL in Division 1,
+  // Nationaler Pokal in Division 2–4 (state.kind unterscheidet die Texte).
+  const isCup = clState?.kind === 'cup';
+  const isClNext = div1Slot % 3 === 2 && !!clState;
   const clFixture = clState && isClNext ? nextUserClMatch(clState) : null;
   const clUserOut = isClNext && clState ? !userHasClMatch(clState) : false;
 
@@ -228,11 +230,11 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
             const clReady = msUntilNextMatch() <= 0;
             return (
               <>
-                <SectionTitle>{t('clNextMatch')}</SectionTitle>
+                <SectionTitle>{isCup ? t('cupNextMatch') : t('clNextMatch')}</SectionTitle>
                 <Card style={styles.clCard}>
                   {clUserOut || !clOpp ? (
                     <>
-                      <Text style={styles.clOut}>{t('clOut')}</Text>
+                      <Text style={styles.clOut}>{isCup ? t('cupOut') : t('clOut')}</Text>
                       <GKButton
                         title={t('clWatchRound')}
                         variant="secondary"
@@ -385,7 +387,7 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
               onPress={() => setTableTab('cl')}
             >
               <Text style={[styles.tableTabText, tableTab === 'cl' && styles.tableTabTextActive]}>
-                {t('clName')}
+                {isCup ? t('cupName') : t('clName')}
               </Text>
             </Pressable>
           </View>

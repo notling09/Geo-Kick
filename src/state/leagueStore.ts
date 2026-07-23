@@ -106,6 +106,8 @@ interface LeagueStateStore {
   careerComplete: boolean;
   /** Rivalen-Klub dieser Saison (V7.2): zufälliger NPC, in der Tabelle markiert. */
   rivalClubId: string | null;
+  /** Läuft in dieser Saison ein Turnier (CL oder Pokal)? Taktet den Slot (V7.2). */
+  hasTournament: boolean;
 
   hydrate: () => Promise<void>;
   acknowledgeCelebration: () => void;
@@ -195,6 +197,7 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
   div1Slot: 0,
   careerComplete: false,
   rivalClubId: null,
+  hasTournament: false,
 
   acknowledgeCelebration: () => set({ championCelebration: null }),
 
@@ -236,23 +239,21 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       careerComplete: (await metaRepo.getMeta('careerComplete')) === '1',
       rivalClubId,
     });
-    // Champions League der aktuellen Saison laden/anlegen (nur Division 1, V7).
-    // Neu anlegen nur am Saisonanfang: bestehende Div-1-Spielstände (vor V7)
-    // spielen ihre laufende Saison CL-los zu Ende, ab der nächsten gibt es die CL.
+    // Turnier der aktuellen Saison laden/anlegen: Champions League in Division 1,
+    // Nationaler Pokal in Division 2–4 (V7.2). Neu anlegen nur am Saisonanfang;
+    // bestehende Spielstände beenden ihre laufende Saison turnierlos, ab der
+    // nächsten gibt es das Turnier (migrationssicher, wie schon bei der CL, V7).
     const { useClStore } = await import('./clStore');
     await useClStore.getState().hydrate(data.season);
-    if (
-      (useGameStore.getState().club?.division ?? 4) === 1 &&
-      data.round === 1 &&
-      div1Slot === 0
-    ) {
+    if (data.round === 1 && div1Slot === 0) {
       await useClStore.getState().ensureSeason(data.season);
     }
+    set({ hasTournament: useClStore.getState().state !== null });
   },
 
   nextIsCl: () => {
-    const division = useGameStore.getState().club?.division ?? 4;
-    return division === 1 && get().div1Slot % 3 === 2;
+    // In jeder Division mit aktivem Turnier ist jeder 3. Slot ein Turnierspiel.
+    return get().hasTournament && get().div1Slot % 3 === 2;
   },
 
   matchReady: () => {
@@ -395,9 +396,11 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       club: s.club ? { ...s.club, division: outcome.newDivision } : s.club,
     }));
 
-    // Champions League der neuen Saison anlegen (nur wenn Division 1, V7)
-    if (outcome.newDivision === 1) await useClStore.getState().ensureSeason(updatedSeason);
-    else await useClStore.getState().clear();
+    // Turnier der neuen Saison anlegen: CL in Division 1, Pokal in Division 2–4
+    // (V7.2). ensureSeason legt anhand der Division das passende Turnier an.
+    await useClStore.getState().clear();
+    await useClStore.getState().ensureSeason(updatedSeason);
+    const hasTournament = useClStore.getState().state !== null;
 
     const newRival = await chooseRival(updatedSeason, updatedNpcs);
 
@@ -411,6 +414,7 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       seasonReview: review,
       careerComplete,
       rivalClubId: newRival,
+      hasTournament,
     });
   },
 
@@ -657,14 +661,12 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       // Spieltakt fortschreiben (siehe BALANCING.matchIntervalMs)
       const newRound = round + 1;
       await metaRepo.setMeta('round', String(newRound));
-      // Div-1-Saison mit CL taktet über div1Slot; ein bestehender Div-1-
-      // Spielstand ohne CL endet normal nach Runde 14 (Migration, V7)
+      // Saison mit Turnier (CL oder Pokal) taktet über div1Slot; ein Spielstand
+      // ohne Turnier endet normal nach Runde 14 (Migration, V7/V7.2)
       const { useClStore: clStoreMod } = await import('./clStore');
-      const hasCl = clStoreMod.getState().state !== null;
-      const isDiv1 = club.division === 1 && hasCl;
-      // In Division 1 taktet advanceDiv1Slot den Timer (CL verschachtelt);
-      // sonst wie bisher direkt hier
-      if (!isDiv1) {
+      const hasTournament = clStoreMod.getState().state !== null;
+      // Mit Turnier taktet advanceDiv1Slot den Timer (verschachtelt); sonst hier
+      if (!hasTournament) {
         await metaRepo.setMeta('nextMatchAt', String(Date.now() + BALANCING.matchIntervalMs));
       }
 
@@ -689,14 +691,14 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
         standings: recomputeStandings(updatedMatches, npcs),
         lastPlayedMatch: played,
         suspensions,
-        nextMatchAt: isDiv1
+        nextMatchAt: hasTournament
           ? get().nextMatchAt
           : Date.now() + BALANCING.matchIntervalMs,
       });
 
-      // Saisonabschluss: In Division 1 erst wenn alle 21 Slots durch sind
-      // (advanceDiv1Slot); in Division 2-4 direkt nach Runde 14.
-      if (isDiv1) {
+      // Saisonabschluss: mit Turnier erst wenn alle 21 Slots durch sind
+      // (advanceDiv1Slot); ohne Turnier direkt nach Runde 14.
+      if (hasTournament) {
         await get().advanceDiv1Slot();
       } else if (seasonFinished(newRound)) {
         await get().concludeSeason();
