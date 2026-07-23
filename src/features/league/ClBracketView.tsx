@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
   teamGoals: { fontWeight: '900', color: colors.pitchDark, fontSize: font.body, width: 20, textAlign: 'center' },
   scorerRow: { flexDirection: 'row', paddingVertical: 5, alignItems: 'center' },
   assistHeader: {
-    fontWeight: '900', color: colors.accentDark, fontSize: font.small,
+    fontWeight: '900', color: colors.ink, fontSize: font.small,
     marginTop: spacing.sm, marginBottom: 4,
   },
 });

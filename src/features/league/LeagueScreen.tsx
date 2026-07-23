@@ -6,8 +6,8 @@ import { LEAGUE, TACTIC_LABEL, USER_CLUB_ID } from '../../core/domain/constants'
 import { t, tf, type TKey } from '../../core/i18n';
 import type { Match, Tactic } from '../../core/domain/types';
 import {
-  nextUserClMatch, userHasClMatch, userTournamentSlots,
-  type ClStage, type UserClSlot,
+  KO_STAGES, nextUserClMatch, userHasClMatch, userTournamentSlots,
+  type ClMatch, type ClStage, type UserClSlot,
 } from '../../core/engine/cl';
 import { ClBracketView } from './ClBracketView';
 import { useGameStore } from '../../state/gameStore';
@@ -99,6 +99,7 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
   const [tactic, setTactic] = useState<Tactic>(club?.tactic ?? 'ausgewogen');
   const [starting, setStarting] = useState(false);
   const [, forceTick] = useState(0);
+  const [fixtureSlot, setFixtureSlot] = useState<number | null>(null);
   // Tabelle-Tab (V7.1): in Division 1 zwischen Ligatabelle und CL-Bracket
   const [tableTab, setTableTab] = useState<'league' | 'cl'>('league');
 
@@ -196,6 +197,9 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
   }, [clState, matches]);
   // Aktueller Slot (Turnier: div1Slot; sonst der laufende Spieltag)
   const currentPlanSlot = clState ? div1Slot : Math.min(round, LEAGUE.roundsPerSeason) - 1;
+  // Im Spielplan-Blätterer gewählter Slot (Default = aktueller Slot)
+  const maxSlot = seasonPlan.length - 1;
+  const selectedFixtureSlot = Math.min(fixtureSlot ?? currentPlanSlot, maxSlot);
 
   const onKickoff = async () => {
     // Gesperrte Spieler (rote Karte) müssen erst raus – gilt auch für die CL
@@ -481,7 +485,9 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
         </Card>
         )}
 
-        {(topScorers.length > 0 || topAssists.length > 0) && (
+        {/* Liga-Torschützen nur auf dem Liga-Tab; im Turnier-Tab stehen die
+            Turnier-Torschützen bereits im Bracket (V7.3) */}
+        {tableTab === 'league' && (topScorers.length > 0 || topAssists.length > 0) && (
           <>
             <SectionTitle>{t('lgTopScorers')}</SectionTitle>
             <Card style={{ marginBottom: spacing.sm }}>
@@ -514,53 +520,121 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
           </>
         )}
 
-        {/* Spielplan (V7.3): alle Spiele der Saison in Reihenfolge – mit Turnier
-            21 Spiele (Liga + CL/Pokal gekennzeichnet), sonst 14 Ligaspiele */}
+        {/* Spielplan (V7.3): Blätterer über alle Slots der Saison. Mit Turnier
+            sind es 21 (Liga grün, CL/Pokal orange markiert), sonst 14. Pro Slot
+            werden alle Paarungen des Spieltags bzw. der Turnierrunde gezeigt. */}
         <SectionTitle>{t('lgFixtures')}</SectionTitle>
         <Card>
-          {seasonPlan.map((e) => {
-            const current = e.slot === currentPlanSlot;
-            if (e.type === 'league') {
-              const f = e.fixture;
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.roundPicker}>
+            {seasonPlan.map((e) => {
+              const active = e.slot === selectedFixtureSlot;
+              const isTourn = e.type === 'tournament';
               return (
-                <View key={e.slot} style={[styles.planRow, current && styles.planRowCurrent]}>
-                  <Text style={[styles.planTag, styles.planTagLeague]}>{t('lgPlanLeague')}</Text>
-                  <View style={styles.planMid}>
-                    <Text style={styles.planStage}>{tf('lgPlanMatchday', { n: e.round })}</Text>
-                    <Text style={styles.planMatch} numberOfLines={1}>
-                      {f ? `${clubName(f.homeId)} – ${clubName(f.awayId)}` : '–'}
-                    </Text>
-                  </View>
-                  <Text style={styles.planResult}>
-                    {f && f.played ? `${f.homeGoals}:${f.awayGoals}` : '–:–'}
+                <Pressable
+                  key={e.slot}
+                  onPress={() => setFixtureSlot(e.slot)}
+                  style={[
+                    styles.roundChip,
+                    isTourn && styles.roundChipCup,
+                    active && (isTourn ? styles.roundChipCupActive : styles.roundChipActive),
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.roundChipText,
+                      active && styles.roundChipTextActive,
+                      isTourn && !active && styles.roundChipCupText,
+                    ]}
+                  >
+                    {e.slot + 1}
                   </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
+          {(() => {
+            const e = seasonPlan[selectedFixtureSlot];
+            if (!e) return null;
+            // Kopfzeile: Liga-Spieltag oder Turnierrunde
+            const header =
+              e.type === 'league' ? (
+                <View style={styles.fixtureHeaderRow}>
+                  <Text style={[styles.planTag, styles.planTagLeague]}>{t('lgPlanLeague')}</Text>
+                  <Text style={styles.fixtureHeaderText}>{tf('lgPlanMatchday', { n: e.round })}</Text>
+                </View>
+              ) : (
+                <View style={styles.fixtureHeaderRow}>
+                  <Text style={[styles.planTag, styles.planTagCl]}>{isCup ? 'CUP' : 'CL'}</Text>
+                  <Text style={styles.fixtureHeaderText}>{t(CL_STAGE_LABEL[e.ts.stage])}</Text>
                 </View>
               );
+
+            // Paarungen des gewählten Slots
+            let rows: Array<{
+              key: string; homeName: string; awayName: string;
+              homeGoals: number; awayGoals: number; played: boolean; involvesUser: boolean;
+            }> = [];
+            if (e.type === 'league') {
+              rows = matches
+                .filter((m) => m.round === e.round)
+                .map((m) => ({
+                  key: String(m.id),
+                  homeName: clubName(m.homeId),
+                  awayName: clubName(m.awayId),
+                  homeGoals: m.homeGoals,
+                  awayGoals: m.awayGoals,
+                  played: m.played,
+                  involvesUser: m.homeId === USER_CLUB_ID || m.awayId === USER_CLUB_ID,
+                }));
+            } else if (clState) {
+              const k = (e.slot - 2) / 3; // Turnier-Index 0..6
+              const stageMatches: ClMatch[] =
+                k < 3
+                  ? [clState.groupMatches[k], clState.groupMatches[k + 3]].filter(
+                      (m): m is ClMatch => !!m,
+                    )
+                  : clState.ko[KO_STAGES[k - 3]] ?? [];
+              rows = stageMatches.map((m, i) => ({
+                key: `t${i}`,
+                homeName: clState.teams[m.homeId]?.name ?? '?',
+                awayName: clState.teams[m.awayId]?.name ?? '?',
+                homeGoals: m.homeGoals,
+                awayGoals: m.awayGoals,
+                played: m.played,
+                involvesUser: m.homeId === USER_CLUB_ID || m.awayId === USER_CLUB_ID,
+              }));
             }
-            const ts = e.ts;
-            let matchup = '';
-            let result = '';
-            if ((ts.status === 'played' || ts.status === 'upcoming') && ts.match && clState) {
-              matchup = `${clState.teams[ts.match.homeId]?.name ?? '?'} – ${clState.teams[ts.match.awayId]?.name ?? '?'}`;
-              result = ts.status === 'played' ? `${ts.match.homeGoals}:${ts.match.awayGoals}` : '–:–';
-            } else if (ts.status === 'unknown') {
-              matchup = t('lgPlanUnknown');
-              result = '?';
-            } else {
-              matchup = t('lgPlanEliminated');
-              result = '—';
-            }
+
             return (
-              <View key={e.slot} style={[styles.planRow, current && styles.planRowCurrent]}>
-                <Text style={[styles.planTag, styles.planTagCl]}>{isCup ? 'CUP' : 'CL'}</Text>
-                <View style={styles.planMid}>
-                  <Text style={styles.planStage}>{t(CL_STAGE_LABEL[ts.stage])}</Text>
-                  <Text style={styles.planMatch} numberOfLines={1}>{matchup}</Text>
-                </View>
-                <Text style={styles.planResult}>{result}</Text>
-              </View>
+              <>
+                {header}
+                {rows.length === 0 ? (
+                  <Text style={styles.fixtureEmpty}>{t('lgPlanUnknown')}</Text>
+                ) : (
+                  rows.map((r) => (
+                    <View key={r.key} style={[styles.fixtureRow, r.involvesUser && styles.fixtureUserRow]}>
+                      <Text
+                        style={[styles.fixtureName, styles.fixtureHome, r.involvesUser && styles.userText]}
+                        numberOfLines={1}
+                      >
+                        {r.homeName}
+                      </Text>
+                      <Text style={styles.fixtureScore}>
+                        {r.played ? `${r.homeGoals}:${r.awayGoals}` : '–:–'}
+                      </Text>
+                      <Text
+                        style={[styles.fixtureName, r.involvesUser && styles.userText]}
+                        numberOfLines={1}
+                      >
+                        {r.awayName}
+                      </Text>
+                    </View>
+                  ))
+                )}
+              </>
             );
-          })}
+          })()}
         </Card>
 
         <SectionTitle>{t('lgYourResults')}</SectionTitle>
@@ -945,6 +1019,33 @@ const styles = StyleSheet.create({
   },
   roundChipTextActive: {
     color: '#fff',
+  },
+  roundChipCup: {
+    borderColor: colors.accent,
+  },
+  roundChipCupActive: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  roundChipCupText: {
+    color: colors.accentDark,
+  },
+  fixtureHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: 4,
+  },
+  fixtureHeaderText: {
+    fontWeight: '900',
+    color: colors.ink,
+    fontSize: font.small,
+  },
+  fixtureEmpty: {
+    color: colors.inkSoft,
+    fontSize: font.small,
+    paddingVertical: spacing.sm,
+    textAlign: 'center',
   },
   fixtureRow: {
     flexDirection: 'row',
