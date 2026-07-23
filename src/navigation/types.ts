@@ -19,6 +19,7 @@ export type RootStackParamList = {
   Leaderboard: undefined;
   Trophies: undefined;
   ChampionsLeague: undefined;
+  TournamentPlayback: undefined;
   CareerComplete: undefined;
   Dex: undefined;
 };

@@ -3,7 +3,7 @@ import { USER_CLUB_ID } from '../core/domain/constants';
 import type { Tactic } from '../core/domain/types';
 import type { SimTeam } from '../core/engine/matchSim';
 import {
-  applyUserClResult, clWinReward, createClState, createCupState, nextUserClMatch,
+  applyUserClResult, clWinReward, createClState, createCupState, KO_STAGES, nextUserClMatch,
   simulateNextClRound, tournamentConfig,
   type ClMatch, type ClStage, type ClState,
 } from '../core/engine/cl';
@@ -24,10 +24,18 @@ import type { ShootoutSetup } from './battleStore';
  * Runde, wenn der Nutzer bereits ausgeschieden ist.
  */
 
+/** Gerade simulierte Turnierrunde für die Schnell-Wiedergabe (V7.3). */
+export interface TournamentPlayback {
+  stage: ClStage;
+  matches: ClMatch[];
+}
+
 interface ClStore {
   state: ClState | null;
   /** Anstehendes K.o.-Elfmeterschießen (V7.3), falls ein KO-Spiel remis endet. */
   pendingShootout: ShootoutSetup | null;
+  /** Zuletzt simulierte Runde (Nutzer ausgeschieden) für die Schnell-Wiedergabe. */
+  lastPlayback: TournamentPlayback | null;
 
   hydrate: (season: number) => Promise<void>;
   /** CL für die Saison sicherstellen (in Division 1 anlegen). */
@@ -74,6 +82,7 @@ function userTeamFactory(): (t: Tactic) => Promise<SimTeam> {
 export const useClStore = create<ClStore>((set, get) => ({
   state: null,
   pendingShootout: null,
+  lastPlayback: null,
 
   hydrate: async (season) => {
     const raw = await metaRepo.getMeta('clState');
@@ -307,10 +316,23 @@ export const useClStore = create<ClStore>((set, get) => ({
   simulateNextRound: async () => {
     const state = get().state;
     if (!state) return;
+    // Welche K.o.-Runde wird gleich gespielt? (für die Schnell-Wiedergabe, V7.3)
+    let playStage: ClStage | null = null;
+    for (const stage of KO_STAGES) {
+      if (state.ko[stage].length === 0) break;
+      if (state.ko[stage].some((m) => !m.played)) {
+        playStage = stage;
+        break;
+      }
+    }
     // Der Nutzer ist raus: nur die nächste offene CL-Runde simulieren
     simulateNextClRound(state);
+    const lastPlayback: TournamentPlayback | null =
+      playStage && state.ko[playStage].length > 0
+        ? { stage: playStage, matches: state.ko[playStage].map((m) => ({ ...m })) }
+        : null;
     await persist(state);
-    set({ state: { ...state } });
+    set({ state: { ...state }, lastPlayback });
     await useLeagueStore.getState().advanceDiv1Slot();
   },
 

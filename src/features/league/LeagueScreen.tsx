@@ -211,10 +211,15 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
     try {
       if (isClNext) {
         if (clUserOut) {
-          // Nutzer raus: die nächste CL-Runde simulieren und im Bracket zeigen
+          // Nutzer raus: die nächste Runde simulieren und als schnelle
+          // Wiedergabe zeigen (V7.3); danach der aktualisierte Turnierbaum
           await useClStore.getState().simulateNextRound();
           setTableTab('cl');
-          navigation.navigate('ChampionsLeague');
+          if (useClStore.getState().lastPlayback) {
+            navigation.navigate('TournamentPlayback');
+          } else {
+            navigation.navigate('ChampionsLeague');
+          }
         } else {
           const played = await useClStore.getState().playUserClMatch(tactic);
           if (played) navigation.navigate('MatchLive');
@@ -280,7 +285,7 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
                     <>
                       <Text style={styles.clOut}>{isCup ? t('cupOut') : t('clOut')}</Text>
                       <GKButton
-                        title={t('clWatchRound')}
+                        title={isCup ? t('cupWatchRound') : t('clWatchRound')}
                         variant="secondary"
                         onPress={onKickoff}
                         loading={starting}
@@ -315,7 +320,7 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
                               </Pressable>
                             ))}
                           </View>
-                          <GKButton title={t('clKickoff')} onPress={onKickoff} loading={starting} />
+                          <GKButton title={isCup ? t('cupKickoff') : t('clKickoff')} onPress={onKickoff} loading={starting} />
                         </>
                       ) : (
                         <View style={styles.countdownRow}>

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   Modal,
   Pressable,
   StyleSheet,
@@ -9,6 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 import {
   Camera,
   GeoJSONSource,
@@ -166,6 +168,27 @@ export function MapScreen({ navigation }: TabScreenProps<'Map'>) {
     if (spots.length > 0) void battle.ensureSpecialSpot(spots, myPos);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spots, myPos]);
+
+  // Tages-Rotation zuverlässig auslösen (V7.3): beim Fokussieren der Karte und
+  // wenn die App wieder in den Vordergrund kommt – sonst bleibt der Gold-Pin
+  // stehen, solange die App über Mitternacht offen/im Speicher ist.
+  const isFocused = useIsFocused();
+  const spotsRef = useRef(spots);
+  const myPosRef = useRef(myPos);
+  spotsRef.current = spots;
+  myPosRef.current = myPos;
+  useEffect(() => {
+    if (isFocused && spots.length > 0) void battle.ensureSpecialSpot(spots, myPos);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFocused]);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active' && spotsRef.current.length > 0) {
+        void useBattleStore.getState().ensureSpecialSpot(spotsRef.current, myPosRef.current);
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   const onLocate = async () => {
     setLocating(true);

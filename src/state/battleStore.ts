@@ -138,17 +138,30 @@ export const useBattleStore = create<BattleState>((set, get) => ({
     const inRange = (s: Spot) =>
       !myPos ||
       distanceMeters(myPos.latitude, myPos.longitude, s.latitude, s.longitude) <= SPECIAL_RANGE_M;
-    const candidates = spots.filter(inRange);
-    const current = get().specialSpotId;
-    const currentSpot = spots.find((s) => s.id === current);
-    // Aktueller Gold-Platz bleibt gültig, solange er heute gewählt wurde und
-    // (noch) in der Nähe liegt
-    if (get().day === today && currentSpot && inRange(currentSpot)) return;
-    // Kein Platz im Umkreis (z. B. gecachte Plätze aus einer anderen Stadt):
-    // dann den nächstgelegenen nehmen, damit der Gold-Pin nie außer
-    // Reichweite liegt (V6.3). Ohne Position bleiben alle Plätze im Topf –
-    // auch selbst hinzugefügte Plätze (source 'user') können golden werden.
-    let pickFrom = candidates;
+
+    // Quelle der Wahrheit ist der PERSISTIERTE Gold-Platz mit seinem Tag – nicht
+    // der In-Memory-Tag (der bleibt stehen, wenn die App über Mitternacht offen
+    // ist). So rotiert der Pin garantiert, sobald wieder geprüft wird (V7.3-Fix).
+    let stored: { day: string; spotId: string } | null = null;
+    try {
+      stored = JSON.parse((await metaRepo.getMeta('specialSpot')) || 'null');
+    } catch {
+      stored = null;
+    }
+
+    // Heutiger Gold-Platz bleibt gültig, solange er noch in Reichweite liegt
+    if (stored && stored.day === today) {
+      const spot = spots.find((s) => s.id === stored!.spotId);
+      if (spot && inRange(spot)) {
+        if (get().specialSpotId !== stored.spotId) set({ specialSpotId: stored.spotId });
+        return;
+      }
+    }
+
+    // Sonst einen neuen Gold-Platz für heute wählen. Kein Platz im Umkreis
+    // (z. B. gecachte Plätze aus einer anderen Stadt): den nächstgelegenen
+    // nehmen, damit der Gold-Pin nie außer Reichweite liegt (V6.3).
+    let pickFrom = spots.filter(inRange);
     if (pickFrom.length === 0 && myPos) {
       const nearest = [...spots].sort(
         (a, b) =>
@@ -158,17 +171,8 @@ export const useBattleStore = create<BattleState>((set, get) => ({
       pickFrom = nearest ? [nearest] : spots;
     }
     if (pickFrom.length === 0) pickFrom = spots;
-    // Zuletzt gewählten Gold-Platz laden und ausschließen → garantierte
-    // Tages-Rotation (V7). An einem neuen Tag ist das der gestrige Platz.
-    let lastId: string | null = null;
-    try {
-      const stored = JSON.parse((await metaRepo.getMeta('specialSpot')) || 'null') as
-        | { day: string; spotId: string }
-        | null;
-      lastId = stored?.spotId ?? null;
-    } catch {
-      lastId = null;
-    }
+    // Den gestrigen Gold-Platz ausschließen → garantierte Tages-Rotation (V7).
+    const lastId = stored?.spotId ?? null;
     const specialSpotId = specialSpotIdForDay(pickFrom.map((s) => s.id), today, lastId);
     if (!specialSpotId) return;
     await metaRepo.setMeta('specialSpot', JSON.stringify({ day: today, spotId: specialSpotId }));
