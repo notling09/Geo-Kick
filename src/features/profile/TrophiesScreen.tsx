@@ -28,8 +28,25 @@ function buildRows(c: TrophyCabinet): TrophyRow[] {
   if (c.doubles > 0) {
     rows.push({ key: 'double', label: t('trDouble'), count: c.doubles, color: '#8E44AD', gold: true });
   }
+  // Champions League: Platz 1 / 2 / 3 (Gold / Silber / Bronze, V7.4)
   if (c.clTitles > 0) {
-    rows.push({ key: 'cl', label: t('trClTitle'), count: c.clTitles, color: '#0D72BA', gold: true });
+    rows.push({ key: 'cl1', label: t('trClTitle'), count: c.clTitles, color: '#E8B923', gold: true });
+  }
+  if (c.clRunnerUps > 0) {
+    rows.push({ key: 'cl2', label: t('trClSecond'), count: c.clRunnerUps, color: '#9BA6B2' });
+  }
+  if (c.clThird > 0) {
+    rows.push({ key: 'cl3', label: t('trClThird'), count: c.clThird, color: '#B0743B' });
+  }
+  // Nationaler Pokal: Platz 1 / 2 / 3 (V7.4)
+  if (c.cupTitles > 0) {
+    rows.push({ key: 'cup1', label: t('trCupTitle'), count: c.cupTitles, color: '#E8B923', gold: true });
+  }
+  if (c.cupRunnerUps > 0) {
+    rows.push({ key: 'cup2', label: t('trCupSecond'), count: c.cupRunnerUps, color: '#9BA6B2' });
+  }
+  if (c.cupThird > 0) {
+    rows.push({ key: 'cup3', label: t('trCupThird'), count: c.cupThird, color: '#B0743B' });
   }
   // Divisionen von oben (1) nach unten (4)
   for (const div of [1, 2, 3, 4]) {

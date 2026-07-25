@@ -158,17 +158,21 @@ export const useBattleStore = create<BattleState>((set, get) => ({
       }
     }
 
-    // Sonst einen neuen Gold-Platz für heute wählen. Kein Platz im Umkreis
-    // (z. B. gecachte Plätze aus einer anderen Stadt): den nächstgelegenen
-    // nehmen, damit der Gold-Pin nie außer Reichweite liegt (V6.3).
+    // Kandidaten für heute: bevorzugt die Plätze im Umkreis. Liegen dort
+    // WENIGER ALS ZWEI, kann nicht rotiert werden (der gestrige Platz wird
+    // ausgeschlossen). Dann die nächstgelegenen Plätze dazunehmen, damit der
+    // Gold-Pin trotz kleinem Umkreis garantiert täglich wechselt (V7.4-Fix).
     let pickFrom = spots.filter(inRange);
-    if (pickFrom.length === 0 && myPos) {
-      const nearest = [...spots].sort(
-        (a, b) =>
-          distanceMeters(myPos.latitude, myPos.longitude, a.latitude, a.longitude) -
-          distanceMeters(myPos.latitude, myPos.longitude, b.latitude, b.longitude),
-      )[0];
-      pickFrom = nearest ? [nearest] : spots;
+    if (pickFrom.length < 2 && spots.length >= 2) {
+      pickFrom = myPos
+        ? [...spots]
+            .sort(
+              (a, b) =>
+                distanceMeters(myPos.latitude, myPos.longitude, a.latitude, a.longitude) -
+                distanceMeters(myPos.latitude, myPos.longitude, b.latitude, b.longitude),
+            )
+            .slice(0, 3)
+        : spots;
     }
     if (pickFrom.length === 0) pickFrom = spots;
     // Den gestrigen Gold-Platz ausschließen → garantierte Tages-Rotation (V7).

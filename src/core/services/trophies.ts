@@ -11,27 +11,46 @@ export interface TrophyCabinet {
   leagueTitles: Record<number, number>;
   /** Vize-Meister / Aufstieg als Zweiter je Division (Division -> Anzahl) */
   runnerUps: Record<number, number>;
-  /** Champions-League-Titel */
+  /** Champions-League: Platz 1 / 2 / 3 (V7.4) */
   clTitles: number;
+  clRunnerUps: number;
+  clThird: number;
+  /** Nationaler Pokal: Platz 1 / 2 / 3 (V7.4) */
+  cupTitles: number;
+  cupRunnerUps: number;
+  cupThird: number;
   /** Vollendete Karrieren (Liga + Champions League in derselben Saison) */
   doubles: number;
 }
 
-const EMPTY: TrophyCabinet = { leagueTitles: {}, runnerUps: {}, clTitles: 0, doubles: 0 };
+/** Platzierung in einem Turnier (1 = Sieger, 2 = Finale verloren, 3 = Spiel um Platz 3 gewonnen). */
+export type TournamentPlace = 1 | 2 | 3;
+
+const EMPTY: TrophyCabinet = {
+  leagueTitles: {}, runnerUps: {},
+  clTitles: 0, clRunnerUps: 0, clThird: 0,
+  cupTitles: 0, cupRunnerUps: 0, cupThird: 0,
+  doubles: 0,
+};
 
 export async function loadTrophies(): Promise<TrophyCabinet> {
   const raw = await metaRepo.getMeta('trophyCabinet');
-  if (!raw) return { leagueTitles: {}, runnerUps: {}, clTitles: 0, doubles: 0 };
+  if (!raw) return { ...EMPTY, leagueTitles: {}, runnerUps: {} };
   try {
     const parsed = JSON.parse(raw) as Partial<TrophyCabinet>;
     return {
       leagueTitles: parsed.leagueTitles ?? {},
       runnerUps: parsed.runnerUps ?? {},
       clTitles: parsed.clTitles ?? 0,
+      clRunnerUps: parsed.clRunnerUps ?? 0,
+      clThird: parsed.clThird ?? 0,
+      cupTitles: parsed.cupTitles ?? 0,
+      cupRunnerUps: parsed.cupRunnerUps ?? 0,
+      cupThird: parsed.cupThird ?? 0,
       doubles: parsed.doubles ?? 0,
     };
   } catch {
-    return { leagueTitles: {}, runnerUps: {}, clTitles: 0, doubles: 0 };
+    return { ...EMPTY, leagueTitles: {}, runnerUps: {} };
   }
 }
 
@@ -53,10 +72,26 @@ export async function addRunnerUp(division: number): Promise<void> {
   await save(c);
 }
 
-/** Champions-League-Titel gutschreiben. */
+/** Champions-League-Titel gutschreiben (Platz 1). */
 export async function addClTitle(): Promise<void> {
+  await addTournamentPlace('cl', 1);
+}
+
+/**
+ * Turnier-Platzierung in den Schrank (V7.4): CL oder Pokal, Platz 1/2/3.
+ * Platz 1 = Sieger, 2 = Finale verloren, 3 = Spiel um Platz 3 gewonnen.
+ */
+export async function addTournamentPlace(kind: 'cl' | 'cup', place: TournamentPlace): Promise<void> {
   const c = await loadTrophies();
-  c.clTitles += 1;
+  if (kind === 'cl') {
+    if (place === 1) c.clTitles += 1;
+    else if (place === 2) c.clRunnerUps += 1;
+    else c.clThird += 1;
+  } else {
+    if (place === 1) c.cupTitles += 1;
+    else if (place === 2) c.cupRunnerUps += 1;
+    else c.cupThird += 1;
+  }
   await save(c);
 }
 
@@ -71,5 +106,10 @@ export async function addDouble(): Promise<void> {
 export function totalTrophies(c: TrophyCabinet): number {
   const league = Object.values(c.leagueTitles).reduce((a, b) => a + b, 0);
   const runner = Object.values(c.runnerUps).reduce((a, b) => a + b, 0);
-  return league + runner + c.clTitles + c.doubles;
+  return (
+    league + runner +
+    c.clTitles + c.clRunnerUps + c.clThird +
+    c.cupTitles + c.cupRunnerUps + c.cupThird +
+    c.doubles
+  );
 }

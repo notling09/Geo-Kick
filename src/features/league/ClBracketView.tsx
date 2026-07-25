@@ -126,6 +126,13 @@ export function ClBracketView({ state }: { state: ClState }) {
               </View>
             );
           })}
+          {/* Spiel um Platz 3 (V7.4) */}
+          {state.thirdPlace && (
+            <View>
+              <Text style={styles.stageLabel}>{t('clStageThird')}</Text>
+              <TieCard state={state} m={state.thirdPlace} />
+            </View>
+          )}
         </>
       )}
 

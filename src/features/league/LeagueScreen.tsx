@@ -214,7 +214,8 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
       } else if (clState && e.ts.status === 'played' && e.ts.match) {
         const m = e.ts.match;
         out.push({
-          key: `t${e.slot}`, kind: isCup ? 'cup' : 'cl', labelText: t(CL_STAGE_LABEL[e.ts.stage]),
+          key: `t${e.slot}`, kind: isCup ? 'cup' : 'cl',
+          labelText: m.isThird ? t('clStageThird') : t(CL_STAGE_LABEL[e.ts.stage]),
           homeName: clState.teams[m.homeId]?.name ?? '?', awayName: clState.teams[m.awayId]?.name ?? '?',
           homeGoals: m.homeGoals, awayGoals: m.awayGoals, userIsHome: m.homeId === USER_CLUB_ID,
         });
@@ -617,12 +618,16 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
                 }));
             } else if (clState) {
               const k = (e.slot - 2) / 3; // Turnier-Index 0..6
-              const stageMatches: ClMatch[] =
+              let stageMatches: ClMatch[] =
                 k < 3
                   ? [clState.groupMatches[k], clState.groupMatches[k + 3]].filter(
                       (m): m is ClMatch => !!m,
                     )
                   : clState.ko[KO_STAGES[k - 3]] ?? [];
+              // Beim Finale das Spiel um Platz 3 mit anzeigen (V7.4)
+              if (k === 6 && clState.thirdPlace) {
+                stageMatches = [...stageMatches, clState.thirdPlace];
+              }
               rows = stageMatches.map((m, i) => ({
                 key: `t${i}`,
                 homeName: clState.teams[m.homeId]?.name ?? '?',

@@ -47,6 +47,8 @@ export interface ClMatch {
   played: boolean;
   /** Tor-Events (V7.3): Grundlage für die Torschützen-/Vorlagen-Tabelle. */
   events?: MatchEvent[];
+  /** Spiel um Platz 3 (V7.4): die beiden Halbfinal-Verlierer. */
+  isThird?: boolean;
 }
 
 export interface ClState {
@@ -59,8 +61,12 @@ export interface ClState {
   groupIds: string[];
   groupMatches: ClMatch[];
   ko: { r16: ClMatch[]; qf: ClMatch[]; sf: ClMatch[]; final: ClMatch[] };
-  /** Wo steht der Nutzer gerade? */
-  userStage: ClStage | 'out' | 'champion';
+  /** Spiel um Platz 3 (V7.4): parallel zum Finale, die beiden HF-Verlierer. */
+  thirdPlace?: ClMatch | null;
+  /** Sieger des Spiels um Platz 3 (Bronze). */
+  thirdWinner?: string | null;
+  /** Wo steht der Nutzer gerade? 'third' = spielt um Platz 3. */
+  userStage: ClStage | 'out' | 'champion' | 'third';
   /** Team-Id des CL-Siegers, sobald das Turnier durch ist */
   champion: string | null;
 }
@@ -205,15 +211,17 @@ export function groupStandings(state: ClState): StandingRow[] {
   );
 }
 
-/** Das nächste ungespielte Nutzer-Spiel (Gruppe oder K.o.), falls vorhanden. */
+/** Das nächste ungespielte Nutzer-Spiel (Gruppe, K.o. oder Spiel um Platz 3). */
 export function nextUserClMatch(state: ClState): ClMatch | null {
-  const involvesUser = (m: ClMatch) => m.homeId === USER_CLUB_ID || m.awayId === USER_CLUB_ID;
-  const open = state.groupMatches.find((m) => involvesUser(m) && !m.played);
+  const inv = (m: ClMatch) => m.homeId === USER_CLUB_ID || m.awayId === USER_CLUB_ID;
+  const open = state.groupMatches.find((m) => inv(m) && !m.played);
   if (open) return open;
   for (const stage of KO_STAGES) {
-    const koOpen = state.ko[stage].find((m) => involvesUser(m) && !m.played);
+    const koOpen = state.ko[stage].find((m) => inv(m) && !m.played);
     if (koOpen) return koOpen;
   }
+  // Spiel um Platz 3 (V7.4)
+  if (state.thirdPlace && inv(state.thirdPlace) && !state.thirdPlace.played) return state.thirdPlace;
   return null;
 }
 
@@ -241,6 +249,16 @@ function pairUp(stage: ClStage, ids: string[]): ClMatch[] {
 /** Sieger einer Runde (played-Spiele) in Reihenfolge. */
 function winners(matches: ClMatch[]): string[] {
   return matches.map((m) => (m.homeGoals >= m.awayGoals ? m.homeId : m.awayId));
+}
+
+/** Verlierer einer Runde in Reihenfolge (für das Spiel um Platz 3, V7.4). */
+function losers(matches: ClMatch[]): string[] {
+  return matches.map((m) => (m.homeGoals >= m.awayGoals ? m.awayId : m.homeId));
+}
+
+/** Spiel um Platz 3 (V7.4): sf-Niveau bei Belohnung/Schwierigkeit, eigenes Label. */
+function mkThird(homeId: string, awayId: string): ClMatch {
+  return { stage: 'sf', homeId, awayId, homeGoals: 0, awayGoals: 0, played: false, isThird: true };
 }
 
 const involvesUser = (m: ClMatch) => m.homeId === USER_CLUB_ID || m.awayId === USER_CLUB_ID;
@@ -298,6 +316,14 @@ function resolveKoRound(state: ClState, stage: Exclude<ClStage, 'group'>): void 
   const advancing = winners(round);
   const idx = KO_STAGES.indexOf(stage);
   if (stage === 'final') {
+    // Spiel um Platz 3 (V7.4) parallel mitauflösen und den Bronze-Sieger merken
+    if (state.thirdPlace && !state.thirdPlace.played) simulate(state, state.thirdPlace);
+    if (state.thirdPlace?.played && state.thirdWinner == null) {
+      const tp = state.thirdPlace;
+      state.thirdWinner = tp.homeGoals >= tp.awayGoals ? tp.homeId : tp.awayId;
+    }
+    // Nutzer hat sein Spiel um Platz 3 gespielt → Turnier für ihn beendet
+    if (state.userStage === 'third' && state.thirdPlace?.played) state.userStage = 'out';
     if (state.champion === null) {
       state.champion = advancing[0] ?? null;
       if (state.champion === USER_CLUB_ID) state.userStage = 'champion';
@@ -309,6 +335,15 @@ function resolveKoRound(state: ClState, stage: Exclude<ClStage, 'group'>): void 
     state.ko[nextStage] = pairUp(nextStage, shuffle(advancing));
     if (!userDone(state) && advancing.includes(USER_CLUB_ID)) {
       state.userStage = nextStage;
+    }
+    // Halbfinale: die beiden Verlierer bekommen das Spiel um Platz 3 (V7.4).
+    // Der Nutzer als HF-Verlierer geht dorthin statt raus.
+    if (stage === 'sf' && !state.thirdPlace) {
+      const lose = losers(round);
+      if (lose.length >= 2) {
+        state.thirdPlace = mkThird(lose[0], lose[1]);
+        if (lose.includes(USER_CLUB_ID)) state.userStage = 'third';
+      }
     }
   }
 }
@@ -327,6 +362,15 @@ export function advanceCl(state: ClState): void {
     if (round.length === 0) break;
     // Nutzer hat in dieser Runde noch ein offenes Spiel → auf ihn warten
     if (round.some((m) => involvesUser(m) && !m.played)) return;
+    // Finale-Slot: Nutzer spielt um Platz 3 → auf dieses Spiel warten (V7.4)
+    if (
+      stage === 'final' &&
+      state.thirdPlace &&
+      involvesUser(state.thirdPlace) &&
+      !state.thirdPlace.played
+    ) {
+      return;
+    }
     resolveKoRound(state, stage);
     if (userDone(state)) return;
   }
@@ -370,11 +414,12 @@ export function clWinReward(state: ClState, stage: ClStage): number {
   return tournamentConfig(state.kind).winReward[stage] ?? 0;
 }
 
-/** Alle gespielten Turnier-Partien (Gruppe + K.o.) mit Events. */
+/** Alle gespielten Turnier-Partien (Gruppe + K.o. + Spiel um Platz 3) mit Events. */
 function playedClMatches(state: ClState): ClMatch[] {
   return [
     ...state.groupMatches,
     ...KO_STAGES.flatMap((s) => state.ko[s]),
+    ...(state.thirdPlace ? [state.thirdPlace] : []),
   ].filter((m) => m.played);
 }
 
@@ -440,7 +485,11 @@ export function userTournamentSlots(state: ClState): UserClSlot[] {
       continue;
     }
     const reached = state.ko[stage].length > 0;
-    const userMatch = state.ko[stage].find(involvesUser) ?? null;
+    let userMatch = state.ko[stage].find(involvesUser) ?? null;
+    // Finale-Slot: Nutzer spielt um Platz 3 statt im Finale (V7.4)
+    if (!userMatch && stage === 'final' && state.thirdPlace && involvesUser(state.thirdPlace)) {
+      userMatch = state.thirdPlace;
+    }
     if (userMatch) {
       slots.push({ stage, status: userMatch.played ? 'played' : 'upcoming', match: userMatch });
     } else if (reached) {

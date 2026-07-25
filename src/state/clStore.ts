@@ -14,7 +14,7 @@ import * as metaRepo from '../core/db/repositories/metaRepo';
 import { useGameStore } from './gameStore';
 import { useLeagueStore, type PlayedUserMatch } from './leagueStore';
 import { runUserMatch } from './matchFlow';
-import { addClTitle } from '../core/services/trophies';
+import { addTournamentPlace } from '../core/services/trophies';
 import type { ShootoutSetup } from './battleStore';
 
 /**
@@ -273,10 +273,13 @@ export const useClStore = create<ClStore>((set, get) => ({
           await persist(state);
           set({ state: { ...state } });
 
-          // Turnier-Sieg: CL-Titel in den Schrank (nur CL) + Meister-Animation.
-          // division 0 = Champions League, -1 = Nationaler Pokal (eigene Texte).
+          // Turnier-Platzierung in den Trophäenschrank (V7.4): Sieger (Platz 1),
+          // Finalist (Platz 2, Finale verloren) oder Bronze (Platz 3, Spiel um
+          // Platz 3 gewonnen) – für CL UND Pokal. Die Meister-Animation kommt
+          // NUR bei Platz 1 (division 0 = CL, -1 = Pokal, eigene Texte).
+          const kind = isCup ? 'cup' : 'cl';
           if (state.champion === USER_CLUB_ID) {
-            if (!isCup) await addClTitle();
+            await addTournamentPlace(kind, 1);
             useLeagueStore.setState({
               pendingCelebration: {
                 clubName: club.name,
@@ -284,6 +287,10 @@ export const useClStore = create<ClStore>((set, get) => ({
                 captainPlayerId: g2.captainPlayerId,
               },
             });
+          } else if (fixture.isThird) {
+            if (won) await addTournamentPlace(kind, 3);
+          } else if (fixture.stage === 'final') {
+            await addTournamentPlace(kind, 2);
           }
 
           useLeagueStore.setState({
@@ -364,10 +371,16 @@ export const useClStore = create<ClStore>((set, get) => ({
     }
     // Der Nutzer ist raus: nur die nächste offene CL-Runde simulieren
     simulateNextClRound(state);
-    const lastPlayback: TournamentPlayback | null =
+    // Im Finale das Spiel um Platz 3 mitzeigen (V7.4)
+    const playbackMatches =
       playStage && state.ko[playStage].length > 0
-        ? { stage: playStage, matches: state.ko[playStage].map((m) => ({ ...m })) }
-        : null;
+        ? [
+            ...state.ko[playStage].map((m) => ({ ...m })),
+            ...(playStage === 'final' && state.thirdPlace ? [{ ...state.thirdPlace }] : []),
+          ]
+        : [];
+    const lastPlayback: TournamentPlayback | null =
+      playStage && playbackMatches.length > 0 ? { stage: playStage, matches: playbackMatches } : null;
     await persist(state);
     set({ state: { ...state }, lastPlayback });
     await useLeagueStore.getState().advanceDiv1Slot();
