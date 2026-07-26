@@ -142,7 +142,8 @@ export const useBattleStore = create<BattleState>((set, get) => ({
     // Quelle der Wahrheit ist der PERSISTIERTE Gold-Platz mit seinem Tag – nicht
     // der In-Memory-Tag (der bleibt stehen, wenn die App über Mitternacht offen
     // ist). So rotiert der Pin garantiert, sobald wieder geprüft wird (V7.3-Fix).
-    let stored: { day: string; spotId: string } | null = null;
+    // prevId = der GESTRIGE Gold-Platz, wird stabil mitgeführt (V7.4-Fix).
+    let stored: { day: string; spotId: string; prevId?: string | null } | null = null;
     try {
       stored = JSON.parse((await metaRepo.getMeta('specialSpot')) || 'null');
     } catch {
@@ -158,10 +159,16 @@ export const useBattleStore = create<BattleState>((set, get) => ({
       }
     }
 
-    // Kandidaten für heute: bevorzugt die Plätze im Umkreis. Liegen dort
-    // WENIGER ALS ZWEI, kann nicht rotiert werden (der gestrige Platz wird
-    // ausgeschlossen). Dann die nächstgelegenen Plätze dazunehmen, damit der
-    // Gold-Pin trotz kleinem Umkreis garantiert täglich wechselt (V7.4-Fix).
+    // Auszuschließen ist IMMER der gestrige Platz: an einem neuen Tag ist das der
+    // gespeicherte spotId, bei einer erneuten Wahl am selben Tag (z. B. weil der
+    // erste Griff ohne GPS außer Reichweite lag) der bereits gemerkte Vortags-
+    // platz. Sonst schließt der zweite Aufruf den ZWISCHEN-Platz aus und landet
+    // wieder auf demselben Platz – dann rotiert nie etwas (V7.4-Fix).
+    const prevId = stored ? (stored.day === today ? stored.prevId ?? null : stored.spotId) : null;
+
+    // Kandidaten für heute: bevorzugt die Plätze im Umkreis. Liegen dort WENIGER
+    // ALS ZWEI, kann nicht rotiert werden – dann die nächstgelegenen dazunehmen,
+    // damit der Gold-Pin trotz kleinem Umkreis täglich wechselt (V7.4-Fix).
     let pickFrom = spots.filter(inRange);
     if (pickFrom.length < 2 && spots.length >= 2) {
       pickFrom = myPos
@@ -175,11 +182,12 @@ export const useBattleStore = create<BattleState>((set, get) => ({
         : spots;
     }
     if (pickFrom.length === 0) pickFrom = spots;
-    // Den gestrigen Gold-Platz ausschließen → garantierte Tages-Rotation (V7).
-    const lastId = stored?.spotId ?? null;
-    const specialSpotId = specialSpotIdForDay(pickFrom.map((s) => s.id), today, lastId);
+    const specialSpotId = specialSpotIdForDay(pickFrom.map((s) => s.id), today, prevId);
     if (!specialSpotId) return;
-    await metaRepo.setMeta('specialSpot', JSON.stringify({ day: today, spotId: specialSpotId }));
+    await metaRepo.setMeta(
+      'specialSpot',
+      JSON.stringify({ day: today, spotId: specialSpotId, prevId }),
+    );
     set({ specialSpotId });
   },
 
