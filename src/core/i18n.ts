@@ -700,6 +700,18 @@ const en = {
   helpFriends: 'Friendlies',
   helpF1: 'Add friends with their 6-character code (Profile tab) and play friendlies against their latest synced XI - just for fun, no coins.',
   helpF2: 'Play ONLINE: if both of you have the app open, challenge a friend to a live match - you both watch the exact same game, make your own half-time changes, and settle a draw with a player-vs-player penalty shootout: the shooter picks a corner first, only then the keeper picks the dive.',
+  helpF3: 'You can also send a friend request straight from the Leaderboard: tap the + next to any club.',
+  helpTournaments: 'Tournaments',
+  helpT1: 'Every season also runs a knockout tournament next to the league: the Champions League in Division 1, the National Cup in Divisions 2-4. Each 3rd matchday is a tournament game (7 in total): a group of 4 (top 2 advance), then Round of 16, quarterfinal, semifinal and final.',
+  helpT2: 'A knockout tie level after 90 minutes goes to a penalty shootout. Losing the semifinal still lets you play a 3rd-place match at the same time as the final. Winning brings coins each round (the cup pays about half of the Champions League); if you are knocked out, you can fast-forward the remaining rounds.',
+  helpT3: 'Placings go to your trophy cabinet: winner, runner-up (lost final) and 3rd place, separately for the Champions League and the National Cup.',
+  helpMatchExtras: 'Form, rival & cards',
+  helpX1: 'Every player has a form in 5 stages (shown in the squad). It rises with goals, assists and wins, drops after losses or on the bench, and moves team strength by up to 4%.',
+  helpX2: 'Each season one club is your rival (marked in the table). Beating your rival gives +25 bonus coins; losing hurts your players form.',
+  helpX3: 'A red card sends the player off for the rest of that match and suspends him for the next game - but only in the same competition: a league red card sits out one league game, a tournament red card one tournament game.',
+  helpCollection: 'Trophies & collection',
+  helpC1: 'The trophy cabinet (Profile) keeps every league title, runner-up and tournament placing across all careers - it survives a fresh start.',
+  helpC2: 'The collection album (Profile) shows every gold and legendary player; the ones you have owned stay unlocked forever, even after a new career.',
 };
 
 const de: typeof en = {
@@ -1364,6 +1376,18 @@ const de: typeof en = {
   helpFriends: 'Freundschaftsspiele',
   helpF1: 'Füge Freunde mit ihrem 6-stelligen Code hinzu (Profil-Tab) und spiele gegen ihre zuletzt synchronisierte Elf - nur zum Spaß, keine Coins.',
   helpF2: 'ONLINE spielen: Wenn ihr beide die App offen habt, fordere einen Freund zu einem Live-Spiel heraus - ihr seht exakt dasselbe Spiel, macht eure eigenen Halbzeit-Umstellungen, und ein Remis entscheidet ein Elfmeterschießen Spieler gegen Spieler: Der Schütze wählt zuerst die Ecke, erst dann der Torwart die Hechtrichtung.',
+  helpF3: 'Du kannst eine Freundschaftsanfrage auch direkt aus der Bestenliste senden: tippe auf das + neben einem Klub.',
+  helpTournaments: 'Turniere',
+  helpT1: 'Jede Saison läuft neben der Liga ein K.-o.-Turnier: die Champions League in Division 1, der Nationale Pokal in Division 2-4. Jeder 3. Spieltag ist ein Turnierspiel (insgesamt 7): eine Gruppe mit 4 Teams (Top 2 kommen weiter), dann Achtelfinale, Viertelfinale, Halbfinale und Finale.',
+  helpT2: 'Steht ein K.-o.-Spiel nach 90 Minuten remis, entscheidet ein Elfmeterschießen. Verlierst du das Halbfinale, spielst du parallel zum Finale um Platz 3. Siege bringen je Runde Coins (der Pokal zahlt etwa die Hälfte der Champions League); bist du raus, kannst du die restlichen Runden im Schnelldurchlauf ansehen.',
+  helpT3: 'Platzierungen wandern in den Trophäenschrank: Sieger, Finalist (Finale verloren) und 3. Platz, getrennt für Champions League und Nationalen Pokal.',
+  helpMatchExtras: 'Form, Rivale & Karten',
+  helpX1: 'Jeder Spieler hat eine Form in 5 Stufen (im Kader sichtbar). Sie steigt mit Toren, Vorlagen und Siegen, sinkt nach Niederlagen oder auf der Bank und wirkt bis zu 4 % auf die Teamstärke.',
+  helpX2: 'Pro Saison ist ein Klub dein Rivale (in der Tabelle markiert). Ein Sieg gegen ihn bringt +25 Bonus-Coins; eine Niederlage drückt die Form deiner Spieler.',
+  helpX3: 'Eine rote Karte stellt den Spieler für den Rest des Spiels vom Platz und sperrt ihn fürs nächste Spiel - aber nur im gleichen Wettbewerb: eine Liga-Rote sitzt ein Ligaspiel aus, eine Turnier-Rote ein Turnierspiel.',
+  helpCollection: 'Trophäen & Sammlung',
+  helpC1: 'Der Trophäenschrank (Profil) sammelt alle Meistertitel, Vize-Titel und Turnier-Platzierungen über alle Karrieren hinweg - er bleibt auch beim Neustart erhalten.',
+  helpC2: 'Das Sammelalbum (Profil) zeigt alle Gold- und Legendär-Spieler; einmal besessene bleiben für immer freigeschaltet, auch nach einer neuen Karriere.',
 };
 
 const pt: typeof en = {
@@ -2028,6 +2052,18 @@ const pt: typeof en = {
   helpFriends: 'Amistosos',
   helpF1: 'Adicione amigos com o código de 6 caracteres (aba Perfil) e jogue contra o time mais recente deles - só por diversão, sem moedas.',
   helpF2: 'Jogar ONLINE: se os dois estiverem com o app aberto, desafie um amigo para uma partida ao vivo - vocês assistem exatamente ao mesmo jogo, fazem suas próprias mudanças no intervalo, e um empate é decidido nos pênaltis jogador contra jogador: o batedor escolhe o canto primeiro, só depois o goleiro escolhe o pulo.',
+  helpF3: 'Você também pode enviar um pedido de amizade direto da Classificação: toque no + ao lado de um clube.',
+  helpTournaments: 'Torneios',
+  helpT1: 'Cada temporada tem um torneio mata-mata além da liga: a Champions League na Divisão 1, a Copa Nacional nas Divisões 2-4. Cada 3ª rodada é um jogo de torneio (7 no total): um grupo de 4 (os 2 primeiros avançam), depois oitavas, quartas, semifinal e final.',
+  helpT2: 'Um mata-mata empatado após 90 minutos vai para os pênaltis. Perdendo a semifinal, você ainda disputa o 3º lugar ao mesmo tempo que a final. Vitórias dão moedas por rodada (a copa paga cerca da metade da Champions); se você for eliminado, pode avançar rápido as rodadas restantes.',
+  helpT3: 'As colocações vão para a sala de troféus: campeão, vice (perdeu a final) e 3º lugar, separados para a Champions League e a Copa Nacional.',
+  helpMatchExtras: 'Forma, rival e cartões',
+  helpX1: 'Cada jogador tem uma forma em 5 níveis (visível no elenco). Sobe com gols, assistências e vitórias, cai após derrotas ou no banco, e afeta a força do time em até 4%.',
+  helpX2: 'A cada temporada um clube é seu rival (marcado na tabela). Vencer o rival dá +25 moedas de bônus; perder piora a forma dos seus jogadores.',
+  helpX3: 'Um cartão vermelho expulsa o jogador pelo resto da partida e o suspende para o próximo jogo - mas só na mesma competição: um vermelho na liga cumpre um jogo de liga, um no torneio um jogo de torneio.',
+  helpCollection: 'Troféus e coleção',
+  helpC1: 'A sala de troféus (Perfil) guarda todos os títulos de liga, vices e colocações de torneio de todas as carreiras - permanece após um recomeço.',
+  helpC2: 'O álbum de coleção (Perfil) mostra todos os jogadores ouro e lendários; os que você já teve ficam desbloqueados para sempre, mesmo após uma nova carreira.',
 };
 
 export type TKey = keyof typeof en;

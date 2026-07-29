@@ -138,6 +138,26 @@ export function HelpScreen({ navigation }: RootScreenProps<'Help'>) {
           </Text>
         </Card>
 
+        <SectionTitle>{t('helpTournaments')}</SectionTitle>
+        <Card>
+          <Text style={styles.text}>{t('helpT1')}</Text>
+          <Text style={styles.text}>{t('helpT2')}</Text>
+          <Text style={styles.text}>{t('helpT3')}</Text>
+        </Card>
+
+        <SectionTitle>{t('helpMatchExtras')}</SectionTitle>
+        <Card>
+          <Text style={styles.text}>{t('helpX1')}</Text>
+          <Text style={styles.text}>{t('helpX2')}</Text>
+          <Text style={styles.text}>{t('helpX3')}</Text>
+        </Card>
+
+        <SectionTitle>{t('helpCollection')}</SectionTitle>
+        <Card>
+          <Text style={styles.text}>{t('helpC1')}</Text>
+          <Text style={styles.text}>{t('helpC2')}</Text>
+        </Card>
+
         <SectionTitle>{t('helpFriends')}</SectionTitle>
         <Card>
           <Text style={styles.text}>
@@ -146,6 +166,7 @@ export function HelpScreen({ navigation }: RootScreenProps<'Help'>) {
           <Text style={styles.text}>
             {t('helpF2')}
           </Text>
+          <Text style={styles.text}>{t('helpF3')}</Text>
         </Card>
 
         <GKButton

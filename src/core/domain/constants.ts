@@ -461,8 +461,10 @@ export const CHAMPIONS_LEAGUE = {
   captainGoal: { group: 3, r16: 6, qf: 12, sf: 24, final: 45 } as Record<string, number>,
   /** Captain-Bonus pro Vorlage je Runde (steigend) */
   captainAssist: { group: 2, r16: 4, qf: 8, sf: 16, final: 30 } as Record<string, number>,
-  /** Gegner-Schwierigkeit für den Nutzer je Runde (Stärke-Faktor, steigend) */
-  difficulty: { group: 0.98, r16: 1.06, qf: 1.14, sf: 1.22, final: 1.32 } as Record<string, number>,
+  /** Gegner-Schwierigkeit für den Nutzer je Runde (Stärke-Faktor, steigend).
+   *  V7.4: früh etwas entschärft, damit man häufiger aus der Gruppe/dem
+   *  Achtelfinale weiterkommt – das Finale bleibt eine echte Hürde. */
+  difficulty: { group: 0.94, r16: 1.0, qf: 1.08, sf: 1.16, final: 1.28 } as Record<string, number>,
 } as const;
 
 /**
@@ -476,14 +478,15 @@ export const NATIONAL_CUP = {
   groupSize: 4,
   advancePerGroup: 2,
   koTeams: 16,
-  /** Gegnerstärke als Faktor auf die Nutzer-Stärke (Min/Max) */
-  strengthRelative: [0.82, 1.18] as [number, number],
+  /** Gegnerstärke als Faktor auf die Nutzer-Stärke (Min/Max). V7.4: oberes Ende
+   *  gesenkt, damit die Gegner nicht deutlich stärker als der Nutzer sind. */
+  strengthRelative: [0.78, 1.1] as [number, number],
   strengthRange: [520, 760] as [number, number],
   winReward: { group: 10, r16: 10, qf: 20, sf: 40, final: 75 } as Record<string, number>,
   drawReward: 5,
   captainGoal: { group: 3, r16: 3, qf: 6, sf: 12, final: 23 } as Record<string, number>,
   captainAssist: { group: 2, r16: 2, qf: 4, sf: 8, final: 15 } as Record<string, number>,
-  difficulty: { group: 0.98, r16: 1.06, qf: 1.14, sf: 1.22, final: 1.32 } as Record<string, number>,
+  difficulty: { group: 0.94, r16: 1.0, qf: 1.08, sf: 1.16, final: 1.28 } as Record<string, number>,
 } as const;
 
 /** Wappen-Vorlagen-IDs (Kapitel 3.5); Rendering: src/ui/Crest.tsx */
