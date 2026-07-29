@@ -291,12 +291,9 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
     .filter((p) => !lineupIds.includes(p.id))
     .sort((a, b) => effectiveOverall(b.pool, b.level) - effectiveOverall(a.pool, a.level));
   const leagueState = useLeagueStore.getState();
+  // Liga- bzw. Turnier-Sperren des laufenden Spiels (rote Karte, V7.4)
   const suspendedIds = new Set(
-    isLeagueMatch
-      ? leagueState.suspensions
-          .filter((s) => s.season === leagueState.season && s.round === leagueState.round)
-          .map((s) => s.playerId)
-      : [],
+    isLeagueMatch || isClMatch ? [...leagueState.suspendedForNextMatch()] : [],
   );
 
   const onSlotTap = async (slot: number) => {

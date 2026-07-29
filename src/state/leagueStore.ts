@@ -96,6 +96,9 @@ export interface CupJourney {
 export interface Suspension {
   playerId: number;
   playerName: string;
+  /** V7.4: 'league' sperrt nur das nächste Ligaspiel, 'tournament' nur das
+   *  nächste Turnierspiel. Alt-Spielstände ohne Feld gelten als 'league'. */
+  kind?: 'league' | 'tournament';
   season: number;
   round: number;
 }
@@ -143,6 +146,13 @@ interface LeagueStateStore {
   msUntilNextMatch: () => number;
   /** Ist das nächste Saison-Spiel ein CL-Spiel? (nur Division 1, V7) */
   nextIsCl: () => boolean;
+  /** Gesperrte Spieler-Ids für das NÄCHSTE Spiel (Liga- bzw. Turnier-Sperren, V7.4). */
+  suspendedForNextMatch: () => Set<number>;
+  /** Nach einem Turnierspiel (V7.4): abgesessene Turnier-Sperren entfernen und
+   *  neue rote Karten als Turnier-Sperre fürs nächste Turnierspiel eintragen. */
+  updateTournamentSuspensions: (
+    newly: Array<{ playerId: number; playerName: string }>,
+  ) => Promise<void>;
   /** Slot in Division 1 weiterschalten + ggf. Saison abschließen (V7). */
   advanceDiv1Slot: () => Promise<void>;
   /** Nach dem letzten Ligaspiel (V7.4): Liga-Titel + Meister-Animation sofort,
@@ -293,6 +303,37 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
   nextIsCl: () => {
     // In jeder Division mit aktivem Turnier ist jeder 3. Slot ein Turnierspiel.
     return get().hasTournament && get().div1Slot % 3 === 2;
+  },
+
+  suspendedForNextMatch: () => {
+    // Turnierspiel als nächstes → nur Turnier-Sperren; sonst nur Liga-Sperren
+    // der aktuellen Runde. So gilt eine rote Karte NUR im jeweiligen Wettbewerb.
+    const { suspensions, season, round } = get();
+    const isTournament = get().nextIsCl();
+    const ids = suspensions
+      .filter((s) =>
+        isTournament
+          ? s.kind === 'tournament' && s.season === season
+          : s.kind !== 'tournament' && s.season === season && s.round === round,
+      )
+      .map((s) => s.playerId);
+    return new Set(ids);
+  },
+
+  updateTournamentSuspensions: async (newly) => {
+    const { suspensions, season } = get();
+    // Alte Turnier-Sperren dieser Saison sind abgesessen → entfernen
+    const kept = suspensions.filter((s) => !(s.kind === 'tournament' && s.season === season));
+    const added: Suspension[] = newly.map((n) => ({
+      playerId: n.playerId,
+      playerName: n.playerName,
+      kind: 'tournament',
+      season,
+      round: 0,
+    }));
+    const next = [...kept, ...added];
+    await metaRepo.setMeta('suspensions', JSON.stringify(next));
+    set({ suspensions: next });
   },
 
   matchReady: () => {
@@ -551,11 +592,15 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
     const crestOf = (id: string) => (id === USER_CLUB_ID ? club.crest : npcById.get(id)?.crest ?? 'crest-0');
 
     // Gesperrte Spieler (rote Karte letzte Runde) spielen dieses Mal nicht mit:
-    // sie zählen weder zur Teamstärke noch zum Ticker-Kader
-    const activeSuspensions = get().suspensions.filter(
-      (s) => s.season === season && s.round === round,
+    // sie zählen weder zur Teamstärke noch zum Ticker-Kader. Nur Liga-Sperren
+    // dieser Runde greifen hier (Turnier-Sperren sind eine andere Sache, V7.4).
+    const suspendedIds = new Set(
+      get()
+        .suspensions.filter(
+          (s) => s.kind !== 'tournament' && s.season === season && s.round === round,
+        )
+        .map((s) => s.playerId),
     );
-    const suspendedIds = new Set(activeSuspensions.map((s) => s.playerId));
     const startingLineup = game
       .lineupPlayers()
       .map((p) => (p && suspendedIds.has(p.id) ? null : p));
@@ -766,13 +811,19 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
             newSuspensions.push({
               playerId: owned.id,
               playerName: owned.pool.name,
+              kind: 'league',
               season: nextSuspSeason,
               round: nextSuspRound,
             });
           }
         });
-      const keptSuspensions = get().suspensions.filter(
-        (s) => s.season > season || (s.season === season && s.round > round),
+      // Nur die abgelaufenen LIGA-Sperren aufräumen; Turnier-Sperren der
+      // aktuellen/künftigen Saison bleiben unberührt (sie werden nach dem
+      // Turnierspiel abgebaut, V7.4).
+      const keptSuspensions = get().suspensions.filter((s) =>
+        s.kind === 'tournament'
+          ? s.season >= season
+          : s.season > season || (s.season === season && s.round > round),
       );
       const suspensions = [...keptSuspensions, ...newSuspensions];
       await metaRepo.setMeta('suspensions', JSON.stringify(suspensions));

@@ -64,6 +64,8 @@ export interface HalfTimeState {
   stats: MatchStats;
   /** Gelbe Karten je "seite:spieler" (zweite Gelbe = Rot) */
   yellow: Array<[string, number]>;
+  /** Vom Platz gestellte Spieler je Seite (V7.4) */
+  sentOff?: { home: string[]; away: string[] };
   /** Stärke-Faktoren aus roten Karten (1 = vollzählig) */
   homeStrengthFactor: number;
   awayStrengthFactor: number;
@@ -111,11 +113,20 @@ function penaltyTaker(team: SimTeam): string {
   return pickPlayerName(team, SCORER_WEIGHTS);
 }
 
-function pickPlayerName(team: SimTeam, weights?: Record<Position, number>): string {
-  if (team.roster && team.roster.length > 0) {
-    if (!weights) return pick(team.roster).name;
+function pickPlayerName(
+  team: SimTeam,
+  weights?: Record<Position, number>,
+  exclude?: Set<string>,
+): string {
+  // Vom Platz gestellte Spieler kommen nicht mehr vor (V7.4)
+  const roster =
+    team.roster && exclude && exclude.size > 0
+      ? team.roster.filter((p) => !exclude.has(p.name))
+      : team.roster;
+  if (roster && roster.length > 0) {
+    if (!weights) return pick(roster).name;
     return pickWeighted(
-      team.roster.map((p) => ({ value: p.name, weight: weights[p.position] ?? 1 })),
+      roster.map((p) => ({ value: p.name, weight: weights[p.position] ?? 1 })),
     );
   }
   // NPC ohne Kader: fiktiver Name (Kapitel 9: frei erfundene Namen)
@@ -225,6 +236,8 @@ interface SimContext {
   awayGoals: number;
   stats: MatchStats;
   yellowBook: Map<string, number>;
+  /** Vom Platz gestellte Spieler je Seite (V7.4): erscheinen danach nicht mehr. */
+  sentOff: { home: Set<string>; away: Set<string> };
   homeStrength: number;
   awayStrength: number;
 }
@@ -349,12 +362,13 @@ function simulateRange(
         if (attackerSide === 'home') ctx.homeGoals++;
         else ctx.awayGoals++;
         atkStats.goals++;
-        const scorer = pickPlayerName(atk, SCORER_WEIGHTS);
+        const off = ctx.sentOff[attackerSide];
+        const scorer = pickPlayerName(atk, SCORER_WEIGHTS, off);
         // ~70 % der Tore mit Vorlage – Vorlagengeber ≠ Torschütze
         let assist: string | undefined;
         if (Math.random() < 0.7) {
           for (let attempt = 0; attempt < 5; attempt++) {
-            const candidate = pickPlayerName(atk, ASSIST_WEIGHTS);
+            const candidate = pickPlayerName(atk, ASSIST_WEIGHTS, off);
             if (candidate !== scorer) {
               assist = candidate;
               break;
@@ -380,7 +394,7 @@ function simulateRange(
         if (Math.random() < 0.65) {
           ctx.stats[attackerSide === 'home' ? 'away' : 'home'].saves++;
         }
-        const player = pickPlayerName(atk, SCORER_WEIGHTS);
+        const player = pickPlayerName(atk, SCORER_WEIGHTS, ctx.sentOff[attackerSide]);
         ctx.events.push({
           minute,
           type: 'chance',
@@ -400,7 +414,7 @@ function simulateRange(
     } else if (roll < homeChanceRate + awayChanceRate + MATCH_SIM.cornerPerMinute + MATCH_SIM.foulPerMinute) {
       const side = Math.random() < 0.5 ? 'home' : 'away';
       const team = side === 'home' ? home : away;
-      const offender = pickPlayerName(team);
+      const offender = pickPlayerName(team, undefined, ctx.sentOff[side]);
       ctx.stats[side].fouls++;
       ctx.events.push({
         minute,
@@ -421,6 +435,7 @@ function simulateRange(
           player: offender,
           text: tf('simRed', { player: offender, club: team.name }),
         });
+        ctx.sentOff[side].add(offender);
         if (side === 'home') ctx.homeStrength *= MATCH_SIM.redCardPenalty;
         else ctx.awayStrength *= MATCH_SIM.redCardPenalty;
       } else if (cardRoll < MATCH_SIM.straightRedPerFoul + MATCH_SIM.yellowPerFoul) {
@@ -435,6 +450,7 @@ function simulateRange(
             player: offender,
             text: tf('simSecondYellow', { player: offender, club: team.name }),
           });
+          ctx.sentOff[side].add(offender);
           if (side === 'home') ctx.homeStrength *= MATCH_SIM.redCardPenalty;
           else ctx.awayStrength *= MATCH_SIM.redCardPenalty;
         } else {
@@ -461,6 +477,7 @@ export function simulateFirstHalf(home: SimTeam, away: SimTeam): HalfTimeState {
     awayGoals: 0,
     stats: { home: emptyStats(), away: emptyStats() },
     yellowBook: new Map(),
+    sentOff: { home: new Set(), away: new Set() },
     homeStrength: home.strength,
     awayStrength: away.strength,
   };
@@ -477,6 +494,7 @@ export function simulateFirstHalf(home: SimTeam, away: SimTeam): HalfTimeState {
     events: ctx.events,
     stats: ctx.stats,
     yellow: [...ctx.yellowBook.entries()],
+    sentOff: { home: [...ctx.sentOff.home], away: [...ctx.sentOff.away] },
     homeStrengthFactor: ctx.homeStrength / home.strength,
     awayStrengthFactor: ctx.awayStrength / away.strength,
   };
@@ -494,6 +512,10 @@ export function simulateSecondHalf(home: SimTeam, away: SimTeam, half: HalfTimeS
     awayGoals: half.awayGoals,
     stats: half.stats,
     yellowBook: new Map(half.yellow),
+    sentOff: {
+      home: new Set(half.sentOff?.home ?? []),
+      away: new Set(half.sentOff?.away ?? []),
+    },
     homeStrength: home.strength * half.homeStrengthFactor,
     awayStrength: away.strength * half.awayStrengthFactor,
   };
@@ -542,6 +564,7 @@ export interface LiveMatchState {
   events: MatchEvent[];
   stats: MatchStats;
   yellow: Array<[string, number]>;
+  sentOff?: { home: string[]; away: string[] };
   homeStrengthFactor: number;
   awayStrengthFactor: number;
 }
@@ -558,6 +581,10 @@ function liveCtx(home: SimTeam, away: SimTeam, state: LiveMatchState): SimContex
     awayGoals: state.awayGoals,
     stats: state.stats,
     yellowBook: new Map(state.yellow),
+    sentOff: {
+      home: new Set(state.sentOff?.home ?? []),
+      away: new Set(state.sentOff?.away ?? []),
+    },
     homeStrength: home.strength * state.homeStrengthFactor,
     awayStrength: away.strength * state.awayStrengthFactor,
   };
@@ -568,6 +595,7 @@ function saveCtx(ctx: SimContext, home: SimTeam, away: SimTeam, state: LiveMatch
   state.homeGoals = ctx.homeGoals;
   state.awayGoals = ctx.awayGoals;
   state.yellow = [...ctx.yellowBook.entries()];
+  state.sentOff = { home: [...ctx.sentOff.home], away: [...ctx.sentOff.away] };
   state.homeStrengthFactor = ctx.homeStrength / home.strength;
   state.awayStrengthFactor = ctx.awayStrength / away.strength;
 }
@@ -581,6 +609,7 @@ export function beginLiveMatch(home: SimTeam, away: SimTeam): { state: LiveMatch
     events: [{ minute: 1, type: 'anpfiff', text: t('simKickoff') }],
     stats: { home: emptyStats(), away: emptyStats() },
     yellow: [],
+    sentOff: { home: [], away: [] },
     homeStrengthFactor: 1,
     awayStrengthFactor: 1,
   };

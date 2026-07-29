@@ -61,19 +61,24 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
   const lineup = useGameStore((s) => s.lineup);
   const suspensions = useLeagueStore((s) => s.suspensions);
 
-  // Für das nächste Ligaspiel gesperrte eigene Spieler (rote Karte, V7)
-  const suspendedInLineup = useMemo(
-    () =>
-      suspensions
-        .filter((s) => s.season === season && s.round === round && lineup.includes(s.playerId))
-        .map((s) => s.playerName),
-    [suspensions, season, round, lineup],
-  );
-
   // Turnier (V7/V7.2): jeder 3. Slot ist ein Turnierspiel. CL in Division 1,
   // Nationaler Pokal in Division 2–4 (state.kind unterscheidet die Texte).
   const isCup = clState?.kind === 'cup';
   const isClNext = div1Slot % 3 === 2 && !!clState;
+
+  // Für das NÄCHSTE Spiel gesperrte eigene Spieler (rote Karte). Je nachdem, ob
+  // als nächstes ein Liga- oder Turnierspiel ansteht, gilt die passende Sperre
+  // (Liga-Sperre nur in der Liga, Turnier-Sperre nur im Turnier, V7.4).
+  const suspendedInLineup = useMemo(
+    () =>
+      suspensions
+        .filter((s) => {
+          if (!lineup.includes(s.playerId) || s.season !== season) return false;
+          return isClNext ? s.kind === 'tournament' : s.kind !== 'tournament' && s.round === round;
+        })
+        .map((s) => s.playerName),
+    [suspensions, season, round, lineup, isClNext],
+  );
   const clFixture = clState && isClNext ? nextUserClMatch(clState) : null;
   const clUserOut = isClNext && clState ? !userHasClMatch(clState) : false;
 

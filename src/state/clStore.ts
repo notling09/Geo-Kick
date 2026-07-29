@@ -62,11 +62,13 @@ async function persist(state: ClState | null): Promise<void> {
  */
 let pendingClFinish: ((userWon: boolean) => Promise<string | null>) | null = null;
 
-function userTeamFactory(): (t: Tactic) => Promise<SimTeam> {
+function userTeamFactory(suspendedIds: Set<number>): (t: Tactic) => Promise<SimTeam> {
   return async (t) => {
     const g = useGameStore.getState();
     await g.setTactic(t);
-    const lineupNow = g.lineupPlayers();
+    // Turnier-gesperrte Spieler (rote Karte) zählen weder zur Stärke noch zum
+    // Ticker-Kader (V7.4) – wie bei den Ligaspielen.
+    const lineupNow = g.lineupPlayers().map((p) => (p && suspendedIds.has(p.id) ? null : p));
     return {
       name: g.club?.name ?? 'My Club',
       strength: teamStrength(lineupNow, g.club?.formation ?? '4-4-2'),
@@ -142,6 +144,9 @@ export const useClStore = create<ClStore>((set, get) => ({
     const club = game.club;
     if (!club) return null;
 
+    // Turnier-gesperrte Spieler (rote Karte im letzten Turnierspiel) fehlen (V7.4)
+    const suspendedIds = useLeagueStore.getState().suspendedForNextMatch();
+
     const cfg = tournamentConfig(state.kind);
     const isCup = state.kind === 'cup';
     const userIsHome = fixture.homeId === USER_CLUB_ID;
@@ -173,7 +178,7 @@ export const useClStore = create<ClStore>((set, get) => ({
       userIsHome,
       opponent: oppTeam,
       initialTactic: club.tactic,
-      buildUserTeam: userTeamFactory(),
+      buildUserTeam: userTeamFactory(suspendedIds),
       publish: (st, pause) =>
         useLeagueStore.setState({
           lastPlayedMatch: {
@@ -292,6 +297,20 @@ export const useClStore = create<ClStore>((set, get) => ({
           } else if (fixture.stage === 'final') {
             await addTournamentPlace(kind, 2);
           }
+
+          // Turnier-Sperren aktualisieren (V7.4): abgesessene raus, neue rote
+          // Karten dieses Spiels als Sperre fürs nächste Turnierspiel rein.
+          const side = userIsHome ? 'home' : 'away';
+          const redCarded: Array<{ playerId: number; playerName: string }> = [];
+          result.events
+            .filter((e) => e.type === 'rot' && e.team === side && e.player)
+            .forEach((e) => {
+              const owned = g2.players.find((p) => p.pool.name === e.player);
+              if (owned && !redCarded.some((r) => r.playerId === owned.id)) {
+                redCarded.push({ playerId: owned.id, playerName: owned.pool.name });
+              }
+            });
+          await useLeagueStore.getState().updateTournamentSuspensions(redCarded);
 
           useLeagueStore.setState({
             lastPlayedMatch: {

@@ -57,6 +57,8 @@ interface GameState {
   keepDrawnPlayer: (poolPlayer: PoolPlayer, sellOwnedId: number) => Promise<boolean>;
   sellPlayer: (ownedId: number, as?: 'coins' | 'points') => Promise<boolean>;
   setCaptain: (playerId: number) => Promise<void>;
+  /** Captain automatisch neu setzen, wenn er nicht mehr in der Startelf ist (V7.4). */
+  reassignCaptain: () => Promise<void>;
   claimMysteryPlayer: (name: string, position: Position) => Promise<PoolPlayer | null>;
   /** Einzelnen gezogenen Spieler aufnehmen (Ei-Ausbrüten, V4) */
   receivePlayer: (poolPlayer: PoolPlayer) => Promise<PackEntry>;
@@ -218,6 +220,26 @@ function buildAutoLineup(
   return result;
 }
 
+/**
+ * Captain sicherstellen (V7.4): Ist der aktuelle Captain nicht (mehr) in der
+ * Startelf – z. B. nach einer roten Karte herausgenommen oder ausgewechselt –,
+ * wird der Spieler mit dem HÖCHSTEN Overall aus der Elf automatisch Captain.
+ * So gibt es immer einen Captain auf dem Feld (wichtig für Elfmeter/Boni).
+ */
+function pickCaptainFor(
+  players: OwnedPlayer[],
+  lineup: Array<number | null>,
+  current: number | null,
+): number | null {
+  const ids = lineup.filter((id): id is number => id !== null);
+  if (current !== null && ids.includes(current)) return current;
+  const inXi = players.filter((p) => ids.includes(p.id));
+  if (inXi.length === 0) return current;
+  return [...inXi].sort(
+    (a, b) => effectiveOverall(b.pool, b.level) - effectiveOverall(a.pool, a.level),
+  )[0].id;
+}
+
 export const useGameStore = create<GameState>((set, get) => ({
   initialized: false,
   onboarded: false,
@@ -363,11 +385,13 @@ export const useGameStore = create<GameState>((set, get) => ({
     lineup[slot] = playerId;
     await playerRepo.setLineupSlot(slot, playerId);
     set({ lineup });
+    await get().reassignCaptain();
   },
 
   restoreLineup: async (lineup) => {
     await playerRepo.replaceLineup(lineup.map((id, slot) => [slot, id]));
     set({ lineup: [...lineup] });
+    await get().reassignCaptain();
   },
 
   autoLineup: async (excludeIds) => {
@@ -375,6 +399,17 @@ export const useGameStore = create<GameState>((set, get) => ({
     const lineup = buildAutoLineup(players, club?.formation ?? '4-4-2', excludeIds);
     await playerRepo.replaceLineup(lineup.map((id, slot) => [slot, id]));
     set({ lineup });
+    await get().reassignCaptain();
+  },
+
+  /** Captain automatisch auf den bestbewerteten Spieler der Elf setzen, wenn nötig. */
+  reassignCaptain: async () => {
+    const { players, lineup, captainPlayerId } = get();
+    const next = pickCaptainFor(players, lineup, captainPlayerId);
+    if (next !== captainPlayerId) {
+      if (next !== null) await metaRepo.setMeta('captainPlayerId', String(next));
+      set({ captainPlayerId: next });
+    }
   },
 
   addCoins: async (amount) => {

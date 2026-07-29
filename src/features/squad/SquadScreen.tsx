@@ -35,6 +35,8 @@ export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
   const leagueSeason = useLeagueStore((s) => s.season);
   const leagueRound = useLeagueStore((s) => s.round);
   const suspensions = useLeagueStore((s) => s.suspensions);
+  const div1Slot = useLeagueStore((s) => s.div1Slot);
+  const hasTournament = useLeagueStore((s) => s.hasTournament);
   const [pickSlot, setPickSlot] = useState<number | null>(null);
   const [pickingCaptain, setPickingCaptain] = useState(false);
   const [form, setForm] = useState<Record<string, number>>({});
@@ -51,15 +53,22 @@ export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
     };
   }, [players]);
 
-  // Für das NÄCHSTE Ligaspiel gesperrte Spieler (rote Karte)
+  // Für das NÄCHSTE Spiel gesperrte Spieler (rote Karte). Liga-Sperre gilt nur
+  // vor einem Ligaspiel, Turnier-Sperre nur vor einem Turnierspiel (V7.4).
+  const isTournamentNext = hasTournament && div1Slot % 3 === 2;
   const suspendedIds = useMemo(
     () =>
       new Set(
         suspensions
-          .filter((s) => s.season === leagueSeason && s.round === leagueRound)
+          .filter((s) => {
+            if (s.season !== leagueSeason) return false;
+            return isTournamentNext
+              ? s.kind === 'tournament'
+              : s.kind !== 'tournament' && s.round === leagueRound;
+          })
           .map((s) => s.playerId),
       ),
-    [suspensions, leagueSeason, leagueRound],
+    [suspensions, leagueSeason, leagueRound, isTournamentNext],
   );
 
   const formation: FormationId = club?.formation ?? '4-4-2';
