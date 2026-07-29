@@ -141,6 +141,19 @@ export function PacksScreen({ navigation }: TabScreenProps<'Packs'>) {
             />
           </Card>
         ))}
+        <SectionTitle>{t('tmTitle')}</SectionTitle>
+        <Card style={styles.marketCard}>
+          <View style={styles.packInfo}>
+            <Text style={styles.packLabel}>{t('tmSubtitle')}</Text>
+            <Text style={styles.packMeta}>{t('tmTeaser')}</Text>
+          </View>
+          <GKButton
+            title={t('tmOpen')}
+            onPress={() => navigation.navigate('TransferMarket')}
+            style={styles.openBtn}
+          />
+        </Card>
+
         <Text style={styles.statsText}>
           {tf('pkStats', { opened: openedCount, size: players.length, max: BALANCING.maxSquadSize })}
         </Text>
@@ -178,6 +191,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     marginBottom: spacing.sm,
+    padding: spacing.sm,
+  },
+  marketCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
     padding: spacing.sm,
   },
   packInfo: {

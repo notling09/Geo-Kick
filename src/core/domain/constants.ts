@@ -199,6 +199,19 @@ export const SELL_VALUE: Record<Rarity, number> = {
   geheim: 0,
 };
 
+/**
+ * Kaufpreis im Transfermarkt (V7.4): etwas mehr als der Verkaufswert, damit
+ * Kaufen teurer ist als Verkaufen (keine Gratis-Coin-Schleife). Die ???-Karte
+ * ist nicht käuflich.
+ */
+export const BUY_VALUE: Record<Rarity, number> = {
+  bronze: 50,
+  silber: 100,
+  gold: 200,
+  legendaer: 300,
+  geheim: 0,
+};
+
 export type PackTypeId = 'session' | 'standard' | 'rare' | 'ultimate';
 
 export interface PackType {

@@ -39,6 +39,20 @@ export function dayOrdinal(date: Date = new Date()): number {
 }
 
 /**
+ * Deterministischer „Zufalls"-Index aus einem Seed (V7.4). Gleicher Seed →
+ * gleicher Index, aber über die Seeds hinweg gut gestreut. Wird für den
+ * Gold-Pin benutzt: pro Tag zufällig EIN Platz aus allen sichtbaren Plätzen im
+ * Umkreis – stabil über den ganzen Tag, wechselt am nächsten Tag zufällig.
+ */
+export function seededIndex(seed: number, len: number): number {
+  if (len <= 0) return 0;
+  let t = (Math.imul(seed + 1, 2654435761) ^ 0x6d2b79f5) >>> 0;
+  t = Math.imul(t ^ (t >>> 15), 1 | t);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) % len;
+}
+
+/**
  * Der besondere Platz des Tages: höchster Hash aus Platz-Id + Tag. Der zuletzt
  * gewählte Platz (excludeId) wird ausgeschlossen, solange es Alternativen gibt –
  * so wechselt der Gold-Pin garantiert jeden Tag, auch bei nur 2-3 Plätzen (V7).

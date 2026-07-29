@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import {
-  BALANCING, FORMATIONS, MAX_PLAYER_OVERALL, PACK_TYPES, RARITY_OVERALL_RANGE, SELL_VALUE,
-  STARTER_OVERALL, USER_CLUB_ID, levelUpCost, type PackTypeId,
+  BALANCING, BUY_VALUE, FORMATIONS, MAX_PLAYER_OVERALL, PACK_TYPES, RARITY_OVERALL_RANGE,
+  SELL_VALUE, STARTER_OVERALL, USER_CLUB_ID, levelUpCost, type PackTypeId,
 } from '../core/domain/constants';
 import type {
   Club, FormationId, OwnedPlayer, Pack, PoolPlayer, Position, Rarity, Tactic,
@@ -13,11 +13,12 @@ import {
 } from '../core/engine/playerGen';
 import { GOLD_PLAYERS, LEGENDARY_PLAYERS, STARTER_WINGERS } from '../core/engine/names';
 import { drawPackContent, packTypeFromSource, rollPackBonus } from '../core/engine/packGen';
+import { generateMarket, marketSeed } from '../core/engine/transferMarket';
 import * as metaRepo from '../core/db/repositories/metaRepo';
 import * as playerRepo from '../core/db/repositories/playerRepo';
 import * as packRepo from '../core/db/repositories/packRepo';
 import { createSeason } from '../core/services/seasonService';
-import { markSeen } from '../core/services/dex';
+import { markSeen, migrateDexGoldNamesV74 } from '../core/services/dex';
 
 /**
  * Globaler Spielzustand (Kader, Coins, Klub) – Zustand-Store über der
@@ -37,6 +38,12 @@ interface GameState {
   captainPlayerId: number | null;
   /** Level-up-Punkte (V3): aus Duplikaten und Pack-Boni, frei ausgebbar */
   levelPoints: number;
+  /** Transfermarkt (V7.4): die 6 Spieler des Tages (KI-Börse) */
+  market: PoolPlayer[];
+  /** Markt-Slots, die heute schon gekauft wurden (Index in `market`) */
+  marketBought: number[];
+  /** Seed/Tag des aktuellen Marktes – wechselt um Mitternacht */
+  marketDay: number;
 
   init: () => Promise<void>;
   completeOnboarding: (clubName: string, crest: string, starterPoolId: number) => Promise<void>;
@@ -63,7 +70,14 @@ interface GameState {
   /** Einzelnen gezogenen Spieler aufnehmen (Ei-Ausbrüten, V4) */
   receivePlayer: (poolPlayer: PoolPlayer) => Promise<PackEntry>;
   lineupPlayers: () => Array<OwnedPlayer | null>;
+  /** Transfermarkt des Tages neu laden (bei Fokus / Tageswechsel), V7.4 */
+  refreshMarket: () => Promise<void>;
+  /** Markt-Spieler an Index kaufen (Coins → Kader), V7.4 */
+  buyMarketPlayer: (index: number) => Promise<MarketBuyResult>;
 }
+
+/** Ergebnis eines Markt-Kaufs. */
+export type MarketBuyResult = 'ok' | 'no_coins' | 'full' | 'already' | 'error';
 
 /** Ergebnis eines Pack-Zugs pro gezogenem Spieler. */
 export interface PackEntry {
@@ -250,6 +264,9 @@ export const useGameStore = create<GameState>((set, get) => ({
   pool: [],
   captainPlayerId: null,
   levelPoints: 0,
+  market: [],
+  marketBought: [],
+  marketDay: 0,
 
   init: async () => {
     // Spieler-Pool einmalig erzeugen (fiktive Identitäten, Kapitel 8/9)
@@ -265,6 +282,9 @@ export const useGameStore = create<GameState>((set, get) => ({
       // … und Gold/Legendär auf die kuratierten Star-Identitäten migrieren
       await playerRepo.syncCuratedRarity('gold', GOLD_PLAYERS);
       await playerRepo.syncCuratedRarity('legendaer', LEGENDARY_PLAYERS);
+      // Sammelalbum: alten Gold-Namen den „besessen"-Haken auf den neuen 2026-
+      // Namen an gleicher Position übertragen (V7.4)
+      await migrateDexGoldNamesV74();
       // Pool auf die aktuellen Zielgrößen auffüllen (Verdopplung)
       await topUpPool();
       // V3: neue Rating-Spannen auf den Bestand anwenden
@@ -305,6 +325,8 @@ export const useGameStore = create<GameState>((set, get) => ({
         captainPlayerId: captainPlayerId || null,
         levelPoints: await metaRepo.getMetaNumber('levelPoints', 0),
       });
+      // Transfermarkt des Tages bereitstellen (V7.4)
+      await get().refreshMarket();
     } else {
       set({ initialized: true, onboarded: false, pool });
     }
@@ -603,6 +625,50 @@ export const useGameStore = create<GameState>((set, get) => ({
   lineupPlayers: () => {
     const { players, lineup } = get();
     return lineup.map((id) => players.find((p) => p.id === id) ?? null);
+  },
+
+  /**
+   * Transfermarkt des Tages laden (V7.4). Die 6 Spieler sind aus dem Seed
+   * deterministisch – wir speichern nur, welche Slots heute schon gekauft
+   * wurden. Bei Tageswechsel (neuer Seed) werden die Käufe zurückgesetzt.
+   */
+  refreshMarket: async () => {
+    const pool = get().pool;
+    if (pool.length === 0) return;
+    const seed = marketSeed();
+    const market = generateMarket(pool, seed);
+    let bought: number[] = [];
+    try {
+      const stored = JSON.parse((await metaRepo.getMeta('market')) || 'null') as
+        | { seed: number; bought: number[] }
+        | null;
+      if (stored && stored.seed === seed) bought = stored.bought ?? [];
+    } catch {
+      bought = [];
+    }
+    set({ market, marketDay: seed, marketBought: bought });
+  },
+
+  /**
+   * Einen Markt-Spieler kaufen: Kaufpreis (BUY_VALUE) von den Coins abziehen
+   * und den Spieler in den Kader aufnehmen. Der Slot gilt danach als gekauft
+   * (nur einmal pro Tag). Kader-Limit und Coins werden geprüft.
+   */
+  buyMarketPlayer: async (index) => {
+    const { market, marketBought, club, players, marketDay } = get();
+    const poolPlayer = market[index];
+    if (!poolPlayer || poolPlayer.rarity === 'geheim') return 'error';
+    if (marketBought.includes(index)) return 'already';
+    if (players.length >= BALANCING.maxSquadSize) return 'full';
+    const price = BUY_VALUE[poolPlayer.rarity];
+    if (!club || club.coins < price) return 'no_coins';
+    await get().addCoins(-price);
+    await playerRepo.addOwnedPlayer(poolPlayer.id);
+    await markSeen([poolPlayer.name]);
+    const bought = [...marketBought, index];
+    await metaRepo.setMeta('market', JSON.stringify({ seed: marketDay, bought }));
+    set({ marketBought: bought, players: await playerRepo.getOwnedPlayers() });
+    return 'ok';
   },
 }));
 

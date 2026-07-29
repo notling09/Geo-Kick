@@ -22,6 +22,7 @@ export type RootStackParamList = {
   TournamentPlayback: undefined;
   CareerComplete: undefined;
   Dex: undefined;
+  TransferMarket: undefined;
 };
 
 export type MainTabParamList = {

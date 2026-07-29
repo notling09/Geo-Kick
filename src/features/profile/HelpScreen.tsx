@@ -2,7 +2,8 @@ import React from 'react';
 import { ScrollView, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  BALANCING, DISCOVERY, LEAGUE_REWARDS, PACK_TYPES, PITCH_BATTLE, SELL_VALUE, SHOP_PACK_IDS,
+  BALANCING, BUY_VALUE, DISCOVERY, LEAGUE_REWARDS, PACK_TYPES, PITCH_BATTLE, SELL_VALUE,
+  SHOP_PACK_IDS,
 } from '../../core/domain/constants';
 import { t, tf } from '../../core/i18n';
 import { GKButton, Card, SectionTitle } from '../../ui/components';
@@ -88,6 +89,16 @@ export function HelpScreen({ navigation }: RootScreenProps<'Help'>) {
             {tf('helpP3', {
               b: SELL_VALUE.bronze, s: SELL_VALUE.silber,
               g: SELL_VALUE.gold, l: SELL_VALUE.legendaer,
+            })}
+          </Text>
+        </Card>
+
+        <SectionTitle>{t('tmTitle')}</SectionTitle>
+        <Card>
+          <Text style={styles.text}>
+            {tf('helpMarket', {
+              b: BUY_VALUE.bronze, s: BUY_VALUE.silber,
+              g: BUY_VALUE.gold, l: BUY_VALUE.legendaer,
             })}
           </Text>
         </Card>

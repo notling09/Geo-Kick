@@ -6,7 +6,7 @@ import { t, tf } from '../core/i18n';
 import { generateNpcRoster } from '../core/engine/league';
 import type { SimTeam } from '../core/engine/matchSim';
 import {
-  dayKey, dayOrdinal, pitchOpponent, type PitchOpponent,
+  dayKey, dayOrdinal, pitchOpponent, seededIndex, type PitchOpponent,
 } from '../core/engine/pitchBattle';
 import { teamStrength } from '../core/engine/strength';
 import { distanceMeters } from '../core/services/geo';
@@ -174,11 +174,12 @@ export const useBattleStore = create<BattleState>((set, get) => ({
     }
     if (pickFrom.length === 0) pickFrom = spots;
 
-    // Reihum-Rotation (V7.4-Fix): stabile Reihenfolge nach Id, dann die fort-
-    // laufende Tagesnummer modulo Anzahl. So besucht der Gold-Pin der Reihe nach
-    // ALLE Plätze im Umkreis, nicht nur die zwei mit dem höchsten Hash.
+    // Zufällige Tageswahl (V7.4): stabile Reihenfolge nach Id, dann ein
+    // seed-gesteuerter Index aus der Tagesnummer. So kann der Gold-Pin jeden
+    // beliebigen Platz im Umkreis treffen (nicht nur 2), ist aber über den
+    // ganzen Tag stabil und wechselt am nächsten Tag zufällig.
     const sorted = [...pickFrom].sort((a, b) => a.id.localeCompare(b.id));
-    const specialSpotId = sorted[dayOrdinal() % sorted.length]?.id;
+    const specialSpotId = sorted[seededIndex(dayOrdinal(), sorted.length)]?.id;
     if (!specialSpotId) return;
     await metaRepo.setMeta('specialSpot', JSON.stringify({ day: today, spotId: specialSpotId }));
     set({ specialSpotId });
