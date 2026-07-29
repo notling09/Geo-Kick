@@ -29,6 +29,16 @@ export function dayKey(date: Date = new Date()): string {
 }
 
 /**
+ * Fortlaufende Tagesnummer (Tage seit Epoch, aus dem LOKALEN Datum). Erhöht sich
+ * pro Kalendertag um genau 1 – Grundlage für die Reihum-Rotation des Gold-Platzes
+ * (V7.4): Tagesnummer modulo Anzahl Plätze besucht der Reihe nach ALLE Plätze,
+ * nicht nur zwei.
+ */
+export function dayOrdinal(date: Date = new Date()): number {
+  return Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86400000);
+}
+
+/**
  * Der besondere Platz des Tages: höchster Hash aus Platz-Id + Tag. Der zuletzt
  * gewählte Platz (excludeId) wird ausgeschlossen, solange es Alternativen gibt –
  * so wechselt der Gold-Pin garantiert jeden Tag, auch bei nur 2-3 Plätzen (V7).

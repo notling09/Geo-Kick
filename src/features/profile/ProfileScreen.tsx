@@ -12,7 +12,6 @@ import {
 import { getMeta, setMeta } from '../../core/db/repositories/metaRepo';
 import { getLanguage, t, tf, type Language } from '../../core/i18n';
 import { loadTrophies, totalTrophies } from '../../core/services/trophies';
-import { useCloudStore } from '../../state/cloudStore';
 import { useGameStore } from '../../state/gameStore';
 import { useLeagueStore } from '../../state/leagueStore';
 import { GKButton, Card, SectionTitle } from '../../ui/components';
@@ -96,19 +95,7 @@ export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
     }, [players, packs, club?.division]),
   );
 
-  const legendaries = players.filter((p) => p.pool.rarity === 'legendaer').length;
   const unlockedCount = achievements.filter((a) => a.unlocked).length;
-  const cloudStatus = useCloudStore((s) => s.status);
-  const friendCode = useCloudStore((s) => s.friendCode);
-
-  const cloudLine =
-    cloudStatus === 'online'
-      ? tf('prCloudCode', { code: friendCode ?? '…' })
-      : cloudStatus === 'connecting'
-        ? t('prCloudConnecting')
-        : cloudStatus === 'error'
-          ? t('prCloudError')
-          : t('prCloudOffline');
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -209,23 +196,6 @@ export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
           variant="secondary"
           onPress={() => navigation.navigate('Dex')}
         />
-
-        <SectionTitle>{t('prFriendlies')}</SectionTitle>
-        <Card>
-          <Text style={styles.infoRow}>{cloudLine}</Text>
-          {cloudStatus === 'online' && (
-            <Text style={styles.aboutText}>
-              {t('prShareCode')}
-            </Text>
-          )}
-        </Card>
-
-        <SectionTitle>{t('prClub')}</SectionTitle>
-        <Card>
-          <Text style={styles.infoRow}>{tf('prSquadSize', { n: players.length })}</Text>
-          <Text style={styles.infoRow}>{tf('prLegendaries', { n: legendaries })}</Text>
-          <Text style={styles.infoRow}>{tf('prCoins', { n: club?.coins ?? 0 })}</Text>
-        </Card>
 
         <SectionTitle>{t('prAbout')}</SectionTitle>
         <Card>

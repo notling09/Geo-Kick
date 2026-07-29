@@ -6,7 +6,7 @@ import { t, tf } from '../core/i18n';
 import { generateNpcRoster } from '../core/engine/league';
 import type { SimTeam } from '../core/engine/matchSim';
 import {
-  dayKey, pitchOpponent, specialSpotIdForDay, type PitchOpponent,
+  dayKey, dayOrdinal, pitchOpponent, type PitchOpponent,
 } from '../core/engine/pitchBattle';
 import { teamStrength } from '../core/engine/strength';
 import { distanceMeters } from '../core/services/geo';
@@ -159,35 +159,28 @@ export const useBattleStore = create<BattleState>((set, get) => ({
       }
     }
 
-    // Auszuschließen ist IMMER der gestrige Platz: an einem neuen Tag ist das der
-    // gespeicherte spotId, bei einer erneuten Wahl am selben Tag (z. B. weil der
-    // erste Griff ohne GPS außer Reichweite lag) der bereits gemerkte Vortags-
-    // platz. Sonst schließt der zweite Aufruf den ZWISCHEN-Platz aus und landet
-    // wieder auf demselben Platz – dann rotiert nie etwas (V7.4-Fix).
-    const prevId = stored ? (stored.day === today ? stored.prevId ?? null : stored.spotId) : null;
-
-    // Kandidaten für heute: bevorzugt die Plätze im Umkreis. Liegen dort WENIGER
-    // ALS ZWEI, kann nicht rotiert werden – dann die nächstgelegenen dazunehmen,
-    // damit der Gold-Pin trotz kleinem Umkreis täglich wechselt (V7.4-Fix).
+    // Kandidaten für heute: bevorzugt die Plätze im Umkreis. Liegt keiner in
+    // Reichweite (z. B. gecachte Plätze aus einer anderen Stadt), die nächst-
+    // gelegenen nehmen, damit der Gold-Pin nie fehlt.
     let pickFrom = spots.filter(inRange);
-    if (pickFrom.length < 2 && spots.length >= 2) {
-      pickFrom = myPos
-        ? [...spots]
-            .sort(
-              (a, b) =>
-                distanceMeters(myPos.latitude, myPos.longitude, a.latitude, a.longitude) -
-                distanceMeters(myPos.latitude, myPos.longitude, b.latitude, b.longitude),
-            )
-            .slice(0, 3)
-        : spots;
+    if (pickFrom.length === 0 && myPos) {
+      pickFrom = [...spots]
+        .sort(
+          (a, b) =>
+            distanceMeters(myPos.latitude, myPos.longitude, a.latitude, a.longitude) -
+            distanceMeters(myPos.latitude, myPos.longitude, b.latitude, b.longitude),
+        )
+        .slice(0, 3);
     }
     if (pickFrom.length === 0) pickFrom = spots;
-    const specialSpotId = specialSpotIdForDay(pickFrom.map((s) => s.id), today, prevId);
+
+    // Reihum-Rotation (V7.4-Fix): stabile Reihenfolge nach Id, dann die fort-
+    // laufende Tagesnummer modulo Anzahl. So besucht der Gold-Pin der Reihe nach
+    // ALLE Plätze im Umkreis, nicht nur die zwei mit dem höchsten Hash.
+    const sorted = [...pickFrom].sort((a, b) => a.id.localeCompare(b.id));
+    const specialSpotId = sorted[dayOrdinal() % sorted.length]?.id;
     if (!specialSpotId) return;
-    await metaRepo.setMeta(
-      'specialSpot',
-      JSON.stringify({ day: today, spotId: specialSpotId, prevId }),
-    );
+    await metaRepo.setMeta('specialSpot', JSON.stringify({ day: today, spotId: specialSpotId }));
     set({ specialSpotId });
   },
 
