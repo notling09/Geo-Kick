@@ -51,6 +51,18 @@ export async function renameNpcClub(id: number, name: string, crest: string): Pr
   await db.runAsync('UPDATE npc_clubs SET name = ?, crest = ? WHERE id = ?', name, crest, id);
 }
 
+/** Kompletten NPC-Klub übernehmen (V7.4: Team-Kontinuität – Mittelfeld bleibt). */
+export async function carryOverNpcClub(
+  id: number,
+  club: { name: string; crest: string; strength: number; roster: NpcClub['roster'] },
+): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    'UPDATE npc_clubs SET name = ?, crest = ?, strength = ?, rosterJson = ? WHERE id = ?',
+    club.name, club.crest, club.strength, JSON.stringify(club.roster), id,
+  );
+}
+
 interface MatchRow {
   id: number;
   season: number;

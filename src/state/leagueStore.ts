@@ -537,16 +537,44 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
     await metaRepo.setMeta('div1Slot', '0');
     let updatedNpcs = await leagueRepo.getNpcClubs(updatedSeason);
 
-    // Mit-Aufsteiger übernehmen (V7.2): Steigt der Nutzer auf, kommt das andere
-    // aufgestiegene Team (der andere in Top 2) mit in die höhere Division –
-    // realistischer als komplett neue Gegner. Name + Wappen werden übernommen,
-    // die Stärke bleibt auf dem Niveau der neuen Division.
-    if (outcome.promoted) {
+    // Team-Kontinuität über die Saisons (V7.4). Die alten NPCs dieser Saison
+    // stehen in `npcs`; finalStandings nennt die Klub-Ids.
+    const oldById = new Map(npcs.map((n) => [String(n.id), n]));
+    const promoSpots = club.division > 1 ? LEAGUE.promotionSpots : 0;
+    const relSpots = club.division < LEAGUE.divisions ? LEAGUE.relegationSpots : 0;
+
+    if (!outcome.promoted && !outcome.relegated) {
+      // Nutzer bleibt: die NPC-Teams aus dem sicheren Mittelfeld (nicht auf-,
+      // nicht abgestiegen) bleiben mit Name/Wappen/Stärke/Kader identisch.
+      const safeMiddle = finalStandings
+        .slice(promoSpots, LEAGUE.clubsPerDivision - relSpots)
+        .filter((r) => r.clubId !== USER_CLUB_ID)
+        .map((r) => oldById.get(r.clubId))
+        .filter((n): n is NpcClub => !!n);
+      for (let i = 0; i < safeMiddle.length && i < updatedNpcs.length; i++) {
+        const s = safeMiddle[i];
+        await leagueRepo.carryOverNpcClub(updatedNpcs[i].id, {
+          name: s.name, crest: s.crest, strength: s.strength, roster: s.roster,
+        });
+      }
+      updatedNpcs = await leagueRepo.getNpcClubs(updatedSeason);
+    } else if (outcome.promoted) {
+      // Mit-Aufsteiger (V7.2): das andere Top-2-Team kommt mit hoch – Name+Wappen,
+      // Stärke bleibt auf dem Niveau der neuen (höheren) Division.
       const otherPromoted = finalStandings
         .slice(0, LEAGUE.promotionSpots)
         .find((r) => r.clubId !== USER_CLUB_ID);
       if (otherPromoted && updatedNpcs.length > 0) {
         await leagueRepo.renameNpcClub(updatedNpcs[0].id, otherPromoted.name, otherPromoted.crest);
+        updatedNpcs = await leagueRepo.getNpcClubs(updatedSeason);
+      }
+    } else if (outcome.relegated) {
+      // Mit-Absteiger (V7.4): das andere Abstiegsteam kommt mit runter.
+      const otherRelegated = finalStandings
+        .slice(LEAGUE.clubsPerDivision - LEAGUE.relegationSpots)
+        .find((r) => r.clubId !== USER_CLUB_ID);
+      if (otherRelegated && updatedNpcs.length > 0) {
+        await leagueRepo.renameNpcClub(updatedNpcs[0].id, otherRelegated.name, otherRelegated.crest);
         updatedNpcs = await leagueRepo.getNpcClubs(updatedSeason);
       }
     }
@@ -562,7 +590,17 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
     await useClStore.getState().ensureSeason(updatedSeason);
     const hasTournament = useClStore.getState().state !== null;
 
-    const newRival = await chooseRival(updatedSeason, updatedNpcs);
+    // Rivale bleibt derselbe Verein, solange er noch in der Division ist (per
+    // Name erkannt, da die Ids je Saison neu sind). Sonst neuer Rivale (V7.4).
+    const oldRivalName = get().rivalClubId ? oldById.get(String(get().rivalClubId))?.name : undefined;
+    const stillHere = oldRivalName ? updatedNpcs.find((n) => n.name === oldRivalName) : undefined;
+    let newRival: string | null;
+    if (stillHere) {
+      newRival = String(stillHere.id);
+      await metaRepo.setMeta('rival', JSON.stringify({ season: updatedSeason, clubId: newRival }));
+    } else {
+      newRival = await chooseRival(updatedSeason, updatedNpcs);
+    }
 
     set({
       season: updatedSeason,
