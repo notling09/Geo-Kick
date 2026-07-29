@@ -378,6 +378,9 @@ const en = {
   lbYou: 'you',
   lbYourPosition: 'Your position',
   lbNotRanked: 'Your club is not ranked yet – play a match so your squad gets synced.',
+  lbFriendSentTitle: 'Friend request sent',
+  lbFriendSent: 'They become your friend as soon as they accept.',
+  lbFriendFailTitle: 'Could not send request',
 
   // Squad
   sqTitle: 'Squad',
@@ -1050,6 +1053,9 @@ const de: typeof en = {
   lbYou: 'du',
   lbYourPosition: 'Dein Platz',
   lbNotRanked: 'Dein Klub ist noch nicht gewertet – spiel ein Match, damit dein Kader synchronisiert wird.',
+  lbFriendSentTitle: 'Anfrage gesendet',
+  lbFriendSent: 'Sobald der Klub annimmt, seid ihr Freunde.',
+  lbFriendFailTitle: 'Anfrage fehlgeschlagen',
 
   sqTitle: 'Kader',
   sqStrength: 'Stärke {n}',
@@ -1711,6 +1717,9 @@ const pt: typeof en = {
   lbYou: 'você',
   lbYourPosition: 'Sua posição',
   lbNotRanked: 'Seu clube ainda não está classificado – jogue uma partida para sincronizar o elenco.',
+  lbFriendSentTitle: 'Pedido enviado',
+  lbFriendSent: 'Vocês ficam amigos assim que o clube aceitar.',
+  lbFriendFailTitle: 'Não foi possível enviar',
 
   sqTitle: 'Elenco',
   sqStrength: 'Força {n}',

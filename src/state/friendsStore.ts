@@ -43,6 +43,8 @@ interface FriendsState {
   /** Eigenen Online-Status senden + Status der Freunde beobachten. */
   ensurePresence: () => Promise<void>;
   addFriend: (code: string) => Promise<AddFriendResult>;
+  /** Freundschaftsanfrage direkt per Klub-Id (aus der Bestenliste, V7.4). */
+  addFriendById: (id: string) => Promise<AddFriendResult>;
   /** Eingehende Anfrage annehmen (Gegenzeile anlegen → Freunde). */
   acceptRequest: (friendId: string) => Promise<void>;
   /** Eingehende Anfrage ablehnen (Zeile des Anfragenden löschen). */
@@ -180,6 +182,27 @@ export const useFriendsStore = create<FriendsState>((set, get) => ({
       return 'ok';
     } catch (e) {
       console.warn('[friends] add failed:', String(e));
+      return 'offline';
+    }
+  },
+
+  addFriendById: async (id) => {
+    const supabase = getSupabase();
+    if (!supabase || useCloudStore.getState().status !== 'online') return 'offline';
+    const userId = await currentUserId();
+    if (!userId) return 'offline';
+    if (id === userId) return 'own_code';
+    const known = [...get().friends, ...get().outgoing];
+    if (known.some((f) => f.id === id)) return 'already_added';
+    try {
+      const { error } = await supabase
+        .from('friendships')
+        .insert({ user_id: userId, friend_id: id });
+      if (error && !String(error.message).includes('duplicate')) throw error;
+      await get().loadFriends();
+      return 'ok';
+    } catch (e) {
+      console.warn('[friends] addById failed:', String(e));
       return 'offline';
     }
   },

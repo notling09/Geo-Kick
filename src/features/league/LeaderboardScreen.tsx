@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   fetchLeaderboard, getSupabase, type CloudSquadPlayer, type LeaderboardEntry,
@@ -8,9 +8,10 @@ import { overallOf } from '../../core/engine/playerGen';
 import type { Position } from '../../core/domain/types';
 import { t, tf } from '../../core/i18n';
 import { useCloudStore } from '../../state/cloudStore';
+import { useFriendsStore } from '../../state/friendsStore';
 import { GKButton, Card } from '../../ui/components';
 import { Crest } from '../../ui/Crest';
-import { IconStar } from '../../ui/icons';
+import { IconCheck, IconStar } from '../../ui/icons';
 import { colors, font, radius, spacing } from '../../ui/theme';
 import type { RootScreenProps } from '../../navigation/types';
 
@@ -35,6 +36,25 @@ export function LeaderboardScreen({ navigation }: RootScreenProps<'Leaderboard'>
   const cloudStatus = useCloudStore((s) => s.status);
   const [entries, setEntries] = useState<LeaderboardEntry[] | null>(null);
   const [myId, setMyId] = useState<string | null>(null);
+  const friends = useFriendsStore((s) => s.friends);
+  const outgoing = useFriendsStore((s) => s.outgoing);
+  const [pending, setPending] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    void useFriendsStore.getState().loadFriends();
+  }, []);
+
+  const onAddFriend = async (id: string) => {
+    const res = await useFriendsStore.getState().addFriendById(id);
+    if (res === 'ok') {
+      setPending((p) => new Set(p).add(id));
+      Alert.alert(t('lbFriendSentTitle'), t('lbFriendSent'));
+    } else if (res === 'already_added') {
+      setPending((p) => new Set(p).add(id));
+    } else if (res === 'offline') {
+      Alert.alert(t('lbFriendFailTitle'), t('prCloudOffline'));
+    }
+  };
 
   const load = useCallback(async () => {
     if (cloudStatus !== 'online') return;
@@ -108,6 +128,19 @@ export function LeaderboardScreen({ navigation }: RootScreenProps<'Leaderboard'>
                     <IconStar size={14} color={podium ?? colors.pitch} />
                     <Text style={styles.strength}>{e.strength}</Text>
                   </View>
+                  {/* Freundschaftsanfrage an fremde Klubs (V7.4) */}
+                  {!isMe &&
+                    (friends.some((f) => f.id === e.id) ||
+                    outgoing.some((f) => f.id === e.id) ||
+                    pending.has(e.id) ? (
+                      <View style={styles.addBtn}>
+                        <IconCheck size={16} color={colors.pitch} />
+                      </View>
+                    ) : (
+                      <Pressable style={styles.addBtn} onPress={() => void onAddFriend(e.id)}>
+                        <Text style={styles.addPlus}>+</Text>
+                      </Pressable>
+                    ))}
                 </Card>
               );
             };
@@ -213,6 +246,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+  },
+  addBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.round,
+    borderWidth: 2,
+    borderColor: colors.pitch,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addPlus: {
+    color: colors.pitch,
+    fontSize: 20,
+    fontWeight: '900',
+    lineHeight: 22,
   },
   strength: {
     fontWeight: '900',
