@@ -103,6 +103,13 @@ export interface Suspension {
   round: number;
 }
 
+/** Verletzung (V7.4): der Spieler fehlt `matchesLeft` Spiele – Liga UND Turnier. */
+export interface Injury {
+  playerId: number;
+  playerName: string;
+  matchesLeft: number;
+}
+
 interface LeagueStateStore {
   season: number;
   round: number;
@@ -116,6 +123,8 @@ interface LeagueStateStore {
   lastPlayedMatch: PlayedUserMatch | null;
   /** Gesperrte eigene Spieler (rote Karte → nächstes Ligaspiel aussetzen) */
   suspensions: Suspension[];
+  /** Verletzte eigene Spieler (V7.4): fehlen Liga UND Turnier für n Spiele */
+  injuries: Injury[];
   /** Meister-Feier nach Platz 1 am Saisonende (Pokal-Animation) */
   championCelebration: { clubName: string; division: number; captainPlayerId: number | null } | null;
   /**
@@ -153,6 +162,11 @@ interface LeagueStateStore {
   updateTournamentSuspensions: (
     newly: Array<{ playerId: number; playerName: string }>,
   ) => Promise<void>;
+  /** Nach JEDEM Spiel (V7.4): laufende Verletzungen um 1 runterzählen und neue
+   *  Verletzungen dieses Spiels aufnehmen (gilt für Liga und Turnier). */
+  processMatchInjuries: (
+    newly: Array<{ playerId: number; playerName: string; matches: number }>,
+  ) => Promise<void>;
   /** Slot in Division 1 weiterschalten + ggf. Saison abschließen (V7). */
   advanceDiv1Slot: () => Promise<void>;
   /** Nach dem letzten Ligaspiel (V7.4): Liga-Titel + Meister-Animation sofort,
@@ -187,6 +201,16 @@ async function loadSuspensions(): Promise<Suspension[]> {
   if (!raw) return [];
   try {
     return JSON.parse(raw) as Suspension[];
+  } catch {
+    return [];
+  }
+}
+
+async function loadInjuries(): Promise<Injury[]> {
+  const raw = await metaRepo.getMeta('injuries');
+  if (!raw) return [];
+  try {
+    return JSON.parse(raw) as Injury[];
   } catch {
     return [];
   }
@@ -240,6 +264,7 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
   seasonMessage: null,
   lastPlayedMatch: null,
   suspensions: [],
+  injuries: [],
   championCelebration: null,
   pendingCelebration: null,
   seasonReview: null,
@@ -283,6 +308,7 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       standings: recomputeStandings(data.matches, data.npcs),
       seasonMessage: seasonMessage || null,
       suspensions: await loadSuspensions(),
+      injuries: await loadInjuries(),
       seasonReview: await loadSeasonReview(),
       div1Slot,
       careerComplete: (await metaRepo.getMeta('careerComplete')) === '1',
@@ -308,7 +334,8 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
   suspendedForNextMatch: () => {
     // Turnierspiel als nächstes → nur Turnier-Sperren; sonst nur Liga-Sperren
     // der aktuellen Runde. So gilt eine rote Karte NUR im jeweiligen Wettbewerb.
-    const { suspensions, season, round } = get();
+    // Verletzungen gelten IMMER (Liga UND Turnier), V7.4.
+    const { suspensions, injuries, season, round } = get();
     const isTournament = get().nextIsCl();
     const ids = suspensions
       .filter((s) =>
@@ -317,6 +344,7 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
           : s.kind !== 'tournament' && s.season === season && s.round === round,
       )
       .map((s) => s.playerId);
+    injuries.filter((i) => i.matchesLeft > 0).forEach((i) => ids.push(i.playerId));
     return new Set(ids);
   },
 
@@ -334,6 +362,24 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
     const next = [...kept, ...added];
     await metaRepo.setMeta('suspensions', JSON.stringify(next));
     set({ suspensions: next });
+  },
+
+  processMatchInjuries: async (newly) => {
+    // Laufende Verletzungen zählen für DIESES gerade gespielte Spiel eins runter
+    // (die betroffenen Spieler haben es ausgesetzt). Danach die neuen
+    // Verletzungen dieses Spiels aufnehmen (sie beginnen erst beim nächsten Spiel).
+    const ticked = get()
+      .injuries.map((i) => ({ ...i, matchesLeft: i.matchesLeft - 1 }))
+      .filter((i) => i.matchesLeft > 0);
+    const added: Injury[] = [];
+    newly.forEach((n) => {
+      if (!ticked.some((i) => i.playerId === n.playerId) && !added.some((i) => i.playerId === n.playerId)) {
+        added.push({ playerId: n.playerId, playerName: n.playerName, matchesLeft: n.matches });
+      }
+    });
+    const next = [...ticked, ...added];
+    await metaRepo.setMeta('injuries', JSON.stringify(next));
+    set({ injuries: next });
   },
 
   matchReady: () => {
@@ -602,6 +648,11 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       newRival = await chooseRival(updatedSeason, updatedNpcs);
     }
 
+    // Neue Saison = frischer Anfang: Sperren und Verletzungen zählen nicht mehr
+    // (Ausnahme aus dem Nutzerwunsch, V7.4).
+    await metaRepo.setMeta('suspensions', '[]');
+    await metaRepo.setMeta('injuries', '[]');
+
     set({
       season: updatedSeason,
       round: 1,
@@ -613,6 +664,8 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       careerComplete,
       rivalClubId: newRival,
       hasTournament,
+      suspensions: [],
+      injuries: [],
     });
   },
 
@@ -629,16 +682,10 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
     const nameOf = (id: string) => (id === USER_CLUB_ID ? club.name : npcById.get(id)?.name ?? '?');
     const crestOf = (id: string) => (id === USER_CLUB_ID ? club.crest : npcById.get(id)?.crest ?? 'crest-0');
 
-    // Gesperrte Spieler (rote Karte letzte Runde) spielen dieses Mal nicht mit:
-    // sie zählen weder zur Teamstärke noch zum Ticker-Kader. Nur Liga-Sperren
-    // dieser Runde greifen hier (Turnier-Sperren sind eine andere Sache, V7.4).
-    const suspendedIds = new Set(
-      get()
-        .suspensions.filter(
-          (s) => s.kind !== 'tournament' && s.season === season && s.round === round,
-        )
-        .map((s) => s.playerId),
-    );
+    // Gesperrte/verletzte Spieler spielen dieses Mal nicht mit: sie zählen weder
+    // zur Teamstärke noch zum Ticker-Kader. suspendedForNextMatch() liefert für
+    // ein Ligaspiel die Liga-Sperren dieser Runde PLUS alle Verletzten (V7.4).
+    const suspendedIds = get().suspendedForNextMatch();
     const startingLineup = game
       .lineupPlayers()
       .map((p) => (p && suspendedIds.has(p.id) ? null : p));
@@ -865,6 +912,19 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       );
       const suspensions = [...keptSuspensions, ...newSuspensions];
       await metaRepo.setMeta('suspensions', JSON.stringify(suspensions));
+
+      // Verletzungen (V7.4): laufende um 1 runterzählen und neue dieses Spiels
+      // aufnehmen (fehlen Liga UND Turnier für 1–3 Spiele).
+      const newInjuries = userMatch.events
+        .filter((e) => e.type === 'verletzung' && e.team === userSide && e.player)
+        .map((e) => g2.players.find((p) => p.pool.name === e.player))
+        .filter((p): p is NonNullable<typeof p> => !!p)
+        .map((p) => ({
+          playerId: p.id,
+          playerName: p.pool.name,
+          matches: 1 + Math.floor(Math.random() * 3),
+        }));
+      await get().processMatchInjuries(newInjuries);
 
       // Spieltakt fortschreiben (siehe BALANCING.matchIntervalMs)
       const newRound = round + 1;

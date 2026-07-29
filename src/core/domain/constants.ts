@@ -399,6 +399,10 @@ export const MATCH_SIM = {
   straightRedPerFoul: 0.04,
   /** Stärke-Malus nach roter Karte (Restspielzeit in Unterzahl) */
   redCardPenalty: 0.88,
+  /** V7.4: Verletzungs-Wahrscheinlichkeit pro Team und Minute – SEHR selten
+   *  (~0,04 pro Spiel und Team). Der Spieler ist dann raus (wie ein Ausfall). */
+  injuryPerMinute: 0.0005,
+  injuryPenalty: 0.94,
 } as const;
 
 /**

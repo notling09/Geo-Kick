@@ -312,6 +312,18 @@ export const useClStore = create<ClStore>((set, get) => ({
             });
           await useLeagueStore.getState().updateTournamentSuspensions(redCarded);
 
+          // Verletzungen dieses Turnierspiels (V7.4): laufende runterzählen + neue
+          const newInjuries = result.events
+            .filter((e) => e.type === 'verletzung' && e.team === side && e.player)
+            .map((e) => g2.players.find((p) => p.pool.name === e.player))
+            .filter((p): p is NonNullable<typeof p> => !!p)
+            .map((p) => ({
+              playerId: p.id,
+              playerName: p.pool.name,
+              matches: 1 + Math.floor(Math.random() * 3),
+            }));
+          await useLeagueStore.getState().processMatchInjuries(newInjuries);
+
           useLeagueStore.setState({
             lastPlayedMatch: {
               match: { ...baseMatch, homeGoals: hg, awayGoals: ag, played: true, events: result.events },

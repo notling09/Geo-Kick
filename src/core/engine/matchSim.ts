@@ -334,6 +334,25 @@ function simulateRange(
       continue;
     }
 
+    // Verletzung (V7.4): sehr selten. Der Spieler ist raus (macht kein Tor mehr)
+    // und fehlt nach dem Spiel einige Partien – die Sperre setzt der Store.
+    for (const side of ['home', 'away'] as const) {
+      if (Math.random() < MATCH_SIM.injuryPerMinute) {
+        const team = side === 'home' ? home : away;
+        const player = pickPlayerName(team, undefined, ctx.sentOff[side]);
+        ctx.sentOff[side].add(player);
+        ctx.events.push({
+          minute,
+          type: 'verletzung',
+          team: side,
+          player,
+          text: tf('simInjury', { player, club: team.name }),
+        });
+        if (side === 'home') ctx.homeStrength *= MATCH_SIM.injuryPenalty;
+        else ctx.awayStrength *= MATCH_SIM.injuryPenalty;
+      }
+    }
+
     const roll = Math.random();
     if (roll < homeChanceRate + awayChanceRate) {
       // Wer hat die Chance? Gewichtet nach (taktik-modifizierter) Chancenrate und Stärke

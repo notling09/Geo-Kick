@@ -17,7 +17,7 @@ import { Crest } from '../../ui/Crest';
 import { FormationPitch } from '../../ui/FormationPitch';
 import { PenaltyGoal } from '../../ui/PenaltyGoal';
 import {
-  IconBall, IconCard, IconCheck, IconFlag, IconFlash, IconPause, IconSwap, IconWhistle,
+  IconBall, IconCard, IconCheck, IconCross, IconFlag, IconFlash, IconPause, IconSwap, IconWhistle,
   type IconProps,
 } from '../../ui/icons';
 import { colors, font, radius, spacing } from '../../ui/theme';
@@ -50,6 +50,7 @@ const EVENT_ICON: Record<MatchEvent['type'], React.ComponentType<IconProps>> = {
   wechsel: IconSwap,
   elfmeter: IconWhistle,
   parade: IconCheck,
+  verletzung: IconCross,
 };
 
 const TACTICS: Tactic[] = ['offensiv', 'ausgewogen', 'defensiv'];

@@ -35,8 +35,14 @@ export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
   const leagueSeason = useLeagueStore((s) => s.season);
   const leagueRound = useLeagueStore((s) => s.round);
   const suspensions = useLeagueStore((s) => s.suspensions);
+  const injuries = useLeagueStore((s) => s.injuries);
   const div1Slot = useLeagueStore((s) => s.div1Slot);
   const hasTournament = useLeagueStore((s) => s.hasTournament);
+  // Verletzte Spieler → fehlende Spiele je Spieler-Id (V7.4)
+  const injuryById = useMemo(
+    () => new Map(injuries.filter((i) => i.matchesLeft > 0).map((i) => [i.playerId, i.matchesLeft])),
+    [injuries],
+  );
   const [pickSlot, setPickSlot] = useState<number | null>(null);
   const [pickingCaptain, setPickingCaptain] = useState(false);
   const [form, setForm] = useState<Record<string, number>>({});
@@ -56,20 +62,19 @@ export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
   // Für das NÄCHSTE Spiel gesperrte Spieler (rote Karte). Liga-Sperre gilt nur
   // vor einem Ligaspiel, Turnier-Sperre nur vor einem Turnierspiel (V7.4).
   const isTournamentNext = hasTournament && div1Slot % 3 === 2;
-  const suspendedIds = useMemo(
-    () =>
-      new Set(
-        suspensions
-          .filter((s) => {
-            if (s.season !== leagueSeason) return false;
-            return isTournamentNext
-              ? s.kind === 'tournament'
-              : s.kind !== 'tournament' && s.round === leagueRound;
-          })
-          .map((s) => s.playerId),
-      ),
-    [suspensions, leagueSeason, leagueRound, isTournamentNext],
-  );
+  const suspendedIds = useMemo(() => {
+    const ids = suspensions
+      .filter((s) => {
+        if (s.season !== leagueSeason) return false;
+        return isTournamentNext
+          ? s.kind === 'tournament'
+          : s.kind !== 'tournament' && s.round === leagueRound;
+      })
+      .map((s) => s.playerId);
+    // Verletzte sind für Liga UND Turnier gesperrt (V7.4)
+    injuryById.forEach((_n, id) => ids.push(id));
+    return new Set(ids);
+  }, [suspensions, injuryById, leagueSeason, leagueRound, isTournamentNext]);
 
   const formation: FormationId = club?.formation ?? '4-4-2';
   const slots = FORMATIONS[formation];
@@ -139,12 +144,22 @@ export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
             <Text style={styles.captainBtnText}>C</Text>
           </Pressable>
         </View>
-        {suspendedIds.size > 0 && (
-          <Text style={styles.suspendedHint}>
-            {tf('sqSuspendedHint', {
-              names: players
-                .filter((p) => suspendedIds.has(p.id))
-                .map((p) => p.pool.name)
+        {(() => {
+          const suspNames = players
+            .filter((p) => suspendedIds.has(p.id) && !injuryById.has(p.id))
+            .map((p) => p.pool.name);
+          return suspNames.length > 0 ? (
+            <Text style={styles.suspendedHint}>
+              {tf('sqSuspendedHint', { names: suspNames.join(', ') })}
+            </Text>
+          ) : null;
+        })()}
+        {injuryById.size > 0 && (
+          <Text style={styles.injuryHint}>
+            {tf('sqInjuredHint', {
+              list: players
+                .filter((p) => injuryById.has(p.id))
+                .map((p) => `${p.pool.name} (${injuryById.get(p.id)})`)
                 .join(', '),
             })}
           </Text>
@@ -155,6 +170,7 @@ export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
             key={p.id}
             player={p}
             form={form[p.pool.name] ?? 50}
+            badge={injuryById.has(p.id) ? tf('sqInjuredBadge', { n: injuryById.get(p.id) ?? 0 }) : undefined}
             onPress={() => navigation.navigate('PlayerDetail', { playerId: p.id })}
           />
         ))}
@@ -310,6 +326,12 @@ const styles = StyleSheet.create({
     color: colors.danger,
     fontWeight: '700',
     marginTop: spacing.sm,
+  },
+  injuryHint: {
+    fontSize: font.small,
+    color: colors.accentDark,
+    fontWeight: '700',
+    marginTop: spacing.xs,
   },
   benchTitle: {
     marginTop: spacing.md,

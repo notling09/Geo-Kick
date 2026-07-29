@@ -60,6 +60,7 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
   const clState = useClStore((s) => s.state);
   const lineup = useGameStore((s) => s.lineup);
   const suspensions = useLeagueStore((s) => s.suspensions);
+  const injuries = useLeagueStore((s) => s.injuries);
 
   // Turnier (V7/V7.2): jeder 3. Slot ist ein Turnierspiel. CL in Division 1,
   // Nationaler Pokal in Division 2–4 (state.kind unterscheidet die Texte).
@@ -69,16 +70,19 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
   // Für das NÄCHSTE Spiel gesperrte eigene Spieler (rote Karte). Je nachdem, ob
   // als nächstes ein Liga- oder Turnierspiel ansteht, gilt die passende Sperre
   // (Liga-Sperre nur in der Liga, Turnier-Sperre nur im Turnier, V7.4).
-  const suspendedInLineup = useMemo(
-    () =>
-      suspensions
-        .filter((s) => {
-          if (!lineup.includes(s.playerId) || s.season !== season) return false;
-          return isClNext ? s.kind === 'tournament' : s.kind !== 'tournament' && s.round === round;
-        })
-        .map((s) => s.playerName),
-    [suspensions, season, round, lineup, isClNext],
-  );
+  const suspendedInLineup = useMemo(() => {
+    const names = suspensions
+      .filter((s) => {
+        if (!lineup.includes(s.playerId) || s.season !== season) return false;
+        return isClNext ? s.kind === 'tournament' : s.kind !== 'tournament' && s.round === round;
+      })
+      .map((s) => s.playerName);
+    // Verletzte gelten immer (Liga UND Turnier), V7.4
+    injuries
+      .filter((i) => i.matchesLeft > 0 && lineup.includes(i.playerId))
+      .forEach((i) => names.push(i.playerName));
+    return names;
+  }, [suspensions, injuries, season, round, lineup, isClNext]);
   const clFixture = clState && isClNext ? nextUserClMatch(clState) : null;
   const clUserOut = isClNext && clState ? !userHasClMatch(clState) : false;
 

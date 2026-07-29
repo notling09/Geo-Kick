@@ -90,7 +90,9 @@ export interface NpcClub {
 export type MatchEventType =
   | 'tor' | 'chance' | 'ecke' | 'foul' | 'gelb' | 'rot' | 'anpfiff' | 'halbzeit' | 'abpfiff'
   /** V5: Auswechslung, Elfmeterpfiff und gehaltener Elfmeter */
-  | 'wechsel' | 'elfmeter' | 'parade';
+  | 'wechsel' | 'elfmeter' | 'parade'
+  /** V7.4: Verletzung (selten) – der Spieler ist raus und fehlt danach einige Spiele */
+  | 'verletzung';
 
 /** Team-Statistiken eines simulierten Spiels (für die Endauswertung). */
 export interface TeamStats {
