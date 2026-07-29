@@ -42,7 +42,8 @@
           "imageWidth": 288
         }
       ],
-      "expo-audio"
+      "expo-audio",
+      "./plugins/withAbiSplits"
     ]
   }
 }
