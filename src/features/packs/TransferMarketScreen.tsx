@@ -136,8 +136,9 @@ const styles = StyleSheet.create({
   container: { padding: spacing.md, paddingBottom: spacing.xl },
   headerRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    gap: spacing.sm,
   },
-  title: { fontSize: font.title, fontWeight: '900', color: colors.pitchDark },
+  title: { flex: 1, fontSize: font.title, fontWeight: '900', color: colors.pitchDark },
   subtitle: { color: colors.inkSoft, marginTop: 2, marginBottom: spacing.md },
   timerCard: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',

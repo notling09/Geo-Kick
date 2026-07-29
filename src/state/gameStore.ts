@@ -19,6 +19,7 @@ import * as playerRepo from '../core/db/repositories/playerRepo';
 import * as packRepo from '../core/db/repositories/packRepo';
 import { createSeason } from '../core/services/seasonService';
 import { markSeen, migrateDexGoldNamesV74 } from '../core/services/dex';
+import { setSoundMuted } from '../core/services/sound';
 
 /**
  * Globaler Spielzustand (Kader, Coins, Klub) – Zustand-Store über der
@@ -290,6 +291,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       // V3: neue Rating-Spannen auf den Bestand anwenden
       await migrateRatingsV3();
     }
+    // Sound-Stummschaltung aus dem Spielstand übernehmen (V7.4)
+    setSoundMuted((await metaRepo.getMeta('soundMuted')) === '1');
     const onboarded = (await metaRepo.getMeta('onboarded')) === '1';
     const pool = await playerRepo.getPool();
     if (onboarded) {

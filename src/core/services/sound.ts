@@ -31,7 +31,19 @@ export type SoundName = keyof typeof SOURCES;
 
 const players: Partial<Record<SoundName, AudioPlayer>> = {};
 
+/** Global stummschalten (V7.4): manche Sounds können nerven. */
+let muted = false;
+
+export function setSoundMuted(value: boolean): void {
+  muted = value;
+}
+
+export function isSoundMuted(): boolean {
+  return muted;
+}
+
 export function playSound(name: SoundName): void {
+  if (muted) return;
   try {
     let player = players[name];
     if (!player) {

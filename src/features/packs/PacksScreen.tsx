@@ -143,14 +143,16 @@ export function PacksScreen({ navigation }: TabScreenProps<'Packs'>) {
         ))}
         <SectionTitle>{t('tmTitle')}</SectionTitle>
         <Card style={styles.marketCard}>
-          <View style={styles.packInfo}>
-            <Text style={styles.packLabel}>{t('tmSubtitle')}</Text>
-            <Text style={styles.packMeta}>{t('tmTeaser')}</Text>
+          <View style={styles.marketHeaderRow}>
+            <IconPack size={30} color={colors.pitch} />
+            <View style={styles.packInfo}>
+              <Text style={styles.marketLabel}>{t('tmSubtitle')}</Text>
+              <Text style={styles.packMeta}>{t('tmTeaser')}</Text>
+            </View>
           </View>
           <GKButton
             title={t('tmOpen')}
             onPress={() => navigation.navigate('TransferMarket')}
-            style={styles.openBtn}
           />
         </Card>
 
@@ -194,10 +196,18 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
   },
   marketCard: {
+    gap: spacing.sm,
+    padding: spacing.sm,
+  },
+  marketHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    padding: spacing.sm,
+  },
+  marketLabel: {
+    fontSize: font.h2,
+    fontWeight: '900',
+    color: colors.pitchDark,
   },
   packInfo: {
     flex: 1,

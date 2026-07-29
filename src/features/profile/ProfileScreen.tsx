@@ -12,6 +12,7 @@ import {
 import { getMeta, setMeta } from '../../core/db/repositories/metaRepo';
 import { getLanguage, t, tf, type Language } from '../../core/i18n';
 import { loadTrophies, totalTrophies } from '../../core/services/trophies';
+import { setSoundMuted } from '../../core/services/sound';
 import { useGameStore } from '../../state/gameStore';
 import { useLeagueStore } from '../../state/leagueStore';
 import { GKButton, Card, SectionTitle } from '../../ui/components';
@@ -51,6 +52,7 @@ export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
   const [themeMode, setThemeMode] = useState<'light' | 'dark'>('light');
   const [language, setLanguageState] = useState<Language>(getLanguage());
   const [trophyCount, setTrophyCount] = useState(0);
+  const [muted, setMutedState] = useState(false);
 
   /** Theme wechseln (V6.1): wird beim nächsten App-Start angewendet. */
   const onThemeChange = async (mode: 'light' | 'dark') => {
@@ -71,6 +73,14 @@ export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
     Alert.alert(t('prLangSavedTitle'), t('prLangSaved'));
   };
 
+  /** Sounds stummschalten (V7.4): wirkt sofort, kein Neustart nötig. */
+  const onToggleMute = async () => {
+    const next = !muted;
+    setMutedState(next);
+    setSoundMuted(next);
+    await setMeta('soundMuted', next ? '1' : '0');
+  };
+
   useFocusEffect(
     useCallback(() => {
       (async () => {
@@ -82,6 +92,7 @@ export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
         if (savedLang === 'en' || savedLang === 'de' || savedLang === 'pt') {
           setLanguageState(savedLang);
         }
+        setMutedState((await getMeta('soundMuted')) === '1');
         setTrophyCount(totalTrophies(await loadTrophies()));
         setAchievements(
           await computeAchievements({
@@ -246,6 +257,26 @@ export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
           </View>
           <Text style={styles.aboutText}>
             {t('prLangSaved')}
+          </Text>
+          <Text style={styles.infoRow}>{t('prSound')}</Text>
+          <View style={styles.themeRow}>
+            {([
+              [false, t('prSoundOn')],
+              [true, t('prSoundOff')],
+            ] as Array<[boolean, string]>).map(([value, label]) => (
+              <Pressable
+                key={String(value)}
+                style={[styles.themeBtn, muted === value && styles.themeBtnActive]}
+                onPress={() => { if (muted !== value) void onToggleMute(); }}
+              >
+                <Text style={[styles.themeText, muted === value && styles.themeTextActive]}>
+                  {label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={styles.aboutText}>
+            {t('prSoundHint')}
           </Text>
         </Card>
 
