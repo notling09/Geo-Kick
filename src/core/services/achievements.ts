@@ -3,6 +3,7 @@ import { t } from '../i18n';
 import type { SessionStats } from '../db/repositories/sessionRepo';
 import { countUserWins } from '../db/repositories/leagueRepo';
 import { getMetaNumber } from '../db/repositories/metaRepo';
+import { loadTrophies } from './trophies';
 
 /**
  * Erfolge (Kapitel 3.5): werden aus dem gespeicherten Spielstand abgeleitet,
@@ -34,6 +35,13 @@ export async function computeAchievements(input: AchievementInput): Promise<Achi
   const bestDivision = Math.min(await getMetaNumber('bestDivision', 4), division);
   const packsOpened = packs.filter((p) => p.openedAt !== null).length;
   const hasLegendary = players.some((p) => p.pool.rarity === 'legendaer');
+  const goldCount = players.filter((p) => p.pool.rarity === 'gold').length;
+  // Trophäen-basierte Erfolge (V7.4): karriereübergreifend, bleiben erhalten
+  const cab = await loadTrophies();
+  const cupWins = cab.cupTitles;
+  const clWins = cab.clTitles;
+  const podiums = cab.clRunnerUps + cab.clThird + cab.cupRunnerUps + cab.cupThird;
+  const leagueTitleTotal = Object.values(cab.leagueTitles).reduce((a, b) => a + b, 0);
 
   return [
     {
@@ -148,6 +156,72 @@ export async function computeAchievements(input: AchievementInput): Promise<Achi
       description: t('achTopD'),
       icon: 'trophy',
       unlocked: bestDivision === 1,
+    },
+    // V7.4: mehr Ziele
+    {
+      id: 'wins-50',
+      title: t('achWins50'),
+      description: t('achWins50D'),
+      icon: 'flash',
+      unlocked: wins >= 50,
+    },
+    {
+      id: 'rich',
+      title: t('achRich'),
+      description: t('achRichD'),
+      icon: 'coin',
+      unlocked: stats.totalCoins >= 5000,
+    },
+    {
+      id: 'gold-squad',
+      title: t('achGoldSquad'),
+      description: t('achGoldSquadD'),
+      icon: 'star',
+      unlocked: goldCount >= 5,
+    },
+    {
+      id: 'passport-50',
+      title: t('achPilgrim'),
+      description: t('achPilgrimD'),
+      icon: 'map',
+      unlocked: stats.distinctSpots >= 50,
+    },
+    {
+      id: 'league-champ',
+      title: t('achLeagueChamp'),
+      description: t('achLeagueChampD'),
+      icon: 'trophy',
+      unlocked: leagueTitleTotal >= 1,
+    },
+    {
+      id: 'podium',
+      title: t('achPodium'),
+      description: t('achPodiumD'),
+      icon: 'trophy',
+      unlocked: podiums >= 1,
+    },
+    {
+      id: 'cup-winner',
+      title: t('achCupWin'),
+      description: t('achCupWinD'),
+      icon: 'trophy',
+      unlocked: cupWins >= 1,
+    },
+    {
+      id: 'cl-winner',
+      title: t('achClWin'),
+      description: t('achClWinD'),
+      icon: 'trophy',
+      unlocked: clWins >= 1,
+    },
+    // Das große Ziel: Liga + Champions League in derselben Saison (Double) →
+    // Karriere vollendet. Karriereübergreifend, bleibt für immer erhalten.
+    {
+      id: 'the-double',
+      title: t('achDouble'),
+      description: t('achDoubleD'),
+      icon: 'star',
+      unlocked: cab.doubles >= 1,
     },
   ];
 }
