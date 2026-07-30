@@ -676,7 +676,10 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
     const game = useGameStore.getState();
     const club = game.club;
     if (!club) return null;
-    await game.setTactic(tactic);
+    // Kein setTactic hier (V7.4): die Taktik gilt nur für DIESES Spiel und wird
+    // über initialTactic/buildUserTeam gesetzt, nach dem Abpfiff wieder auf den
+    // neutralen Standard zurückgesetzt (runUserMatch). So bleibt der persistente
+    // club.tactic sauber und der Vor-Spiel-Selektor startet immer auf Ausgewogen.
 
     const npcById = new Map(npcs.map((n) => [String(n.id), n]));
     const nameOf = (id: string) => (id === USER_CLUB_ID ? club.name : npcById.get(id)?.name ?? '?');
@@ -861,8 +864,12 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       const isRival =
         get().rivalClubId != null && String(opponentId) === String(get().rivalClubId);
       if (isRival && userGoals > oppGoals) {
-        total += LEAGUE_REWARDS.rivalWin;
-        breakdown.push(tf('rewardRivalWin', { n: LEAGUE_REWARDS.rivalWin }));
+        // V7.4: Sieg gegen den Rivalen VERDOPPELT die Coins dieses Spiels (×2)
+        // – statt eines festen Bonus. Verdoppelt wird der bis hier erspielte
+        // Betrag (Sieg + Captain-Boni), also z. B. aus 10 werden 20.
+        const rivalBonus = total;
+        total += rivalBonus;
+        breakdown.push(tf('rewardRivalWin', { n: rivalBonus }));
       }
       if (total > 0) await g2.addCoins(total);
       const coinReward = { total, breakdown };

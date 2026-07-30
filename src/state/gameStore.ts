@@ -11,7 +11,7 @@ import {
   generateFillerSquad, generatePlayerPool, generateRandomPoolPlayers, overallOf,
   rollAttributes, rollAttributesExact, type NewPoolPlayer,
 } from '../core/engine/playerGen';
-import { GOLD_PLAYERS, LEGENDARY_PLAYERS, STARTER_WINGERS } from '../core/engine/names';
+import { GOLD_PLAYERS, LEGENDARY_PLAYERS, STAR_OVERALL, STARTER_WINGERS } from '../core/engine/names';
 import { drawPackContent, packTypeFromSource, rollPackBonus } from '../core/engine/packGen';
 import { generateMarket, marketSeed } from '../core/engine/transferMarket';
 import * as metaRepo from '../core/db/repositories/metaRepo';
@@ -176,6 +176,24 @@ const OLD_OVERALL_RANGE: Record<Rarity, [number, number]> = {
   geheim: [99, 99],
 };
 
+/**
+ * V7.4-Migration: Gold-Stars auf ihr festes, realitätsnahes Rating bringen
+ * (STAR_OVERALL). Früher bekam jeder Gold-Spieler einen Zufallswert 75–85,
+ * unabhängig von seiner echten Qualität. Läuft einmalig (Meta-Flag). Level-ups
+ * bleiben erhalten, da nur das Basis-Rating (Attribute) neu gesetzt wird.
+ */
+async function migrateCuratedRatingsV74(): Promise<void> {
+  if ((await metaRepo.getMeta('curatedRatingsV74')) === '1') return;
+  const pool = await playerRepo.getPool();
+  for (const p of pool) {
+    const target = STAR_OVERALL[p.name];
+    if (target === undefined) continue;
+    if (overallOf(p, p.position) === target) continue;
+    await playerRepo.updatePoolAttributes(p.id, rollAttributes(p.position, target));
+  }
+  await metaRepo.setMeta('curatedRatingsV74', '1');
+}
+
 async function migrateRatingsV3(): Promise<void> {
   if ((await metaRepo.getMeta('ratingsV3')) === '1') return;
   const pool = await playerRepo.getPool();
@@ -275,8 +293,9 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (!seeded) {
       await playerRepo.insertPoolPlayers(generatePlayerPool());
       await metaRepo.setMeta('poolSeeded', '1');
-      // Frisch geseedet = bereits auf den V3-Spannen
+      // Frisch geseedet = bereits auf den V3-Spannen und mit festen Star-Ratings
       await metaRepo.setMeta('ratingsV3', '1');
+      await metaRepo.setMeta('curatedRatingsV74', '1');
     } else {
       // Bestehende Installationen: Starter-Namen an die aktuelle Liste angleichen
       await playerRepo.syncStarterNames(STARTER_WINGERS.map((s) => s.name));
@@ -290,6 +309,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       await topUpPool();
       // V3: neue Rating-Spannen auf den Bestand anwenden
       await migrateRatingsV3();
+      // V7.4: Gold-Stars auf ihr festes, realitätsnahes Rating bringen
+      await migrateCuratedRatingsV74();
     }
     // Sound-Stummschaltung aus dem Spielstand übernehmen (V7.4)
     setSoundMuted((await metaRepo.getMeta('soundMuted')) === '1');

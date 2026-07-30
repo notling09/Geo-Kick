@@ -165,6 +165,102 @@ export const GOLD_PLAYERS: Array<{ name: string; position: 'TW' | 'ABW' | 'MF' |
   { name: 'Lucas Chevalar', position: 'TW' },
 ];
 
+/**
+ * Feste Gold-Ratings (V7.4): Statt eines Zufallswerts 75–85 bekommt jeder
+ * Gold-Star ein Overall, das seiner realen Qualität entspricht (angelehnt an
+ * aktuelle FIFA-/Weltklasse-Einschätzungen 2026). So sind Top-Spieler wie
+ * Yamal oder Dembélé oben, junge/unfertige wie Retegi unten in der Gold-Stufe.
+ * Namen, die hier nicht vorkommen, fallen auf den Zufallsbereich zurück.
+ */
+export const STAR_OVERALL: Record<string, number> = {
+  // Etablierte Weltklasse (Gold-Oberkante)
+  'Harry Kanet': 87,
+  'Rodri Hernandes': 88,
+  'Lamin Yamol': 87,
+  'Ousmane Dembelo': 87,
+  'Robert Lewandowsko': 87,
+  'Thibaut Courtoise': 87,
+  'Lautaro Martinello': 86,
+  'Jamal Musialo': 86,
+  'Pedri Gonzalvez': 86,
+  'Florian Wirtzel': 86,
+  'Khvicha Kvaradona': 86,
+  'Bruno Fernandez': 86,
+  'Alisson Beckert': 86,
+  'Mike Maignano': 86,
+  'Cole Palmar': 86,
+  // Sehr stark
+  'Victor Osimenne': 85,
+  'Julian Alvarest': 85,
+  'Phil Fodden': 85,
+  'Martin Odegoal': 85,
+  'Ruben Diaz': 85,
+  'Willy Salibar': 85,
+  'Alexander Isaak': 85,
+  'Bernardo Silvano': 85,
+  'Frenkie de Jongen': 85,
+  'Antoine Griezmanno': 85,
+  'Antonio Rudige': 85,
+  'Ederson Moralez': 85,
+  'Diogo Costo': 85,
+  // Stark
+  'Son Heungmino': 84,
+  'Rafael Leaon': 84,
+  'Declan Rike': 84,
+  'Trent Arnoldson': 84,
+  'Theo Hernandes': 84,
+  'Ronald Araujoo': 84,
+  'Marquinhoz': 84,
+  'Enzo Fernandel': 84,
+  'Matthijs de Ligth': 84,
+  'Niko Willians': 84,
+  'Micha Oliso': 84,
+  'Nuno Mendos': 84,
+  'Josko Guardiol': 83,
+  'Dayot Upamecanoe': 83,
+  'Joao Nevis': 83,
+  'Xavi Simmons': 83,
+  'Pau Cubarso': 83,
+  'Guglielmo Vicaro': 83,
+  // Solide Gold
+  'Marcus Rushford': 82,
+  'Ilkay Gundowin': 82,
+  'Alphonso Davios': 82,
+  'Ben Sesko': 82,
+  'Serhou Guirass': 82,
+  'Warren Zaire': 82,
+  'Desir Douay': 82,
+  'Arda Gulor': 82,
+  'Alejandro Balde': 82,
+  'Micky van de Ven': 82,
+  'Lucas Chevalar': 82,
+  'Kyle Walkman': 81,
+  'Hugo Ekitiko': 81,
+  'Darwin Nunes': 81,
+  'Gabriel Jesuz': 81,
+  'Alex Garnacho': 81,
+  'Savio Ferra': 81,
+  'Manu Kone': 81,
+  'Jarrad Branthwait': 81,
+  'Leny Yoro': 81,
+  'Riccardo Calafior': 81,
+  'Levi Colwin': 81,
+  // Untere Gold-Stufe (jung/unfertig – „gerade noch Gold")
+  'Victor Bonifas': 80,
+  'Kobi Maynoo': 80,
+  'Nico Gonzalo': 80,
+  'Carlos Baleba': 80,
+  'Castello Lukeba': 80,
+  'Adam Wharten': 80,
+  'Endryk Felib': 79,
+  'Rasmus Hojlend': 79,
+  'Malo Gusto': 79,
+  'Bart Verbrugen': 79,
+  'Mateo Retegi': 78,
+  'Filip Jorgensen': 78,
+  'Vitor Roky': 77,
+};
+
 /** Prefixes go before the place name ("FC Misthill"), suffixes after ("Misthill Rovers"). */
 export const NPC_CLUB_PREFIXES = ['FC', 'Athletic', 'Real', 'Sporting', 'Dynamo'];
 export const NPC_CLUB_SUFFIXES = ['United', 'Rovers', 'Wanderers', 'City', 'Town'];

@@ -105,7 +105,11 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
       ? players.find((p) => p.id === championCelebration.captainPlayerId)?.pool ?? null
       : null;
 
-  const [tactic, setTactic] = useState<Tactic>(club?.tactic ?? 'ausgewogen');
+  // Immer neutral starten (V7.4-Fix): die Taktik ist eine Wahl PRO Spiel, kein
+  // persistenter Klub-Wert. Früher wurde club.tactic gelesen, der von Halbzeit-
+  // Wechseln „verschmutzt" war – dadurch stand der Selektor schon auf
+  // offensiv/defensiv, ohne dass der Nutzer etwas gedrückt hatte.
+  const [tactic, setTactic] = useState<Tactic>('ausgewogen');
   const [starting, setStarting] = useState(false);
   const [, forceTick] = useState(0);
   const [fixtureSlot, setFixtureSlot] = useState<number | null>(null);
@@ -235,8 +239,11 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
   }, [seasonPlan, clState, isCup]);
 
   const onKickoff = async () => {
-    // Gesperrte Spieler (rote Karte) müssen erst raus – gilt auch für die CL
-    if (suspendedInLineup.length > 0) {
+    // Gesperrte Spieler (rote Karte) müssen erst raus – aber nur, wenn das
+    // eigene Team überhaupt spielt. Ist der Nutzer im Turnier ausgeschieden
+    // (clUserOut), wird nur die nächste Runde angeschaut; dann darf eine alte
+    // Turnier-Sperre den Button nicht blockieren (V7.4-Fix).
+    if (!clUserOut && suspendedInLineup.length > 0) {
       Alert.alert(t('lgSuspendedTitle'), tf('lgSuspendedBody', { names: suspendedInLineup.join(', ') }));
       return;
     }

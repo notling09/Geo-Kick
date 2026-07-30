@@ -177,7 +177,10 @@ export const useClStore = create<ClStore>((set, get) => ({
     await runUserMatch({
       userIsHome,
       opponent: oppTeam,
-      initialTactic: club.tactic,
+      // V7.4-Fix: die im Liga-Tab GEWÄHLTE Taktik verwenden – vorher wurde
+      // stattdessen der (evtl. veraltete) club.tactic genommen, wodurch die
+      // Auswahl ignoriert wurde und die Halbzeit einen falschen Wert zeigte.
+      initialTactic: tactic,
       buildUserTeam: userTeamFactory(suspendedIds),
       publish: (st, pause) =>
         useLeagueStore.setState({

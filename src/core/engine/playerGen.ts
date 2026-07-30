@@ -1,6 +1,8 @@
 import { MAX_PLAYER_OVERALL, POSITION_WEIGHTS, RARITY_OVERALL_RANGE, STARTER_OVERALL } from '../domain/constants';
 import type { Attributes, PoolPlayer, Position, Rarity } from '../domain/types';
-import { FIRST_NAMES, GOLD_PLAYERS, LAST_NAMES, LEGENDARY_PLAYERS, STARTER_WINGERS } from './names';
+import {
+  FIRST_NAMES, GOLD_PLAYERS, LAST_NAMES, LEGENDARY_PLAYERS, STAR_OVERALL, STARTER_WINGERS,
+} from './names';
 import { pick, randInt, shuffle } from './random';
 
 /**
@@ -103,13 +105,15 @@ export function createCuratedPoolPlayer(
   entry: { name: string; position: Position },
 ): NewPoolPlayer {
   const [min, max] = RARITY_OVERALL_RANGE[rarity];
+  // Feste Star-Ratings haben Vorrang vor dem Zufallsbereich (V7.4)
+  const target = STAR_OVERALL[entry.name] ?? randInt(min, max);
   return {
     name: entry.name,
     position: entry.position,
     rarity,
     isStarterChoice: false,
     isFiller: false,
-    ...rollAttributes(entry.position, randInt(min, max)),
+    ...rollAttributes(entry.position, target),
   };
 }
 
@@ -186,13 +190,15 @@ export function generatePlayerPool(): NewPoolPlayer[] {
     if (curatedList) {
       curatedList.forEach(({ name, position }) => {
         usedNames.add(name);
+        // Feste Star-Ratings haben Vorrang vor dem Zufallsbereich (V7.4)
+        const target = STAR_OVERALL[name] ?? randInt(min, max);
         players.push({
           name,
           position,
           rarity,
           isStarterChoice: false,
           isFiller: false,
-          ...rollAttributes(position, randInt(min, max)),
+          ...rollAttributes(position, target),
         });
       });
       return;

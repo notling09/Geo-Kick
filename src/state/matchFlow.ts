@@ -40,6 +40,10 @@ export interface UserMatchHooks {
 let halftimeFn: ((tactic: Tactic) => Promise<void>) | null = null;
 let penaltyFn: ((scored: boolean) => Promise<void>) | null = null;
 let restoreLineupFn: (() => Promise<void>) | null = null;
+let restoreTacticFn: (() => Promise<void>) | null = null;
+
+/** Neutraler Standard, auf den die Taktik nach jedem Spiel zurückfällt (V7.4). */
+const DEFAULT_TACTIC: Tactic = 'ausgewogen';
 
 export async function resumeSecondHalf(tactic: Tactic): Promise<void> {
   const fn = halftimeFn;
@@ -74,7 +78,10 @@ export async function abandonLiveMatch(): Promise<void> {
   penaltyFn = null;
   const restore = restoreLineupFn;
   restoreLineupFn = null;
+  const restoreTactic = restoreTacticFn;
+  restoreTacticFn = null;
   if (restore) await restore();
+  if (restoreTactic) await restoreTactic();
 }
 
 /** Ein Nutzer-Spiel starten und bis zum Abpfiff durch alle Pausen führen. */
@@ -91,6 +98,15 @@ export async function runUserMatch(hooks: UserMatchHooks): Promise<void> {
     }
   };
   restoreLineupFn = restoreLineup;
+  // Taktik zurücksetzen (V7.4-Fix): die während des Spiels (Kickoff/Halbzeit)
+  // gesetzte Taktik gilt nur für DIESES Spiel. Nach dem Abpfiff/Abbruch fällt
+  // der persistente club.tactic auf den neutralen Standard zurück, damit der
+  // Vor-Spiel-Selektor nie versehentlich auf offensiv/defensiv steht.
+  const restoreTactic = async () => {
+    const g = useGameStore.getState();
+    if (g.club && g.club.tactic !== DEFAULT_TACTIC) await g.setTactic(DEFAULT_TACTIC);
+  };
+  restoreTacticFn = restoreTactic;
   let userTeam = await hooks.buildUserTeam(hooks.initialTactic);
   const home = () => (hooks.userIsHome ? userTeam : hooks.opponent);
   const away = () => (hooks.userIsHome ? hooks.opponent : userTeam);
@@ -101,7 +117,9 @@ export async function runUserMatch(hooks: UserMatchHooks): Promise<void> {
   const handle = async (outcome: LiveOutcome): Promise<void> => {
     if (outcome.kind === 'fulltime') {
       restoreLineupFn = null;
+      restoreTacticFn = null;
       await restoreLineup();
+      await restoreTactic();
       await hooks.finalize(outcome.result);
       return;
     }
