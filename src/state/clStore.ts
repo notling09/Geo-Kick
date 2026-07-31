@@ -15,6 +15,7 @@ import { useGameStore } from './gameStore';
 import { useLeagueStore, type PlayedUserMatch } from './leagueStore';
 import { runUserMatch } from './matchFlow';
 import { addTournamentPlace } from '../core/services/trophies';
+import { addPassPoints, reportMissionEvent } from '../core/services/pass';
 import type { ShootoutSetup } from './battleStore';
 
 /**
@@ -239,6 +240,30 @@ export const useClStore = create<ClStore>((set, get) => ({
           }
           if (coins > 0) await g2.addCoins(coins);
 
+          // Saisonpass (V7.7): Turnierspiel zählt auch für Punkte + Missionen
+          if (won) {
+            await addPassPoints(20);
+            await reportMissionEvent('win');
+            await reportMissionEvent('clWin');
+          }
+          {
+            const side = userIsHome ? 'home' : 'away';
+            const ug = result.events.filter((e) => e.type === 'tor' && e.team === side).length;
+            if (ug > 0) await reportMissionEvent('goal', ug);
+            if (won && finalOppGoals === 0) await reportMissionEvent('cleanSheet');
+            if (captain) {
+              const cg = result.events.filter(
+                (e) => e.type === 'tor' && e.team === side && e.player === captain.pool.name,
+              ).length;
+              const ca = result.events.filter(
+                (e) => e.type === 'tor' && e.team === side && e.assist === captain.pool.name,
+              ).length;
+              if (cg > 0) { await addPassPoints(cg * 10); await reportMissionEvent('captainGoal', cg); }
+              if (ca > 0) await addPassPoints(ca * 5);
+              if (result.motm && result.motm.name === captain.pool.name) await addPassPoints(20);
+            }
+          }
+
           // Saison-Statistik (V7.4): auch Turnierspiele zählen für den Spieler
           // der Saison – dieselbe Notenlogik wie in der Liga, Startelf des Spiels.
           try {
@@ -288,6 +313,7 @@ export const useClStore = create<ClStore>((set, get) => ({
           const kind = isCup ? 'cup' : 'cl';
           if (state.champion === USER_CLUB_ID) {
             await addTournamentPlace(kind, 1);
+            await addPassPoints(150); // Saisonpass: Turnier gewonnen (V7.7)
             useLeagueStore.setState({
               pendingCelebration: {
                 clubName: club.name,

@@ -301,6 +301,18 @@ export const PACK_TYPES: Record<PackTypeId, PackType> = {
 
 export const SHOP_PACK_IDS: PackTypeId[] = ['standard', 'rare', 'ultimate'];
 
+/**
+ * Transfermarkt-Token aus Packs (V7.7): Gewichte je Pack-Typ für 0/1/2/3
+ * Token. 0 ist am häufigsten, mehr Token werden mit besseren Packs
+ * wahrscheinlicher; 3 gibt es praktisch nur bei Ultimate mit viel Glück.
+ */
+export const TOKEN_DROP_ODDS: Record<PackTypeId, number[]> = {
+  session: [75, 25],
+  standard: [60, 35, 5],
+  rare: [50, 35, 15],
+  ultimate: [25, 40, 25, 10],
+};
+
 /** Basis-Overall-Spannen je Seltenheit (vor Level-Boni; V3-Rework) */
 export const RARITY_OVERALL_RANGE: Record<Rarity, [number, number]> = {
   bronze: [35, 59],

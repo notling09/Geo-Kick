@@ -63,7 +63,9 @@ function MarketCard({ player, bought, onBuy }: {
 }
 
 export function TransferMarketScreen({ navigation }: RootScreenProps<'TransferMarket'>) {
-  const { club, market, marketBought, refreshMarket, buyMarketPlayer } = useGameStore();
+  const {
+    club, market, marketBought, marketTokens, refreshMarket, buyMarketPlayer, rerollMarket,
+  } = useGameStore();
   const [countdown, setCountdown] = useState(timeToMidnight());
 
   // Beim Öffnen (und Tageswechsel) den Markt neu laden
@@ -93,18 +95,42 @@ export function TransferMarketScreen({ navigation }: RootScreenProps<'TransferMa
     }
   };
 
+  const onReroll = () => {
+    if (marketTokens < 1) {
+      Alert.alert(t('tmNoTokenTitle'), t('tmNoTokenMsg'));
+      return;
+    }
+    Alert.alert(t('tmRerollTitle'), t('tmRerollMsg'), [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('tmRerollGo'), onPress: () => { void rerollMarket(); } },
+    ]);
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.headerRow}>
           <Text style={styles.title}>{t('tmTitle')}</Text>
-          <CoinBadge coins={club?.coins ?? 0} />
+          <View style={styles.headerBadges}>
+            <View style={styles.tokenBadge}>
+              <Text style={styles.tokenText}>{tf('tmTokens', { n: marketTokens })}</Text>
+            </View>
+            <CoinBadge coins={club?.coins ?? 0} />
+          </View>
         </View>
         <Text style={styles.subtitle}>{t('tmSubtitle')}</Text>
 
         <Card style={styles.timerCard}>
-          <Text style={styles.timerLabel}>{t('tmRefreshIn')}</Text>
-          <Text style={styles.timerValue}>{countdown}</Text>
+          <View>
+            <Text style={styles.timerLabel}>{t('tmRefreshIn')}</Text>
+            <Text style={styles.timerValue}>{countdown}</Text>
+          </View>
+          <GKButton
+            title={tf('tmReroll', { n: marketTokens })}
+            variant="secondary"
+            onPress={onReroll}
+            style={styles.rerollBtn}
+          />
         </Card>
 
         <View style={styles.grid}>
@@ -146,6 +172,13 @@ const styles = StyleSheet.create({
   },
   timerLabel: { color: colors.inkSoft, fontWeight: '700' },
   timerValue: { color: colors.gold, fontWeight: '900', fontSize: font.h2 },
+  headerBadges: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  tokenBadge: {
+    backgroundColor: '#7d3fb0', borderRadius: radius.round,
+    paddingHorizontal: spacing.sm, paddingVertical: 4,
+  },
+  tokenText: { color: '#fff', fontWeight: '900', fontSize: font.small },
+  rerollBtn: { paddingVertical: 8, paddingHorizontal: spacing.md },
   grid: {
     flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, justifyContent: 'space-between',
   },

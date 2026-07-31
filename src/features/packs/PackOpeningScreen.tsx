@@ -60,6 +60,7 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
 
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [bonus, setBonus] = useState(0);
+  const [tokens, setTokens] = useState(0);
   const [index, setIndex] = useState(0);
   const [phase, setPhase] = useState<Phase>('pack');
   const [busy, setBusy] = useState(false);
@@ -188,6 +189,7 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
     try {
       const result = await openPack(packId ?? -1);
       setBonus(result.bonus);
+      setTokens(result.tokens);
       // Reihenfolge: schlechtester zuerst, die ???-Karte (99) immer zuletzt
       const sorted = [...result.entries].sort((a, b) => {
         const ovr = (e: PackEntry) =>
@@ -511,6 +513,12 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
                 <IconCoin size={26} color="#0D47A1" fill="#90CAF9" />
                 <Text style={styles.bonusValue}>{tf('poBonusPoints', { n: bonus })}</Text>
               </View>
+              {tokens > 0 && (
+                <View style={[styles.bonusRow, styles.tokenRow]}>
+                  <Text style={styles.tokenIcon}>◆</Text>
+                  <Text style={[styles.bonusValue, styles.tokenValue]}>{tf('poBonusTokens', { n: tokens })}</Text>
+                </View>
+              )}
               <Text style={styles.bonusHint}>
                 {t('poBonusHint')}
               </Text>
@@ -697,6 +705,17 @@ const styles = StyleSheet.create({
     fontSize: font.h2,
     fontWeight: '900',
     color: colors.ink,
+  },
+  tokenRow: {
+    marginTop: spacing.xs,
+  },
+  tokenIcon: {
+    fontSize: 24,
+    color: '#7d3fb0',
+    fontWeight: '900',
+  },
+  tokenValue: {
+    color: '#7d3fb0',
   },
   bonusHint: {
     fontSize: font.small,

@@ -1,4 +1,4 @@
-import { BALANCING, PACK_TYPES, type EggType, type PackType } from '../domain/constants';
+import { BALANCING, PACK_TYPES, TOKEN_DROP_ODDS, type EggType, type PackType } from '../domain/constants';
 import type { PoolPlayer, Position, Rarity } from '../domain/types';
 import { pick, pickWeighted } from './random';
 
@@ -119,6 +119,18 @@ export function drawEggPlayer(pool: PoolPlayer[], eggType: EggType): PoolPlayer 
   );
   const candidates = drawable.filter((p) => p.rarity === rarity);
   return pickBalanced(candidates, drawable);
+}
+
+/** Transfermarkt-Token aus einem geöffneten Pack würfeln (0–3), V7.7. */
+export function rollTokens(packType: PackType): number {
+  const odds = TOKEN_DROP_ODDS[packType.id] ?? [1];
+  const total = odds.reduce((s, w) => s + w, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < odds.length; i++) {
+    r -= odds[i];
+    if (r <= 0) return i;
+  }
+  return 0;
 }
 
 /** Pack-Typ aus dem gespeicherten source-Feld ableiten. */

@@ -15,6 +15,7 @@ import * as metaRepo from '../core/db/repositories/metaRepo';
 import { useGameStore } from './gameStore';
 import { useLeagueStore, type PlayedUserMatch } from './leagueStore';
 import { runUserMatch } from './matchFlow';
+import { addPassPoints, reportMissionEvent } from '../core/services/pass';
 
 /**
  * Platz-Kämpfe (V4): An jedem Platz wartet ein Gegner-Team – herausfordern
@@ -295,6 +296,12 @@ export const useBattleStore = create<BattleState>((set, get) => ({
         } else if (won) {
           await g2.grantPack('session');
           coinReward = { total: 0, breakdown: [t('rewardBattlePack')] };
+        }
+        // Saisonpass (V7.7): Pitch-Sieg (Boss zählt mehr) + Missionen
+        if (won) {
+          await addPassPoints(isBoss ? 40 : 20);
+          await reportMissionEvent('pitchWin');
+          if (isBoss) await reportMissionEvent('boss');
         }
 
         if (draw) {

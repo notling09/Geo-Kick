@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { EGG_TYPES, type EggType } from '../core/domain/constants';
 import { drawEggPlayer } from '../core/engine/packGen';
+import { addPassPoints, reportMissionEvent } from '../core/services/pass';
 import { pickWeighted } from '../core/engine/random';
 import { startEggTracking, stopEggTracking } from '../core/services/eggTracker';
 import * as metaRepo from '../core/db/repositories/metaRepo';
@@ -125,6 +126,9 @@ export const useEggStore = create<EggState>((set, get) => ({
     if (pool.length === 0) return null;
     const drawn = drawEggPlayer(pool, type);
     const entry = await useGameStore.getState().receivePlayer(drawn);
+    // Saisonpass (V7.7): Ei ausgebrütet
+    await addPassPoints(10);
+    await reportMissionEvent('egg');
     const updated = eggs.filter((_, i) => i !== index);
     await persistEggs(updated);
     set({ eggs: updated });

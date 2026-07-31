@@ -23,6 +23,7 @@ export type RootStackParamList = {
   CareerComplete: undefined;
   Dex: undefined;
   TransferMarket: undefined;
+  SeasonPass: undefined;
 };
 
 export type MainTabParamList = {

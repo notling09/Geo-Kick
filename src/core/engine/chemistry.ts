@@ -43,7 +43,10 @@ export function slotChemState(
 ): ChemState {
   const eligible = eligiblePositions(player);
   if (eligible.includes(slotPos)) return 'green';
-  if (ADJACENT[slotPos].some((p) => eligible.includes(p))) return 'yellow';
+  // Gelb entsteht NUR über die Hauptposition (eligible[0]). Nebenpositionen
+  // geben grün auf genau ihrer Position, aber keine Gelb-Nachbarschaft
+  // (Klarstellung): Bernardo (MF-Haupt, FL-Neben) ist bei ST rot, nicht gelb.
+  if (ADJACENT[slotPos].includes(eligible[0])) return 'yellow';
   return 'red';
 }
 

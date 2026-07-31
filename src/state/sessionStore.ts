@@ -9,6 +9,7 @@ import { t } from '../core/i18n';
 import { dayKey } from '../core/engine/pitchBattle';
 import { shuffle } from '../core/engine/random';
 import { calculateReward } from '../core/engine/rewards';
+import { addPassPoints, reportMissionEvent } from '../core/services/pass';
 import { distanceMeters } from '../core/services/geo';
 import { getPositionWithTimeout } from '../core/services/location';
 import { startMotionTracking, stopMotionTracking } from '../core/services/motion';
@@ -376,6 +377,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const game = useGameStore.getState();
     await game.addCoins(totalCoins);
     if (reward.pack) await game.grantPack('session');
+    // Saisonpass (V7.7): Check-in abgeschlossen (Gold-Platz = doppelte Punkte)
+    await addPassPoints(doubled ? 40 : 20);
+    await reportMissionEvent('checkin');
 
     // V4: Heimplatz neu bestimmen und ggf. ein neues Ei vergeben (max. 3)
     const homeSpotId = await recomputeHomeSpot();

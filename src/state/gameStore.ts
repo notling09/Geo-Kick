@@ -13,7 +13,7 @@ import {
 } from '../core/engine/playerGen';
 import { GOLD_PLAYERS, LEGENDARY_PLAYERS, STAR_OVERALL, STAR_POSITIONS, STARTER_WINGERS } from '../core/engine/names';
 import { eligiblePositions } from '../core/engine/chemistry';
-import { drawPackContent, packTypeFromSource, rollPackBonus } from '../core/engine/packGen';
+import { drawPackContent, packTypeFromSource, rollPackBonus, rollTokens } from '../core/engine/packGen';
 import { generateMarket, marketSeed } from '../core/engine/transferMarket';
 import * as metaRepo from '../core/db/repositories/metaRepo';
 import * as playerRepo from '../core/db/repositories/playerRepo';
@@ -21,6 +21,7 @@ import * as packRepo from '../core/db/repositories/packRepo';
 import { createSeason } from '../core/services/seasonService';
 import { markSeen, migrateDexGoldNamesV74 } from '../core/services/dex';
 import { setSoundMuted } from '../core/services/sound';
+import { addPassPoints, reportMissionEvent } from '../core/services/pass';
 
 /**
  * Globaler Spielzustand (Kader, Coins, Klub) – Zustand-Store über der
@@ -46,6 +47,8 @@ interface GameState {
   marketBought: number[];
   /** Seed/Tag des aktuellen Marktes – wechselt um Mitternacht */
   marketDay: number;
+  /** Transfermarkt-Token (V7.7): 1 Token = Markt sofort neu würfeln */
+  marketTokens: number;
 
   init: () => Promise<void>;
   completeOnboarding: (clubName: string, crest: string, starterPoolId: number) => Promise<void>;
@@ -76,6 +79,10 @@ interface GameState {
   refreshMarket: () => Promise<void>;
   /** Markt-Spieler an Index kaufen (Coins → Kader), V7.4 */
   buyMarketPlayer: (index: number) => Promise<MarketBuyResult>;
+  /** Markt mit 1 Token sofort neu würfeln (echte neue Spieler), V7.7 */
+  rerollMarket: () => Promise<boolean>;
+  /** Transfermarkt-Token gutschreiben (aus Packs/Saisonpass), V7.7 */
+  addMarketTokens: (n: number) => Promise<void>;
 }
 
 /** Ergebnis eines Markt-Kaufs. */
@@ -98,6 +105,8 @@ export interface PackOpenResult {
   entries: PackEntry[];
   /** Wird doppelt gutgeschrieben: +bonus Coins und +bonus Level-up-Punkte */
   bonus: number;
+  /** Transfermarkt-Token aus diesem Pack (0–3), Anzeige nach dem Bonus (V7.7) */
+  tokens: number;
 }
 
 /** Anzeige-Platzhalter für die ???-Karte, bis der Nutzer sie benannt hat. */
@@ -315,6 +324,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   market: [],
   marketBought: [],
   marketDay: 0,
+  marketTokens: 0,
 
   init: async () => {
     // Spieler-Pool einmalig erzeugen (fiktive Identitäten, Kapitel 8/9)
@@ -381,6 +391,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         pool,
         captainPlayerId: captainPlayerId || null,
         levelPoints: await metaRepo.getMetaNumber('levelPoints', 0),
+        marketTokens: await metaRepo.getMetaNumber('marketTokens', 0),
       });
       // Transfermarkt des Tages bereitstellen (V7.4)
       await get().refreshMarket();
@@ -546,13 +557,19 @@ export const useGameStore = create<GameState>((set, get) => ({
     const bonus = rollPackBonus(packType);
     await get().addCoins(bonus);
     await get().addLevelPoints(bonus);
+    // Transfermarkt-Token aus dem Pack (V7.7): 0–3, je nach Pack-Typ
+    const tokens = rollTokens(packType);
+    if (tokens > 0) await get().addMarketTokens(tokens);
+    // Saisonpass (V7.7): Pack geöffnet
+    await addPassPoints(10);
+    await reportMissionEvent('openPack');
     // Sammelalbum: alle gezogenen Spieler als „besessen" merken (V7.2)
     await markSeen(entries.map((e) => e.pool.name));
     set({
       packs: await packRepo.getPacks(),
       players: await playerRepo.getOwnedPlayers(),
     });
-    return { entries, bonus };
+    return { entries, bonus, tokens };
   },
 
   /**
@@ -685,34 +702,40 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   /**
-   * Transfermarkt des Tages laden (V7.4). Die 6 Spieler sind aus dem Seed
-   * deterministisch – wir speichern nur, welche Slots heute schon gekauft
-   * wurden. Bei Tageswechsel (neuer Seed) werden die Käufe zurückgesetzt.
+   * Transfermarkt laden (V7.4/V7.7). Gespeichert wird {day, seed, bought}: der
+   * Tagesmarkt hat seed = Tagesnummer; nach einem Token-Reroll steht dort ein
+   * Zufalls-Seed für denselben Tag. Bei Tageswechsel gibt es einen frischen
+   * Tagesmarkt (bought zurückgesetzt).
    */
   refreshMarket: async () => {
     const pool = get().pool;
     if (pool.length === 0) return;
-    const seed = marketSeed();
-    const market = generateMarket(pool, seed);
+    const today = marketSeed();
+    let seed = today;
     let bought: number[] = [];
     try {
       const stored = JSON.parse((await metaRepo.getMeta('market')) || 'null') as
-        | { seed: number; bought: number[] }
+        | { day: number; seed: number; bought: number[] }
         | null;
-      if (stored && stored.seed === seed) bought = stored.bought ?? [];
+      if (stored && stored.day === today) {
+        seed = stored.seed;
+        bought = stored.bought ?? [];
+      } else {
+        await metaRepo.setMeta('market', JSON.stringify({ day: today, seed: today, bought: [] }));
+      }
     } catch {
-      bought = [];
+      seed = today;
     }
-    set({ market, marketDay: seed, marketBought: bought });
+    set({ market: generateMarket(pool, seed), marketDay: today, marketBought: bought });
   },
 
   /**
    * Einen Markt-Spieler kaufen: Kaufpreis (BUY_VALUE) von den Coins abziehen
-   * und den Spieler in den Kader aufnehmen. Der Slot gilt danach als gekauft
-   * (nur einmal pro Tag). Kader-Limit und Coins werden geprüft.
+   * und den Spieler in den Kader aufnehmen. Der Slot gilt danach als gekauft.
+   * Kader-Limit und Coins werden geprüft.
    */
   buyMarketPlayer: async (index) => {
-    const { market, marketBought, club, players, marketDay } = get();
+    const { market, marketBought, club, players } = get();
     const poolPlayer = market[index];
     if (!poolPlayer || poolPlayer.rarity === 'geheim') return 'error';
     if (marketBought.includes(index)) return 'already';
@@ -722,10 +745,38 @@ export const useGameStore = create<GameState>((set, get) => ({
     await get().addCoins(-price);
     await playerRepo.addOwnedPlayer(poolPlayer.id);
     await markSeen([poolPlayer.name]);
+    // Saisonpass (V7.7): Marktspieler gekauft
+    await addPassPoints(15);
+    await reportMissionEvent('marketBuy');
     const bought = [...marketBought, index];
-    await metaRepo.setMeta('market', JSON.stringify({ seed: marketDay, bought }));
+    const today = marketSeed();
+    let seed = today;
+    try {
+      const stored = JSON.parse((await metaRepo.getMeta('market')) || 'null') as
+        | { seed: number } | null;
+      if (stored?.seed !== undefined) seed = stored.seed;
+    } catch { /* Tagesmarkt */ }
+    await metaRepo.setMeta('market', JSON.stringify({ day: today, seed, bought }));
     set({ marketBought: bought, players: await playerRepo.getOwnedPlayers() });
     return 'ok';
+  },
+
+  /** Markt mit 1 Token sofort neu würfeln: echte neue Zufallsspieler (V7.7). */
+  rerollMarket: async () => {
+    const pool = get().pool;
+    if (get().marketTokens < 1 || pool.length === 0) return false;
+    await get().addMarketTokens(-1);
+    const today = marketSeed();
+    const seed = (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0;
+    await metaRepo.setMeta('market', JSON.stringify({ day: today, seed, bought: [] }));
+    set({ market: generateMarket(pool, seed), marketDay: today, marketBought: [] });
+    return true;
+  },
+
+  addMarketTokens: async (n) => {
+    const marketTokens = Math.max(0, get().marketTokens + n);
+    await metaRepo.setMeta('marketTokens', String(marketTokens));
+    set({ marketTokens });
   },
 }));
 

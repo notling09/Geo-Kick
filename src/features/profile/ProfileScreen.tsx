@@ -15,6 +15,8 @@ import { loadTrophies, totalTrophies } from '../../core/services/trophies';
 import { setSoundMuted } from '../../core/services/sound';
 import { useGameStore } from '../../state/gameStore';
 import { useLeagueStore } from '../../state/leagueStore';
+import { usePassStore } from '../../state/passStore';
+import { POINTS_PER_LEVEL } from '../../core/services/pass';
 import { GKButton, Card, SectionTitle } from '../../ui/components';
 import type { TabScreenProps } from '../../navigation/types';
 import { Crest } from '../../ui/Crest';
@@ -53,6 +55,8 @@ export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
   const [language, setLanguageState] = useState<Language>(getLanguage());
   const [trophyCount, setTrophyCount] = useState(0);
   const [muted, setMutedState] = useState(false);
+  const passSnap = usePassStore((s) => s.snapshot);
+  const refreshPass = usePassStore((s) => s.refresh);
 
   /** Theme wechseln (V6.1): wird beim nächsten App-Start angewendet. */
   const onThemeChange = async (mode: 'light' | 'dark') => {
@@ -93,6 +97,7 @@ export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
           setLanguageState(savedLang);
         }
         setMutedState((await getMeta('soundMuted')) === '1');
+        await refreshPass();
         setTrophyCount(totalTrophies(await loadTrophies()));
         setAchievements(
           await computeAchievements({
@@ -118,6 +123,27 @@ export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
             {tf('prDivision', { n: club?.division ?? 4 })} · {tf('prSeason', { n: season })}
           </Text>
         </View>
+
+        <SectionTitle>{t('passTitle')}</SectionTitle>
+        <Card style={styles.passCard}>
+          <View style={styles.passRow}>
+            <Text style={styles.passLevel}>{tf('passLevel', { n: passSnap?.level ?? 1 })}</Text>
+            <Text style={styles.passDays}>{tf('passResetIn', { n: passSnap?.daysLeft ?? 7 })}</Text>
+          </View>
+          <View style={styles.passBarWrap}>
+            <View
+              style={[
+                styles.passBarFill,
+                { width: `${Math.min(100, ((passSnap?.pointsInLevel ?? 0) / POINTS_PER_LEVEL) * 100)}%` },
+              ]}
+            />
+          </View>
+        </Card>
+        <GKButton
+          title={t('passOpen')}
+          variant="secondary"
+          onPress={() => navigation.navigate('SeasonPass')}
+        />
 
         <SectionTitle>{t('prRealActivity')}</SectionTitle>
         <View style={styles.statsGrid}>
@@ -319,6 +345,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 4,
   },
+  passCard: { padding: spacing.md, marginBottom: spacing.xs },
+  passRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  passLevel: { fontSize: font.h2, fontWeight: '900', color: '#7d3fb0' },
+  passDays: { color: colors.inkSoft, fontWeight: '700', fontSize: font.small },
+  passBarWrap: {
+    height: 10, borderRadius: 5, backgroundColor: colors.line, overflow: 'hidden', marginTop: spacing.sm,
+  },
+  passBarFill: { height: '100%', borderRadius: 5, backgroundColor: '#7d3fb0' },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

@@ -6,6 +6,8 @@ import type { Match, MatchStats, NpcClub, OwnedPlayer, StandingRow, Tactic } fro
 import { computeStandings, generateNpcRoster, resolveSeason } from '../core/engine/league';
 import { simulateMatch, type MatchMotm, type SimTeam } from '../core/engine/matchSim';
 import { teamStrength } from '../core/engine/strength';
+import { teamChemistry } from '../core/engine/chemistry';
+import { addPassPoints, reportMissionEvent } from '../core/services/pass';
 import * as leagueRepo from '../core/db/repositories/leagueRepo';
 import * as metaRepo from '../core/db/repositories/metaRepo';
 import { clubList, createSeason, loadLeagueData, seasonFinished } from '../core/services/seasonService';
@@ -436,6 +438,7 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       prize = firstPrize;
       await g2.addCoins(prize);
       await addLeagueTitle(club.division);
+      await addPassPoints(150); // Saisonpass: Meister geworden (V7.7)
       set({
         pendingCelebration: {
           clubName: club.name,
@@ -877,6 +880,28 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       }
       if (total > 0) await g2.addCoins(total);
       const coinReward = { total, breakdown };
+
+      // Saisonpass (V7.7): passive Punkte + Missionsfortschritt aus dem Ligaspiel
+      const passWon = userGoals > oppGoals;
+      if (passWon) { await addPassPoints(isRival ? 40 : 20); await reportMissionEvent('win'); }
+      if (passWon && isRival) await reportMissionEvent('rivalWin');
+      if (userGoals > 0) await reportMissionEvent('goal', userGoals);
+      if (passWon && oppGoals === 0) await reportMissionEvent('cleanSheet');
+      const passCap = g2.players.find((p) => p.id === g2.captainPlayerId);
+      if (passCap) {
+        const cg = userMatch.events.filter(
+          (e) => e.type === 'tor' && e.team === userSide && e.player === passCap.pool.name,
+        ).length;
+        const ca = userMatch.events.filter(
+          (e) => e.type === 'tor' && e.team === userSide && e.assist === passCap.pool.name,
+        ).length;
+        if (cg > 0) { await addPassPoints(cg * 10); await reportMissionEvent('captainGoal', cg); }
+        if (ca > 0) await addPassPoints(ca * 5);
+        if (result.motm && result.motm.name === passCap.pool.name) await addPassPoints(20);
+      }
+      if (teamChemistry(g2.lineupPlayers(), club.formation).greenOutfield >= 10) {
+        await reportMissionEvent('chemFull');
+      }
 
       // Spielerform nach dem Spiel fortschreiben (V7.2)
       const formResult: 'win' | 'draw' | 'loss' =

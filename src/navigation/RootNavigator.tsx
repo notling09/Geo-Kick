@@ -13,6 +13,7 @@ import { MatchLiveScreen } from '../features/league/MatchLiveScreen';
 import { PacksScreen } from '../features/packs/PacksScreen';
 import { PackOpeningScreen } from '../features/packs/PackOpeningScreen';
 import { TransferMarketScreen } from '../features/packs/TransferMarketScreen';
+import { SeasonPassScreen } from '../features/profile/SeasonPassScreen';
 import { ProfileScreen } from '../features/profile/ProfileScreen';
 import { HelpScreen } from '../features/profile/HelpScreen';
 import { PassportScreen } from '../features/profile/PassportScreen';
@@ -96,6 +97,7 @@ export function RootNavigator() {
       <Stack.Screen name="Trophies" component={TrophiesScreen} />
       <Stack.Screen name="Dex" component={DexScreen} />
       <Stack.Screen name="TransferMarket" component={TransferMarketScreen} />
+      <Stack.Screen name="SeasonPass" component={SeasonPassScreen} />
       <Stack.Screen
         name="Shootout"
         component={PenaltyShootoutScreen}

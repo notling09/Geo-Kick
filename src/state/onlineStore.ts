@@ -9,6 +9,7 @@ import {
 import { shootoutWinner, type ShootoutKick } from '../core/engine/shootout';
 import { teamStrength } from '../core/engine/strength';
 import { getSupabase } from '../core/services/cloud';
+import { addPassPoints, reportMissionEvent } from '../core/services/pass';
 import type { MatchStats } from '../core/domain/types';
 import * as metaRepo from '../core/db/repositories/metaRepo';
 import { navigate } from '../navigation/navigationRef';
@@ -324,6 +325,11 @@ export const useOnlineStore = create<OnlineState>((set, get) => {
       const myGoals = meHost ? payload.homeGoals : payload.awayGoals;
       const oppGoals = meHost ? payload.awayGoals : payload.homeGoals;
       if (opp) void updateRecord(myGoals > oppGoals ? 'w' : 'l', opp.userId);
+      // Saisonpass (V7.7): Online-Freundschaftsspiel gewonnen
+      if (myGoals > oppGoals) {
+        void addPassPoints(15);
+        void reportMissionEvent('onlineWin');
+      }
       set({ phase: 'done' });
     }
   };
