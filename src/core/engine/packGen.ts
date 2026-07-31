@@ -48,7 +48,10 @@ export function drawPackContent(
   mysteryAvailable = false,
 ): PackDraw {
   const drawable = pool.filter(
-    (p) => !p.isFiller && !p.isStarterChoice && p.rarity !== 'geheim',
+    // V7.5: Starter-Kapitäne sind ziehbar, damit die Sammlung (128 Gold inkl.
+    // der 3 Starter) wirklich vervollständigt werden kann – auch die 2, die man
+    // beim Start NICHT gewählt hat. Nur Füllspieler und die ???-Karte bleiben aus.
+    (p) => !p.isFiller && p.rarity !== 'geheim',
   );
   const byRarity = new Map<Rarity, PoolPlayer[]>();
   drawable.forEach((p) => {
@@ -104,7 +107,10 @@ export function rollPackBonus(packType: PackType): number {
  */
 export function drawEggPlayer(pool: PoolPlayer[], eggType: EggType): PoolPlayer {
   const drawable = pool.filter(
-    (p) => !p.isFiller && !p.isStarterChoice && p.rarity !== 'geheim',
+    // V7.5: Starter-Kapitäne sind ziehbar, damit die Sammlung (128 Gold inkl.
+    // der 3 Starter) wirklich vervollständigt werden kann – auch die 2, die man
+    // beim Start NICHT gewählt hat. Nur Füllspieler und die ???-Karte bleiben aus.
+    (p) => !p.isFiller && p.rarity !== 'geheim',
   );
   const rarity = pickWeighted(
     eggType.odds.map((o) => ({ value: o.rarity, weight: o.weight })),

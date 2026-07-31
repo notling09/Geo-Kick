@@ -37,7 +37,8 @@ export function marketSeed(date = new Date()): number {
  */
 export function generateMarket(pool: PoolPlayer[], seed: number): PoolPlayer[] {
   const drawable = pool.filter(
-    (p) => !p.isFiller && !p.isStarterChoice && p.rarity !== 'geheim',
+    // V7.5: Starter-Kapitäne dürfen auch im Markt auftauchen (Sammlung komplettierbar)
+    (p) => !p.isFiller && p.rarity !== 'geheim',
   );
   if (drawable.length === 0) return [];
 
