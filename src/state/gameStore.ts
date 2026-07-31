@@ -11,7 +11,8 @@ import {
   generateFillerSquad, generatePlayerPool, generateRandomPoolPlayers, overallOf,
   rollAttributes, rollAttributesExact, type NewPoolPlayer,
 } from '../core/engine/playerGen';
-import { GOLD_PLAYERS, LEGENDARY_PLAYERS, STAR_OVERALL, STARTER_WINGERS } from '../core/engine/names';
+import { GOLD_PLAYERS, LEGENDARY_PLAYERS, STAR_OVERALL, STAR_POSITIONS, STARTER_WINGERS } from '../core/engine/names';
+import { eligiblePositions } from '../core/engine/chemistry';
 import { drawPackContent, packTypeFromSource, rollPackBonus } from '../core/engine/packGen';
 import { generateMarket, marketSeed } from '../core/engine/transferMarket';
 import * as metaRepo from '../core/db/repositories/metaRepo';
@@ -110,11 +111,17 @@ export const MYSTERY_PLACEHOLDER: PoolPlayer = {
   isFiller: false,
 };
 
+/** V7.6: alte Formations-Namen auf die neuen abbilden (4-4-2→4-2-2-2, 3-4-3→3-5-2). */
+const FORMATION_MIGRATION: Record<string, FormationId> = {
+  '4-4-2': '4-2-2-2',
+  '3-4-3': '3-5-2',
+};
+
 async function loadClub(): Promise<Club> {
-  // Gespeicherte Formation validieren (z. B. entferntes 3-5-2 aus alten Ständen)
-  const storedFormation = (await metaRepo.getMeta('formation')) ?? '4-4-2';
+  const stored = (await metaRepo.getMeta('formation')) ?? '4-2-2-2';
+  const migrated = FORMATION_MIGRATION[stored] ?? stored;
   const formation: FormationId =
-    storedFormation in FORMATIONS ? (storedFormation as FormationId) : '4-4-2';
+    migrated in FORMATIONS ? (migrated as FormationId) : '4-2-2-2';
   return {
     name: (await metaRepo.getMeta('clubName')) ?? 'My Club',
     crest: (await metaRepo.getMeta('crest')) ?? 'crest-0',
@@ -177,6 +184,26 @@ const OLD_OVERALL_RANGE: Record<Rarity, [number, number]> = {
 };
 
 /**
+ * V7.6-Migration: bestehende Bronze/Silber/Füllspieler von den alten 4
+ * Positionen auf die neuen 6 bringen. ABW → CB oder AV (je Id), ST → ST oder
+ * Flügel (~1/3), MF/TW bleiben. Kuratierte Stars bekommen ihre Position schon
+ * über syncCuratedRarity, werden hier also übersprungen. Läuft einmal (Flag).
+ */
+async function migratePositionsV76(): Promise<void> {
+  if ((await metaRepo.getMeta('positionsV76')) === '1') return;
+  const pool = await playerRepo.getPool();
+  for (const p of pool) {
+    if (STAR_POSITIONS[p.name] || p.isStarterChoice) continue;
+    const old = p.position as string;
+    let next: Position | null = null;
+    if (old === 'ABW') next = p.id % 2 === 0 ? 'CB' : 'FB';
+    else if (old === 'ST') next = p.id % 3 === 0 ? 'FL' : 'ST';
+    if (next && next !== p.position) await playerRepo.updatePoolPosition(p.id, next);
+  }
+  await metaRepo.setMeta('positionsV76', '1');
+}
+
+/**
  * V7.5-Migration: alle Stars (Gold UND Legendary) auf ihr festes, realitäts-
  * nahes Rating bringen (STAR_OVERALL). Läuft einmal (eigener Meta-Flag, damit
  * es auch bei Nutzern greift, die die V7.4-Ratings schon hatten). Nur das
@@ -233,9 +260,11 @@ function buildAutoLineup(
     (a, b) => effectiveOverall(b.pool, b.level) - effectiveOverall(a.pool, a.level),
   );
   const result: Array<number | null> = new Array(11).fill(null);
-  // Erst passende Positionen besetzen …
+  // Erst „grüne" Spieler auf ihre (Haupt- oder Neben-)Position (Chemie), V7.6 …
   slots.forEach((pos, slot) => {
-    const candidate = byOverall.find((p) => !used.has(p.id) && p.pool.position === pos);
+    const candidate = byOverall.find(
+      (p) => !used.has(p.id) && eligiblePositions(p.pool).includes(pos),
+    );
     if (candidate) {
       result[slot] = candidate.id;
       used.add(candidate.id);
@@ -296,6 +325,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       // Frisch geseedet = bereits auf den V3-Spannen und mit festen Star-Ratings
       await metaRepo.setMeta('ratingsV3', '1');
       await metaRepo.setMeta('curatedRatingsV75', '1');
+      await metaRepo.setMeta('positionsV76', '1');
     } else {
       // Bestehende Installationen: Starter-Namen an die aktuelle Liste angleichen
       await playerRepo.syncStarterNames(STARTER_WINGERS.map((s) => s.name));
@@ -307,6 +337,9 @@ export const useGameStore = create<GameState>((set, get) => ({
       await migrateDexGoldNamesV74();
       // Pool auf die aktuellen Zielgrößen auffüllen (Verdopplung)
       await topUpPool();
+      // V7.6: bestehende Bronze/Silber/Füllspieler auf die 6 Positionen bringen
+      // (vor allem, was auf p.position rechnet – die alte 'ABW' gibt es nicht mehr)
+      await migratePositionsV76();
       // V3: neue Rating-Spannen auf den Bestand anwenden
       await migrateRatingsV3();
       // V7.5: alle Stars (Gold + Legendary) auf ihr festes Rating bringen
@@ -371,11 +404,11 @@ export const useGameStore = create<GameState>((set, get) => ({
     await metaRepo.setMeta('crest', crest);
     await metaRepo.setMeta('division', '4');
     await metaRepo.setMeta('coins', '0');
-    await metaRepo.setMeta('formation', '4-4-2');
+    await metaRepo.setMeta('formation', '4-2-2-2');
     await metaRepo.setMeta('tactic', 'ausgewogen');
 
     const players = await playerRepo.getOwnedPlayers();
-    const lineup = buildAutoLineup(players, '4-4-2');
+    const lineup = buildAutoLineup(players, '4-2-2-2');
     await playerRepo.replaceLineup(lineup.map((id, slot) => [slot, id]));
 
     // Der gewählte Starter ist der erste Captain (V2). Wichtig: auch sofort
@@ -442,7 +475,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   autoLineup: async (excludeIds) => {
     const { players, club } = get();
-    const lineup = buildAutoLineup(players, club?.formation ?? '4-4-2', excludeIds);
+    const lineup = buildAutoLineup(players, club?.formation ?? '4-2-2-2', excludeIds);
     await playerRepo.replaceLineup(lineup.map((id, slot) => [slot, id]));
     set({ lineup });
     await get().reassignCaptain();

@@ -1,11 +1,13 @@
 import { FORMATIONS } from '../domain/constants';
 import type { FormationId, OwnedPlayer } from '../domain/types';
 import { effectiveOverall } from './playerGen';
+import { OUT_OF_POSITION_FACTOR, slotChemState, teamChemistry } from './chemistry';
 
 /**
- * Team-Gesamtstärke = Summe der positionsgewichteten Overalls der
- * aufgestellten Spieler (Kapitel 8.2). Spieler auf fremder Position
- * zählen nur mit 80 % ihres Overalls.
+ * Team-Gesamtstärke = Summe der Overalls der aufgestellten Spieler, plus
+ * Team-Chemie (V7.6):
+ *  - Spieler auf einem 🔴-Slot (Position passt gar nicht) zählen nur mit 80 %.
+ *  - 🟢 und 🟡 zählen voll; 🟢 gibt zusätzlich Chemie (bis +5 % aufs Team).
  */
 export function teamStrength(
   lineup: Array<OwnedPlayer | null>,
@@ -16,8 +18,9 @@ export function teamStrength(
   lineup.forEach((player, slot) => {
     if (!player) return;
     const overall = effectiveOverall(player.pool, player.level);
-    const onPosition = player.pool.position === slots[slot];
-    total += onPosition ? overall : overall * 0.8;
+    const state = slotChemState(slots[slot], player.pool);
+    total += state === 'red' ? overall * OUT_OF_POSITION_FACTOR : overall;
   });
-  return Math.round(total);
+  const { factor } = teamChemistry(lineup, formation);
+  return Math.round(total * factor);
 }

@@ -821,7 +821,7 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
           (e) => e.type === 'tor' && e.team === userSide && e.assist === name,
         ).length;
         const cleanSheetBonus =
-          oppGoals === 0 && (p.pool.position === 'TW' || p.pool.position === 'ABW') ? 0.6 : 0;
+          oppGoals === 0 && (p.pool.position === 'TW' || p.pool.position === 'CB' || p.pool.position === 'FB') ? 0.6 : 0;
         const rating = Math.min(
           10,
           Math.max(4, 6.5 + goals * 1.2 + assists * 0.6 + resultBonus + cleanSheetBonus),

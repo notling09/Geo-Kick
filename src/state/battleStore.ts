@@ -187,7 +187,7 @@ export const useBattleStore = create<BattleState>((set, get) => ({
 
   opponentFor: (spot, isBoss) => {
     const game = useGameStore.getState();
-    const strength = teamStrength(game.lineupPlayers(), game.club?.formation ?? '4-4-2');
+    const strength = teamStrength(game.lineupPlayers(), game.club?.formation ?? '4-2-2-2');
     return pitchOpponent(spot.id, dayKey(), strength, isBoss);
   },
 

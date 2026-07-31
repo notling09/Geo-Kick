@@ -3,7 +3,7 @@ import type { Attributes, PoolPlayer, Position, Rarity } from '../domain/types';
 import {
   FIRST_NAMES, GOLD_PLAYERS, LAST_NAMES, LEGENDARY_PLAYERS, STAR_OVERALL, STARTER_WINGERS,
 } from './names';
-import { pick, randInt, shuffle } from './random';
+import { pick, pickWeighted, randInt, shuffle } from './random';
 
 /**
  * Erzeugt den einmaligen Pool fiktiver Spieler-Identitäten.
@@ -26,7 +26,33 @@ export const POOL_SIZE: Record<Rarity, number> = {
   geheim: 0,
 };
 
-const POSITIONS: Position[] = ['TW', 'ABW', 'MF', 'ST'];
+const POSITIONS: Position[] = ['TW', 'CB', 'FB', 'MF', 'FL', 'ST'];
+
+/**
+ * Positions-Gewichte für Bronze/Silber-Pools (V7.6): Feldspieler gleich stark
+ * vertreten, Torhüter seltener (man braucht ja nur einen).
+ */
+const POSITION_WEIGHT: Array<{ value: Position; weight: number }> = [
+  { value: 'TW', weight: 1 },
+  { value: 'CB', weight: 2 },
+  { value: 'FB', weight: 2 },
+  { value: 'MF', weight: 2 },
+  { value: 'FL', weight: 2 },
+  { value: 'ST', weight: 2 },
+];
+
+/** Gewichtete Positionsliste fester Länge (proportional, dann gemischt). */
+function weightedPositionList(count: number): Position[] {
+  const totalW = POSITION_WEIGHT.reduce((s, p) => s + p.weight, 0);
+  const arr: Position[] = [];
+  POSITION_WEIGHT.forEach(({ value, weight }) => {
+    const n = Math.round((weight / totalW) * count);
+    for (let i = 0; i < n; i++) arr.push(value);
+  });
+  while (arr.length < count) arr.push('MF');
+  while (arr.length > count) arr.pop();
+  return shuffle(arr);
+}
 
 /** Verteilt Attribute so, dass der positionsgewichtete Overall im Zielbereich liegt. */
 export function rollAttributes(position: Position, targetOverall: number): Attributes {
@@ -151,7 +177,7 @@ export function generateRandomPoolPlayers(
       name = `${pick(FIRST_NAMES)} ${pick(LAST_NAMES)}`;
     }
     existingNames.add(name);
-    const position = POSITIONS[randInt(0, POSITIONS.length - 1)];
+    const position = pickWeighted(POSITION_WEIGHT);
     players.push({
       name,
       position,
@@ -208,10 +234,8 @@ export function generatePlayerPool(): NewPoolPlayer[] {
       });
       return;
     }
-    // Positionen gleichmäßig durchmischen, damit jede Seltenheit alle Positionen abdeckt
-    const positions = shuffle(
-      Array.from({ length: POOL_SIZE[rarity] }, (_, i) => POSITIONS[i % POSITIONS.length]),
-    );
+    // Positionen gewichtet verteilen (Feldspieler gleich, Torhüter seltener)
+    const positions = weightedPositionList(POOL_SIZE[rarity]);
     positions.forEach((position) => {
       const target = randInt(min, max);
       players.push({
@@ -245,9 +269,10 @@ export function generatePlayerPool(): NewPoolPlayer[] {
 export function generateFillerSquad(): NewPoolPlayer[] {
   const layout: Position[] = [
     'TW', 'TW',
-    'ABW', 'ABW', 'ABW', 'ABW', 'ABW',
+    'FB', 'FB', 'FB',
+    'CB', 'CB', 'CB',
     'MF', 'MF', 'MF', 'MF',
-    'ST', 'ST', 'ST', 'ST',
+    'ST', 'ST', 'FL',
   ];
   const usedNames = new Set<string>();
   return layout.map((position) => {

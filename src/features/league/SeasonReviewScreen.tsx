@@ -122,7 +122,7 @@ export function SeasonReviewScreen({ navigation }: RootScreenProps<'SeasonReview
     : null;
 
   // Schritt 3: aktuelle Elf auf dem Platz mit Saisonnoten
-  const formation = club?.formation ?? '4-4-2';
+  const formation = club?.formation ?? '4-2-2-2';
   const layout = formationLayout(formation);
   const xiWithRatings = layout.map((slot) => {
     const player = players.find((p) => p.id === lineup[slot.slot]) ?? null;

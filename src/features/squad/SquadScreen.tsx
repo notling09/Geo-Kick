@@ -15,6 +15,7 @@ import type { FormationId } from '../../core/domain/types';
 import { effectiveOverall } from '../../core/engine/playerGen';
 import { loadForm } from '../../core/services/form';
 import { teamStrength } from '../../core/engine/strength';
+import { slotChemState, teamChemistry } from '../../core/engine/chemistry';
 import { useGameStore } from '../../state/gameStore';
 import { useLeagueStore } from '../../state/leagueStore';
 import { GKButton, PointsBadge } from '../../ui/components';
@@ -76,10 +77,11 @@ export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
     return new Set(ids);
   }, [suspensions, injuryById, leagueSeason, leagueRound, isTournamentNext]);
 
-  const formation: FormationId = club?.formation ?? '4-4-2';
+  const formation: FormationId = club?.formation ?? '4-2-2-2';
   const slots = FORMATIONS[formation];
   const lineupList = lineupPlayers();
   const strength = teamStrength(lineupList, formation);
+  const chem = teamChemistry(lineupList, formation);
 
   const bench = useMemo(
     () =>
@@ -92,11 +94,14 @@ export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
   const pickCandidates = useMemo(() => {
     if (pickSlot === null) return [];
     const pos = slots[pickSlot];
-    return [...players].sort((a, b) => {
-      const aOn = a.pool.position === pos ? 1 : 0;
-      const bOn = b.pool.position === pos ? 1 : 0;
-      return bOn - aOn || effectiveOverall(b.pool, b.level) - effectiveOverall(a.pool, a.level);
-    });
+    // Passende Spieler zuerst: grün (Chemie) vor gelb vor rot (V7.6)
+    const rank = (p: (typeof players)[number]) => {
+      const s = slotChemState(pos, p.pool);
+      return s === 'green' ? 2 : s === 'yellow' ? 1 : 0;
+    };
+    return [...players].sort((a, b) =>
+      rank(b) - rank(a) || effectiveOverall(b.pool, b.level) - effectiveOverall(a.pool, a.level),
+    );
   }, [pickSlot, players, slots]);
 
   return (
@@ -107,6 +112,9 @@ export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
           <View style={styles.headerBadges}>
             <View style={styles.strengthBadge}>
               <Text style={styles.strengthText}>{tf('sqStrength', { n: strength })}</Text>
+            </View>
+            <View style={styles.chemBadge}>
+              <Text style={styles.chemText}>{tf('sqChem', { n: chem.greenOutfield })}</Text>
             </View>
             <PointsBadge points={levelPoints} />
           </View>
@@ -271,6 +279,17 @@ const styles = StyleSheet.create({
   strengthText: {
     color: '#fff',
     fontWeight: '900',
+  },
+  chemBadge: {
+    backgroundColor: '#2E7D32',
+    borderRadius: radius.round,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+  },
+  chemText: {
+    color: '#fff',
+    fontWeight: '900',
+    fontSize: font.small,
   },
   formationRow: {
     flexDirection: 'row',

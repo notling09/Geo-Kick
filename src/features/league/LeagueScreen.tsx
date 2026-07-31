@@ -422,7 +422,7 @@ export function LeagueScreen({ navigation }: TabScreenProps<'League'>) {
                       ))}
                     </View>
                     <Text style={styles.tacticHint}>
-                      {tf('lgFormationHint', { f: club?.formation ?? '4-4-2' })}
+                      {tf('lgFormationHint', { f: club?.formation ?? '4-2-2-2' })}
                     </Text>
                     <GKButton title={t('lgKickoff')} onPress={onKickoff} loading={starting} />
                   </>

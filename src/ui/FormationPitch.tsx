@@ -4,22 +4,42 @@ import { FORMATIONS, POSITION_SHORT } from '../core/domain/constants';
 import type { FormationId, OwnedPlayer, Position } from '../core/domain/types';
 import { t } from '../core/i18n';
 import { effectiveOverall } from '../core/engine/playerGen';
+import { slotChemState, type ChemState } from '../core/engine/chemistry';
 import { IconSwap } from './icons';
 import { PitchBackground } from './PitchBackground';
 import { PlayerAvatar } from './PlayerAvatar';
 import { colors, font, radius } from './theme';
 
 /**
- * Visual formation view: the starting eleven laid out on a drawn pitch,
- * goalkeeper at the bottom, attack at the top. Tapping a slot opens the
- * player picker.
+ * Visual formation view (V7.6): die Startelf auf dem Feld, Torwart unten.
+ * Jeder Slot leuchtet je Chemie: grün = passt (Haupt-/Nebenposition),
+ * gelb = daneben (kein Verlust, keine Chemie), rot = passt nicht (−Stärke).
  */
 
-const LINE_Y: Record<Position, number> = {
-  TW: 88,
-  ABW: 70,
-  MF: 47,
-  ST: 24,
+/** Feste Slot-Koordinaten je Formation (Reihenfolge = FORMATIONS-Reihenfolge). */
+const COORDS: Record<FormationId, Array<[number, number]>> = {
+  '4-2-2-2': [
+    [50, 90], [12, 70], [37, 73], [63, 73], [88, 70],
+    [16, 47], [39, 47], [61, 47], [84, 47], [38, 22], [62, 22],
+  ],
+  '4-3-3': [
+    [50, 90], [12, 70], [37, 73], [63, 73], [88, 70],
+    [28, 48], [50, 48], [72, 48], [16, 24], [50, 20], [84, 24],
+  ],
+  '4-2-4': [
+    [50, 90], [12, 70], [37, 73], [63, 73], [88, 70],
+    [36, 50], [64, 50], [13, 26], [38, 22], [62, 22], [87, 26],
+  ],
+  '3-5-2': [
+    [50, 90], [27, 73], [50, 75], [73, 73], [12, 50],
+    [34, 49], [50, 49], [66, 49], [88, 50], [38, 22], [62, 22],
+  ],
+};
+
+const CHEM_COLOR: Record<ChemState, string> = {
+  green: '#2E7D32',
+  yellow: '#E8B923',
+  red: '#C62828',
 };
 
 export interface SlotLayout {
@@ -31,24 +51,12 @@ export interface SlotLayout {
 
 export function formationLayout(formation: FormationId): SlotLayout[] {
   const slots = FORMATIONS[formation];
-  const byLine = new Map<Position, number[]>();
-  slots.forEach((pos, slot) => {
-    const list = byLine.get(pos) ?? [];
-    list.push(slot);
-    byLine.set(pos, list);
-  });
-  const layout: SlotLayout[] = [];
-  byLine.forEach((slotIdxs, pos) => {
-    slotIdxs.forEach((slot, i) => {
-      layout.push({
-        slot,
-        position: pos,
-        xPct: ((i + 1) / (slotIdxs.length + 1)) * 100,
-        yPct: LINE_Y[pos],
-      });
-    });
-  });
-  return layout;
+  return COORDS[formation].map(([xPct, yPct], slot) => ({
+    slot,
+    position: slots[slot],
+    xPct,
+    yPct,
+  }));
 }
 
 interface Props {
@@ -93,11 +101,15 @@ export function FormationPitch({
           const player = lineup[slot];
           const left = (xPct / 100) * size.w - CHIP_W / 2;
           const top = (yPct / 100) * size.h - CHIP_H / 2;
+          const chem: ChemState | null = player ? slotChemState(position, player.pool) : null;
           return (
             <View key={slot} style={[styles.chip, { left, top }]}>
               {player ? (
                 <>
                   <Pressable onPress={() => onPlayerPress(player.id)} style={styles.avatarWrap}>
+                    {chem && (
+                      <View style={[styles.chemRing, { borderColor: CHEM_COLOR[chem] }]} />
+                    )}
                     <PlayerAvatar player={player.pool} size={40} />
                     <View style={styles.ovBadge}>
                       <Text style={styles.ovText}>
@@ -109,15 +121,10 @@ export function FormationPitch({
                         <Text style={styles.captainText}>C</Text>
                       </View>
                     )}
-                    {suspendedIds?.has(player.id) ? (
-                      <View style={styles.suspendedBadge} />
-                    ) : (
-                      player.pool.position !== position && (
-                        <View style={styles.warnBadge}>
-                          <Text style={styles.warnText}>!</Text>
-                        </View>
-                      )
-                    )}
+                    {suspendedIds?.has(player.id) && <View style={styles.suspendedBadge} />}
+                    <View style={[styles.posTag, { backgroundColor: chem ? CHEM_COLOR[chem] : colors.inkSoft }]}>
+                      <Text style={styles.posTagText}>{POSITION_SHORT[position]}</Text>
+                    </View>
                     <Pressable
                       onPress={() => onSwapPress(slot)}
                       hitSlop={6}
@@ -170,6 +177,15 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
   },
+  chemRing: {
+    position: 'absolute',
+    left: -3,
+    top: -3,
+    width: 46,
+    height: 46,
+    borderRadius: radius.round,
+    borderWidth: 2.5,
+  },
   ovBadge: {
     position: 'absolute',
     right: -10,
@@ -187,16 +203,23 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '900',
   },
-  warnBadge: {
+  // kleiner Positions-Tag (Soll-Position des Slots), eingefärbt nach Chemie
+  posTag: {
     position: 'absolute',
     left: -8,
     bottom: -4,
-    backgroundColor: colors.accent,
     borderRadius: radius.round,
-    width: 16,
-    height: 16,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    minWidth: 16,
     alignItems: 'center',
-    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#fff',
+  },
+  posTagText: {
+    color: '#fff',
+    fontSize: 8,
+    fontWeight: '900',
   },
   captainBadge: {
     position: 'absolute',
@@ -216,22 +239,17 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '900',
   },
-  // kleine rote Karte (Sperre fürs nächste Ligaspiel)
+  // kleine rote Karte (Sperre fürs nächste Ligaspiel) – mittig links
   suspendedBadge: {
     position: 'absolute',
-    left: -8,
-    bottom: -4,
+    left: -9,
+    top: 13,
     width: 12,
     height: 16,
     borderRadius: 2,
     backgroundColor: colors.danger,
     borderWidth: 1,
     borderColor: '#fff',
-  },
-  warnText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '900',
   },
   swapBadge: {
     position: 'absolute',
@@ -247,7 +265,7 @@ const styles = StyleSheet.create({
     borderColor: '#fff',
   },
   chipName: {
-    marginTop: 2,
+    marginTop: 4,
     fontSize: 10,
     fontWeight: '800',
     color: '#fff',

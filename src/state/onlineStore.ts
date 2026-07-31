@@ -114,7 +114,7 @@ function myClub(tactic?: Tactic): OnlineClub {
     userId: myUserId ?? '',
     name: g.club?.name ?? 'My Club',
     crest: g.club?.crest ?? 'crest-0',
-    strength: teamStrength(lineup, g.club?.formation ?? '4-4-2'),
+    strength: teamStrength(lineup, g.club?.formation ?? '4-2-2-2'),
     tactic: tactic ?? g.club?.tactic ?? 'ausgewogen',
     roster: lineup
       .filter((p): p is NonNullable<typeof p> => p !== null)

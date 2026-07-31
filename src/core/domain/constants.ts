@@ -356,28 +356,35 @@ export const RARITY_COLOR: Record<Rarity, string> = {
 
 export const POSITION_LABEL: Record<Position, string> = lazyLabels<Position>({
   TW: 'posTW',
-  ABW: 'posABW',
+  CB: 'posCB',
+  FB: 'posFB',
   MF: 'posMF',
+  FL: 'posFL',
   ST: 'posST',
 });
 
 /** Short position tags for compact UI (stored enum values stay unchanged). */
 export const POSITION_SHORT: Record<Position, string> = lazyLabels<Position>({
   TW: 'posShortTW',
-  ABW: 'posShortABW',
+  CB: 'posShortCB',
+  FB: 'posShortFB',
   MF: 'posShortMF',
+  FL: 'posShortFL',
   ST: 'posShortST',
 });
 
-/** Slot-Belegung je Formation: Reihenfolge = Slot-Index 0..10 */
+/**
+ * Slot-Belegung je Formation (V7.6): Reihenfolge = Slot-Index 0..10. Die
+ * Koordinaten für die Feld-Anzeige liegen in FormationPitch (gleiche Reihenfolge).
+ */
 export const FORMATIONS: Record<FormationId, Position[]> = {
-  '4-4-2': ['TW', 'ABW', 'ABW', 'ABW', 'ABW', 'MF', 'MF', 'MF', 'MF', 'ST', 'ST'],
-  '4-3-3': ['TW', 'ABW', 'ABW', 'ABW', 'ABW', 'MF', 'MF', 'MF', 'ST', 'ST', 'ST'],
-  '4-2-4': ['TW', 'ABW', 'ABW', 'ABW', 'ABW', 'MF', 'MF', 'ST', 'ST', 'ST', 'ST'],
-  '3-4-3': ['TW', 'ABW', 'ABW', 'ABW', 'MF', 'MF', 'MF', 'MF', 'ST', 'ST', 'ST'],
+  '4-2-2-2': ['TW', 'FB', 'CB', 'CB', 'FB', 'MF', 'MF', 'MF', 'MF', 'ST', 'ST'],
+  '4-3-3': ['TW', 'FB', 'CB', 'CB', 'FB', 'MF', 'MF', 'MF', 'FL', 'ST', 'FL'],
+  '4-2-4': ['TW', 'FB', 'CB', 'CB', 'FB', 'MF', 'MF', 'FL', 'ST', 'ST', 'FL'],
+  '3-5-2': ['TW', 'CB', 'CB', 'CB', 'FL', 'MF', 'MF', 'MF', 'FL', 'ST', 'ST'],
 };
 
-export const FORMATION_IDS: FormationId[] = ['4-4-2', '4-3-3', '4-2-4', '3-4-3'];
+export const FORMATION_IDS: FormationId[] = ['4-2-2-2', '4-3-3', '4-2-4', '3-5-2'];
 
 export const TACTIC_LABEL: Record<Tactic, string> = lazyLabels<Tactic>({
   offensiv: 'tacticOffensiv',
@@ -515,7 +522,11 @@ export const USER_CLUB_ID = 'user';
 /** Attribut-Gewichtung je Position für den Overall-Wert */
 export const POSITION_WEIGHTS: Record<Position, { tempo: number; technik: number; abschluss: number; verteidigung: number; kondition: number }> = {
   TW: { tempo: 0.1, technik: 0.15, abschluss: 0.05, verteidigung: 0.55, kondition: 0.15 },
-  ABW: { tempo: 0.2, technik: 0.1, abschluss: 0.05, verteidigung: 0.45, kondition: 0.2 },
+  // CB/FB nutzen das alte Abwehr-Profil, FL/ST das alte Sturm-Profil – so bleibt
+  // das Overall bei der Migration (ABW→CB/FB, ST→FL) stabil (V7.6).
+  CB: { tempo: 0.2, technik: 0.1, abschluss: 0.05, verteidigung: 0.45, kondition: 0.2 },
+  FB: { tempo: 0.2, technik: 0.1, abschluss: 0.05, verteidigung: 0.45, kondition: 0.2 },
   MF: { tempo: 0.2, technik: 0.3, abschluss: 0.15, verteidigung: 0.15, kondition: 0.2 },
+  FL: { tempo: 0.25, technik: 0.2, abschluss: 0.4, verteidigung: 0.05, kondition: 0.1 },
   ST: { tempo: 0.25, technik: 0.2, abschluss: 0.4, verteidigung: 0.05, kondition: 0.1 },
 };

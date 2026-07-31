@@ -3,7 +3,9 @@ import { t } from '../i18n';
 import type { SessionStats } from '../db/repositories/sessionRepo';
 import { countUserWins } from '../db/repositories/leagueRepo';
 import { getMetaNumber } from '../db/repositories/metaRepo';
+import { getPool } from '../db/repositories/playerRepo';
 import { loadTrophies } from './trophies';
+import { loadDexSeen } from './dex';
 
 /**
  * Erfolge (Kapitel 3.5): werden aus dem gespeicherten Spielstand abgeleitet,
@@ -42,6 +44,16 @@ export async function computeAchievements(input: AchievementInput): Promise<Achi
   const clWins = cab.clTitles;
   const podiums = cab.clRunnerUps + cab.clThird + cab.cupRunnerUps + cab.cupThird;
   const leagueTitleTotal = Object.values(cab.leagueTitles).reduce((a, b) => a + b, 0);
+  // Sammel-Fortschritt (V7.6): Anteil der schon einmal besessenen Gold-/
+  // Legendär-Spieler aus dem Sammelalbum (karriereübergreifend, dexSeen).
+  const dexSeen = await loadDexSeen();
+  const pool = await getPool();
+  const goldNames = pool.filter((p) => p.rarity === 'gold').map((p) => p.name);
+  const legNames = pool.filter((p) => p.rarity === 'legendaer').map((p) => p.name);
+  const goldPct = goldNames.length
+    ? goldNames.filter((n) => dexSeen.has(n)).length / goldNames.length : 0;
+  const legPct = legNames.length
+    ? legNames.filter((n) => dexSeen.has(n)).length / legNames.length : 0;
 
   return [
     {
@@ -213,6 +225,35 @@ export async function computeAchievements(input: AchievementInput): Promise<Achi
       description: t('achClWinD'),
       icon: 'trophy',
       unlocked: clWins >= 1,
+    },
+    // Sammel-Erfolge (V7.6): Fortschritt im Sammelalbum, karriereübergreifend.
+    {
+      id: 'coll-gold-25', title: t('achCollGold25'), description: t('achCollGold25D'),
+      icon: 'star', unlocked: goldPct >= 0.25,
+    },
+    {
+      id: 'coll-gold-50', title: t('achCollGold50'), description: t('achCollGold50D'),
+      icon: 'star', unlocked: goldPct >= 0.5,
+    },
+    {
+      id: 'coll-gold-75', title: t('achCollGold75'), description: t('achCollGold75D'),
+      icon: 'star', unlocked: goldPct >= 0.75,
+    },
+    {
+      id: 'coll-gold-100', title: t('achCollGold100'), description: t('achCollGold100D'),
+      icon: 'trophy', unlocked: goldPct >= 1,
+    },
+    {
+      id: 'coll-leg-25', title: t('achCollLeg25'), description: t('achCollLeg25D'),
+      icon: 'star', unlocked: legPct >= 0.25,
+    },
+    {
+      id: 'coll-leg-50', title: t('achCollLeg50'), description: t('achCollLeg50D'),
+      icon: 'star', unlocked: legPct >= 0.5,
+    },
+    {
+      id: 'coll-leg-100', title: t('achCollLeg100'), description: t('achCollLeg100D'),
+      icon: 'trophy', unlocked: legPct >= 1,
     },
     // Das große Ziel: Liga + Champions League in derselben Saison (Double) →
     // Karriere vollendet. Karriereübergreifend, bleibt für immer erhalten.

@@ -12,8 +12,10 @@ import { pick, pickWeighted } from './random';
  */
 const DRAW_POSITION_WEIGHTS: Array<{ value: Position; weight: number }> = [
   { value: 'ST', weight: 1 },
+  { value: 'FL', weight: 1 },
   { value: 'MF', weight: 1 },
-  { value: 'ABW', weight: 1 },
+  { value: 'CB', weight: 1 },
+  { value: 'FB', weight: 1 },
   { value: 'TW', weight: 0.5 },
 ];
 

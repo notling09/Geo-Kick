@@ -9,7 +9,7 @@ import { pick, randInt, shuffle } from './random';
  * Spieler nie mehrfach in den Topscorer-Listen auf.
  */
 export function generateNpcRoster(): NpcClub['roster'] {
-  const layout: Position[] = ['TW', 'ABW', 'ABW', 'ABW', 'ABW', 'MF', 'MF', 'MF', 'MF', 'ST', 'ST'];
+  const layout: Position[] = ['TW', 'FB', 'CB', 'CB', 'FB', 'MF', 'MF', 'MF', 'FL', 'ST', 'FL'];
   const used = new Set<string>();
   return layout.map((position) => {
     let name = `${pick(FIRST_NAMES)} ${pick(LAST_NAMES)}`;

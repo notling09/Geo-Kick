@@ -71,7 +71,7 @@ function userTeamFactory(suspendedIds: Set<number>): (t: Tactic) => Promise<SimT
     const lineupNow = g.lineupPlayers().map((p) => (p && suspendedIds.has(p.id) ? null : p));
     return {
       name: g.club?.name ?? 'My Club',
-      strength: teamStrength(lineupNow, g.club?.formation ?? '4-4-2'),
+      strength: teamStrength(lineupNow, g.club?.formation ?? '4-2-2-2'),
       tactic: t,
       roster: lineupNow
         .filter((p): p is NonNullable<typeof p> => p !== null)
@@ -117,7 +117,7 @@ export const useClStore = create<ClStore>((set, get) => ({
     const game = useGameStore.getState();
     if (get().state && get().state?.season === season) return;
     const division = game.club?.division ?? 4;
-    const strength = teamStrength(game.lineupPlayers(), game.club?.formation ?? '4-4-2');
+    const strength = teamStrength(game.lineupPlayers(), game.club?.formation ?? '4-2-2-2');
     const user = {
       strength,
       name: game.club?.name ?? 'My Club',
@@ -259,7 +259,7 @@ export const useClStore = create<ClStore>((set, get) => ({
                 (e) => e.type === 'tor' && e.team === side && e.assist === name,
               ).length;
               const cleanSheetBonus =
-                oppScored === 0 && (p.pool.position === 'TW' || p.pool.position === 'ABW') ? 0.6 : 0;
+                oppScored === 0 && (p.pool.position === 'TW' || p.pool.position === 'CB' || p.pool.position === 'FB') ? 0.6 : 0;
               const rating = Math.min(
                 10,
                 Math.max(4, 6.5 + goals * 1.2 + assists * 0.6 + resultBonus + cleanSheetBonus),

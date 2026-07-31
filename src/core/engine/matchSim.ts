@@ -100,10 +100,10 @@ function pickText(keys: readonly TKey[]): string {
   return t(keys[Math.floor(Math.random() * keys.length)]);
 }
 
-/** Positions-Gewichte: wer erzielt Tore/hat Chancen (Stürmer am ehesten). */
-const SCORER_WEIGHTS: Record<Position, number> = { ST: 5, MF: 3, ABW: 1.2, TW: 0.1 };
-/** Positions-Gewichte für Vorlagen (Mittelfeld am ehesten). */
-const ASSIST_WEIGHTS: Record<Position, number> = { ST: 2.5, MF: 5, ABW: 1.5, TW: 0.2 };
+/** Positions-Gewichte: wer erzielt Tore/hat Chancen (Stürmer/Flügel am ehesten). */
+const SCORER_WEIGHTS: Record<Position, number> = { ST: 5, FL: 4, MF: 3, FB: 0.8, CB: 1.2, TW: 0.1 };
+/** Positions-Gewichte für Vorlagen (Mittelfeld/Flügel am ehesten). */
+const ASSIST_WEIGHTS: Record<Position, number> = { ST: 2.5, FL: 4.5, MF: 5, FB: 2, CB: 1, TW: 0.2 };
 
 /** Elfmeterschütze im Spiel: der Captain, falls er auf dem Feld steht. */
 function penaltyTaker(team: SimTeam): string {

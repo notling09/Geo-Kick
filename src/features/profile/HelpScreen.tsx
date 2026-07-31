@@ -125,6 +125,9 @@ export function HelpScreen({ navigation }: RootScreenProps<'Help'>) {
           <Text style={styles.text}>
             {tf('helpSq2', { g: LEAGUE_REWARDS.captainGoal, a: LEAGUE_REWARDS.captainAssist })}
           </Text>
+          <Text style={styles.text}>
+            {t('helpSq3')}
+          </Text>
         </Card>
 
         <SectionTitle>{t('helpLeague')}</SectionTitle>

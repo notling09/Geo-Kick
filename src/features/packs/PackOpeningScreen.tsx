@@ -45,7 +45,7 @@ const REVEAL_MS: Record<string, number> = {
   geheim: 2600,
 };
 
-const POSITIONS: Position[] = ['TW', 'ABW', 'MF', 'ST'];
+const POSITIONS: Position[] = ['TW', 'CB', 'FB', 'MF', 'FL', 'ST'];
 
 export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOpening'>) {
   const { packId, egg: eggMode, eggIndex } = route.params;

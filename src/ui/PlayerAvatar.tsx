@@ -21,9 +21,11 @@ const HAIR_COLORS = ['#2B1B12', '#5A3825', '#8C5A2B', '#C98A3D', '#E8C46A', '#1A
 
 const POSITION_KIT: Record<Position, string> = {
   TW: '#F9A825', // goalkeeper amber
-  ABW: '#1565C0', // defence blue
+  CB: '#1565C0', // centre-back blue
+  FB: '#42A5F5', // full-back lighter blue
   MF: '#2E7D32', // midfield green
-  ST: '#C62828', // attack red
+  FL: '#EF6C00', // winger orange
+  ST: '#C62828', // striker red
 };
 
 /** Small deterministic hash so the same player always looks the same. */

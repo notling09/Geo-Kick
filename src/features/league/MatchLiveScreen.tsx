@@ -581,7 +581,7 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
           <View style={styles.subsPitch}>
             <FormationPitch
               fitHeight
-              formation={game.club?.formation ?? '4-4-2'}
+              formation={game.club?.formation ?? '4-2-2-2'}
               lineup={lineupList}
               onPlayerPress={(playerId) => {
                 const slot = lineupIds.indexOf(playerId);

@@ -34,23 +34,24 @@ check('legendary overall 85..94', legendaries.every(p => {
 }));
 // V3: Starter haben exakt 80 Overall
 check('starters exactly 80', pool.filter(p => p.isStarterChoice).every(p => overallOf(p, p.position) === 80));
-// V4: exakt faire Positionsverteilung – ST = MF = ABW in JEDER Seltenheit
+// V7.6: 6 Positionen, Feldspieler gewichtet gleich, Torhüter seltener
 const posCount = (rarity: string) => {
-  const c = { TW: 0, ABW: 0, MF: 0, ST: 0 };
+  const c: Record<string, number> = { TW: 0, CB: 0, FB: 0, MF: 0, FL: 0, ST: 0 };
   pool
     .filter(p => p.rarity === rarity && !p.isStarterChoice && !p.isFiller)
-    .forEach(p => { c[p.position]++; });
+    .forEach(p => { c[p.position] = (c[p.position] ?? 0) + 1; });
   return c;
 };
-// bronze/silber werden prozedural gleichmäßig verteilt; gold/legendär sind
-// kuratierte Star-Identitäten (V7.2 verdoppelt) und darum nicht exakt balanciert
+(['bronze', 'silber', 'gold', 'legendaer'] as const).forEach(rarity => {
+  const c = posCount(rarity);
+  check(`${rarity}: alle 6 Positionen vertreten`,
+    c.TW > 0 && c.CB > 0 && c.FB > 0 && c.MF > 0 && c.FL > 0 && c.ST > 0, JSON.stringify(c));
+});
+// Bronze/Silber: Torhüter sind die kleinste Gruppe (seltener als Feldspieler)
 (['bronze', 'silber'] as const).forEach(rarity => {
   const c = posCount(rarity);
-  check(`${rarity}: ST = MF = ABW`, c.ST === c.MF && c.MF === c.ABW && c.TW > 0, JSON.stringify(c));
-});
-(['gold', 'legendaer'] as const).forEach(rarity => {
-  const c = posCount(rarity);
-  check(`${rarity}: alle Positionen vertreten`, c.TW > 0 && c.ABW > 0 && c.MF > 0 && c.ST > 0, JSON.stringify(c));
+  const fieldMin = Math.min(c.CB, c.FB, c.MF, c.FL, c.ST);
+  check(`${rarity}: Torhüter seltener`, c.TW < fieldMin, JSON.stringify(c));
 });
 check('gold pool = 125', pool.filter(p => p.rarity === 'gold' && !p.isStarterChoice).length === 125);
 check('legendary pool = 75', legendaries.length === 75);

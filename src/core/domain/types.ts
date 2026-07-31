@@ -1,11 +1,17 @@
 /** Zentrale Domain-Typen für Geo-Kick (siehe Konzeptdokument Kapitel 4). */
 
-export type Position = 'TW' | 'ABW' | 'MF' | 'ST';
+/**
+ * Positionen (V7.6): echte Rollen statt nur Abwehr/Mittelfeld/Sturm.
+ * TW = Torwart, CB = Innenverteidiger, FB = Außenverteidiger,
+ * MF = Mittelfeld, FL = Flügel, ST = Stürmer. Für die Chemie zählt, ob ein
+ * Spieler auf seiner (Haupt- oder Neben-)Position steht.
+ */
+export type Position = 'TW' | 'CB' | 'FB' | 'MF' | 'FL' | 'ST';
 
 /** 'geheim' = die "???"-Karte: einmalig ziehbar, 99er-Spieler, Name vom Nutzer */
 export type Rarity = 'bronze' | 'silber' | 'gold' | 'legendaer' | 'geheim';
 
-export type FormationId = '4-4-2' | '4-3-3' | '4-2-4' | '3-4-3';
+export type FormationId = '4-2-2-2' | '4-3-3' | '4-2-4' | '3-5-2';
 
 export type Tactic = 'offensiv' | 'ausgewogen' | 'defensiv';
 

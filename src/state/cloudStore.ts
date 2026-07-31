@@ -29,7 +29,7 @@ interface CloudState {
 function buildSquadSnapshot(): { squad: CloudSquadPlayer[]; strength: number; formation: string } {
   const game = useGameStore.getState();
   const lineup = game.lineupPlayers();
-  const formation = game.club?.formation ?? '4-4-2';
+  const formation = game.club?.formation ?? '4-2-2-2';
   const squad: CloudSquadPlayer[] = lineup
     .filter((p): p is NonNullable<typeof p> => p !== null)
     .map((p) => ({

@@ -73,6 +73,12 @@ export async function updatePoolAttributes(
   );
 }
 
+/** Nur die Position eines Pool-Spielers ändern (V7.6-Positions-Migration). */
+export async function updatePoolPosition(id: number, position: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync('UPDATE player_pool SET position = ? WHERE id = ?', position, id);
+}
+
 export async function getPool(): Promise<PoolPlayer[]> {
   const db = await getDb();
   const rows = await db.getAllAsync<PoolRow>('SELECT * FROM player_pool');
