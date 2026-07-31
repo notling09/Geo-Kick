@@ -14,7 +14,7 @@ import {
 import { GOLD_PLAYERS, LEGENDARY_PLAYERS, STAR_OVERALL, STAR_POSITIONS, STARTER_WINGERS } from '../core/engine/names';
 import { eligiblePositions } from '../core/engine/chemistry';
 import { drawPackContent, packTypeFromSource, rollPackBonus, rollTokens } from '../core/engine/packGen';
-import { generateMarket, marketSeed } from '../core/engine/transferMarket';
+import { generateMarket, marketDeals, marketSeed } from '../core/engine/transferMarket';
 import * as metaRepo from '../core/db/repositories/metaRepo';
 import * as playerRepo from '../core/db/repositories/playerRepo';
 import * as packRepo from '../core/db/repositories/packRepo';
@@ -49,6 +49,8 @@ interface GameState {
   marketDay: number;
   /** Transfermarkt-Token (V7.7): 1 Token = Markt sofort neu würfeln */
   marketTokens: number;
+  /** Blitzdeals des aktuellen Marktes (V7.7): Slot-Index → Rabatt-Anteil */
+  marketDealMap: Record<number, number>;
 
   init: () => Promise<void>;
   completeOnboarding: (clubName: string, crest: string, starterPoolId: number) => Promise<void>;
@@ -325,6 +327,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   marketBought: [],
   marketDay: 0,
   marketTokens: 0,
+  marketDealMap: {},
 
   init: async () => {
     // Spieler-Pool einmalig erzeugen (fiktive Identitäten, Kapitel 8/9)
@@ -726,7 +729,10 @@ export const useGameStore = create<GameState>((set, get) => ({
     } catch {
       seed = today;
     }
-    set({ market: generateMarket(pool, seed), marketDay: today, marketBought: bought });
+    set({
+      market: generateMarket(pool, seed), marketDay: today, marketBought: bought,
+      marketDealMap: marketDeals(seed),
+    });
   },
 
   /**
@@ -740,7 +746,9 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (!poolPlayer || poolPlayer.rarity === 'geheim') return 'error';
     if (marketBought.includes(index)) return 'already';
     if (players.length >= BALANCING.maxSquadSize) return 'full';
-    const price = BUY_VALUE[poolPlayer.rarity];
+    // Blitzdeal-Rabatt auf diesen Slot anwenden (V7.7)
+    const discount = get().marketDealMap[index] ?? 0;
+    const price = Math.round(BUY_VALUE[poolPlayer.rarity] * (1 - discount));
     if (!club || club.coins < price) return 'no_coins';
     await get().addCoins(-price);
     await playerRepo.addOwnedPlayer(poolPlayer.id);
@@ -769,7 +777,10 @@ export const useGameStore = create<GameState>((set, get) => ({
     const today = marketSeed();
     const seed = (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0;
     await metaRepo.setMeta('market', JSON.stringify({ day: today, seed, bought: [] }));
-    set({ market: generateMarket(pool, seed), marketDay: today, marketBought: [] });
+    set({
+      market: generateMarket(pool, seed), marketDay: today, marketBought: [],
+      marketDealMap: marketDeals(seed),
+    });
     return true;
   },
 

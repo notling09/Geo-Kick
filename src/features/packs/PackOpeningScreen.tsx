@@ -711,11 +711,11 @@ const styles = StyleSheet.create({
   },
   tokenIcon: {
     fontSize: 24,
-    color: '#7d3fb0',
+    color: colors.purpleText,
     fontWeight: '900',
   },
   tokenValue: {
-    color: '#7d3fb0',
+    color: colors.purpleText,
   },
   bonusHint: {
     fontSize: font.small,

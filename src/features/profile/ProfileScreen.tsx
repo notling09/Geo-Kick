@@ -347,7 +347,7 @@ const styles = StyleSheet.create({
   },
   passCard: { padding: spacing.md, marginBottom: spacing.xs },
   passRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  passLevel: { fontSize: font.h2, fontWeight: '900', color: '#7d3fb0' },
+  passLevel: { fontSize: font.h2, fontWeight: '900', color: colors.purpleText },
   passDays: { color: colors.inkSoft, fontWeight: '700', fontSize: font.small },
   passBarWrap: {
     height: 10, borderRadius: 5, backgroundColor: colors.line, overflow: 'hidden', marginTop: spacing.sm,

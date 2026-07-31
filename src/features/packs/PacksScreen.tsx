@@ -1,6 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   BALANCING, PACK_TYPES, RARITY_LABEL, SHOP_PACK_IDS,
 } from '../../core/domain/constants';
@@ -27,9 +28,13 @@ function oddsLine(typeId: keyof typeof PACK_TYPES): string {
 }
 
 export function PacksScreen({ navigation }: TabScreenProps<'Packs'>) {
-  const { club, packs, players, buyPack, levelPoints } = useGameStore();
+  const { club, packs, players, buyPack, levelPoints, marketDealMap, refreshMarket } = useGameStore();
   const eggs = useEggStore((s) => s.eggs);
   const eggTypeAt = useEggStore((s) => s.eggTypeAt);
+  const dealActive = Object.keys(marketDealMap).length > 0;
+
+  // Markt (inkl. Blitzdeal-Status) beim Öffnen des Tabs aktualisieren (V7.7)
+  useFocusEffect(useCallback(() => { void refreshMarket(); }, [refreshMarket]));
 
   const unopened = useMemo(() => packs.filter((p) => p.openedAt === null), [packs]);
   const openedCount = packs.length - unopened.length;
@@ -146,9 +151,12 @@ export function PacksScreen({ navigation }: TabScreenProps<'Packs'>) {
           <View style={styles.marketHeaderRow}>
             <IconPack size={30} color={colors.pitch} />
             <View style={styles.packInfo}>
-              <Text style={styles.marketLabel}>{t('tmSubtitle')}</Text>
-              <Text style={styles.packMeta}>{t('tmTeaser')}</Text>
+              <Text style={styles.marketLabel}>{t('tmCardLabel')}</Text>
+              <Text style={styles.packMeta}>{t('tmCardSub')}</Text>
             </View>
+            <Text style={[styles.blitzChip, dealActive ? styles.blitzOn : styles.blitzOff]}>
+              {dealActive ? t('tmBlitzOn') : t('tmBlitzOff')}
+            </Text>
           </View>
           <GKButton
             title={t('tmOpen')}
@@ -209,6 +217,17 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: colors.pitchDark,
   },
+  blitzChip: {
+    fontSize: 11,
+    fontWeight: '900',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    overflow: 'hidden',
+    alignSelf: 'flex-start',
+  },
+  blitzOn: { backgroundColor: '#7d3fb0', color: colors.gold },
+  blitzOff: { backgroundColor: colors.line, color: colors.inkSoft },
   packInfo: {
     flex: 1,
   },

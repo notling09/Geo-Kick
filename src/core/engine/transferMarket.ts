@@ -29,6 +29,38 @@ export function marketSeed(date = new Date()): number {
   return dayOrdinal(date);
 }
 
+/** Wahrscheinlichkeit, dass ein Markt einen Blitzdeal enthält (V7.7). */
+const BLITZDEAL_CHANCE = 0.2;
+/** Mögliche Rabattstufen für einen Blitzdeal (25–50 %). */
+const BLITZDEAL_STEPS = [0.25, 0.3, 0.35, 0.4, 0.45, 0.5];
+
+/**
+ * Blitzdeals für einen Markt-Seed (V7.7): mit ~20 % Chance sind 1–2 der 6
+ * Spieler rabattiert (25–50 %). Deterministisch aus dem Seed (unabhängig von
+ * der Spieler-Ziehung), also stabil pro Tag bzw. pro Token-Reroll.
+ * Rückgabe: Slot-Index → Rabatt-Anteil (0…1).
+ */
+export function marketDeals(seed: number): Record<number, number> {
+  const rng = mulberry32(Math.imul(seed + 7, 2246822519));
+  const deals: Record<number, number> = {};
+  if (rng() >= BLITZDEAL_CHANCE) return deals;
+  const count = rng() < 0.5 ? 1 : 2;
+  const used = new Set<number>();
+  for (let i = 0; i < count; i++) {
+    let idx = Math.floor(rng() * MARKET_SIZE);
+    let guard = 0;
+    while (used.has(idx) && guard++ < 12) idx = Math.floor(rng() * MARKET_SIZE);
+    used.add(idx);
+    deals[idx] = BLITZDEAL_STEPS[Math.floor(rng() * BLITZDEAL_STEPS.length)];
+  }
+  return deals;
+}
+
+/** Hat der Markt zu diesem Seed einen Blitzdeal? */
+export function hasBlitzdeal(seed: number): boolean {
+  return Object.keys(marketDeals(seed)).length > 0;
+}
+
 /**
  * Die 6 Markt-Spieler für einen Seed erzeugen. Pro Slot wird zuerst die
  * Seltenheit gewürfelt (Standard-Pack-Quoten), dann eine Identität dieser

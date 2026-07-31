@@ -101,6 +101,14 @@ export function HelpScreen({ navigation }: RootScreenProps<'Help'>) {
               g: BUY_VALUE.gold, l: BUY_VALUE.legendaer,
             })}
           </Text>
+          <Text style={styles.text}>{t('helpTokens')}</Text>
+          <Text style={styles.text}>{t('helpBlitz')}</Text>
+        </Card>
+
+        <SectionTitle>{t('passTitle')}</SectionTitle>
+        <Card>
+          <Text style={styles.text}>{t('helpPass1')}</Text>
+          <Text style={styles.text}>{t('helpPass2')}</Text>
         </Card>
 
         <SectionTitle>{t('helpMystery')}</SectionTitle>

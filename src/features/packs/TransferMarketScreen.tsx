@@ -32,13 +32,23 @@ function timeToMidnight(): string {
   return `${h}h ${m}m`;
 }
 
-function MarketCard({ player, bought, onBuy }: {
-  player: PoolPlayer; bought: boolean; onBuy: () => void;
+const DEAL_PURPLE = '#7d3fb0';
+
+function MarketCard({ player, bought, onBuy, discount }: {
+  player: PoolPlayer; bought: boolean; onBuy: () => void; discount: number;
 }) {
   const rarityColor = RARITY_COLOR[player.rarity];
   const overall = effectiveOverall(player, 1);
+  const base = BUY_VALUE[player.rarity];
+  const price = Math.round(base * (1 - discount));
+  const isDeal = discount > 0;
   return (
-    <Card style={[styles.cell, { borderColor: rarityColor }]}>
+    <Card style={[styles.cell, { borderColor: isDeal ? DEAL_PURPLE : rarityColor }, isDeal && styles.cellDeal]}>
+      {isDeal && (
+        <View style={styles.dealTag}>
+          <Text style={styles.dealTagText}>-{Math.round(discount * 100)}%</Text>
+        </View>
+      )}
       <View style={styles.overallTag}>
         <Text style={[styles.overallText, { color: rarityColor }]}>{overall}</Text>
       </View>
@@ -51,12 +61,13 @@ function MarketCard({ player, bought, onBuy }: {
         <View style={styles.boughtTag}>
           <Text style={styles.boughtText}>{t('tmBought')}</Text>
         </View>
+      ) : isDeal ? (
+        <View style={styles.dealPriceWrap}>
+          <Text style={styles.oldPrice}>{base}</Text>
+          <GKButton title={`${price}`} onPress={onBuy} style={styles.buyBtnDeal} />
+        </View>
       ) : (
-        <GKButton
-          title={`${BUY_VALUE[player.rarity]}`}
-          onPress={onBuy}
-          style={styles.buyBtn}
-        />
+        <GKButton title={`${price}`} onPress={onBuy} style={styles.buyBtn} />
       )}
     </Card>
   );
@@ -64,8 +75,10 @@ function MarketCard({ player, bought, onBuy }: {
 
 export function TransferMarketScreen({ navigation }: RootScreenProps<'TransferMarket'>) {
   const {
-    club, market, marketBought, marketTokens, refreshMarket, buyMarketPlayer, rerollMarket,
+    club, market, marketBought, marketTokens, marketDealMap,
+    refreshMarket, buyMarketPlayer, rerollMarket,
   } = useGameStore();
+  const dealActive = Object.keys(marketDealMap).length > 0;
   const [countdown, setCountdown] = useState(timeToMidnight());
 
   // Beim Öffnen (und Tageswechsel) den Markt neu laden
@@ -89,7 +102,8 @@ export function TransferMarketScreen({ navigation }: RootScreenProps<'TransferMa
     if (result === 'ok') {
       Alert.alert(t('tmBoughtTitle'), tf('tmBoughtMsg', { name: player.name }));
     } else if (result === 'no_coins') {
-      Alert.alert(t('tmNoCoinsTitle'), tf('tmNoCoinsMsg', { price: BUY_VALUE[player.rarity] }));
+      const price = Math.round(BUY_VALUE[player.rarity] * (1 - (marketDealMap[index] ?? 0)));
+      Alert.alert(t('tmNoCoinsTitle'), tf('tmNoCoinsMsg', { price }));
     } else if (result === 'full') {
       Alert.alert(t('tmFullTitle'), t('tmFullMsg'));
     }
@@ -133,12 +147,19 @@ export function TransferMarketScreen({ navigation }: RootScreenProps<'TransferMa
           />
         </Card>
 
+        {dealActive && (
+          <View style={styles.dealBanner}>
+            <Text style={styles.dealBannerText}>{t('tmBlitzActive')}</Text>
+          </View>
+        )}
+
         <View style={styles.grid}>
           {market.map((player, index) => (
             <MarketCard
               key={`${index}-${player.id}`}
               player={player}
               bought={marketBought.includes(index)}
+              discount={marketDealMap[index] ?? 0}
               onBuy={() => onBuy(index, player)}
             />
           ))}
@@ -196,6 +217,26 @@ const styles = StyleSheet.create({
   buyBtn: {
     paddingVertical: 8, paddingHorizontal: spacing.md, minWidth: 64,
   },
+  cellDeal: { borderWidth: 2.5 },
+  dealTag: {
+    position: 'absolute', top: -1, left: -1, zIndex: 2,
+    backgroundColor: DEAL_PURPLE, borderTopLeftRadius: radius.md, borderBottomRightRadius: radius.md,
+    paddingHorizontal: 6, paddingVertical: 2,
+  },
+  dealTagText: { color: colors.gold, fontWeight: '900', fontSize: 11 },
+  dealPriceWrap: { alignItems: 'center', gap: 2 },
+  oldPrice: {
+    color: colors.inkSoft, fontSize: 11, fontWeight: '700', textDecorationLine: 'line-through',
+  },
+  buyBtnDeal: {
+    paddingVertical: 8, paddingHorizontal: spacing.md, minWidth: 64, backgroundColor: DEAL_PURPLE,
+  },
+  dealBanner: {
+    backgroundColor: DEAL_PURPLE, borderRadius: radius.md,
+    paddingVertical: spacing.sm, paddingHorizontal: spacing.md, marginBottom: spacing.sm,
+    borderWidth: 2, borderColor: colors.gold,
+  },
+  dealBannerText: { color: colors.gold, fontWeight: '900', textAlign: 'center', fontSize: font.body },
   boughtTag: {
     paddingVertical: 8, paddingHorizontal: spacing.sm,
     borderRadius: radius.sm, backgroundColor: colors.grass,

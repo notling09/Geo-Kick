@@ -23,6 +23,10 @@ const light = {
   sky: '#1976D2',
   line: '#D7E5D7',
   gold: '#E8B923',
+  // Violett als TEXTfarbe auf hellen Karten (Saisonpass/Token/Blitzdeal). Für
+  // Vollflächen (Badges/Banner) wird bewusst ein festes Violett genutzt, da
+  // dort heller/goldener Text darauf liegt (V7.7).
+  purpleText: '#7d3fb0',
 };
 
 const dark: typeof light = {
@@ -42,6 +46,8 @@ const dark: typeof light = {
   sky: '#64B5F6',
   line: '#2C3A2C',
   gold: '#E8B923',
+  // Heller im Dark Mode, damit Violett-Text auf dunklen Karten lesbar bleibt.
+  purpleText: '#c79be8',
 };
 
 export type ThemeMode = 'light' | 'dark';

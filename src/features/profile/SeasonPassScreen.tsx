@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.inkSoft, marginBottom: spacing.md },
   levelCard: { padding: spacing.md, marginBottom: spacing.md },
   levelRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs },
-  levelBig: { fontSize: font.h1, fontWeight: '900', color: PURPLE },
+  levelBig: { fontSize: font.h1, fontWeight: '900', color: colors.purpleText },
   levelMax: { fontSize: font.body, fontWeight: '800', color: colors.inkSoft },
   barWrap: {
     height: 12, borderRadius: 6, backgroundColor: colors.line, overflow: 'hidden', marginVertical: spacing.sm,
@@ -150,8 +150,8 @@ const styles = StyleSheet.create({
   missionText: { fontWeight: '800', color: colors.ink, fontSize: font.body },
   missionTextDone: { textDecorationLine: 'line-through' },
   missionMeta: { color: colors.inkSoft, fontSize: font.small, marginTop: 2 },
-  missionPts: { fontWeight: '900', color: PURPLE, fontSize: font.body },
-  missionPtsDone: { color: colors.pitch },
+  missionPts: { fontWeight: '900', color: colors.purpleText, fontSize: font.body },
+  missionPtsDone: { color: colors.pitchDark },
   rewardCard: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     padding: spacing.sm, marginBottom: spacing.xs,
@@ -159,13 +159,13 @@ const styles = StyleSheet.create({
   rewardMilestone: { borderWidth: 2, borderColor: colors.gold },
   rewardClaimed: { opacity: 0.55 },
   levelBadge: {
-    width: 34, height: 34, borderRadius: radius.round, backgroundColor: colors.inkSoft,
+    width: 34, height: 34, borderRadius: radius.round, backgroundColor: colors.pitch,
     alignItems: 'center', justifyContent: 'center', flex: 0,
   },
   levelBadgeMilestone: { backgroundColor: PURPLE },
   levelBadgeText: { color: '#fff', fontWeight: '900' },
   rewardText: { flex: 1, fontWeight: '700', color: colors.ink, fontSize: font.small },
   claimBtn: { paddingVertical: 8, paddingHorizontal: spacing.md },
-  claimedText: { color: colors.pitch, fontWeight: '800', fontSize: font.small },
+  claimedText: { color: colors.pitchDark, fontWeight: '800', fontSize: font.small },
   lockedText: { color: colors.inkSoft, fontWeight: '700', fontSize: font.small },
 });
