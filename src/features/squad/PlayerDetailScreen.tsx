@@ -6,6 +6,7 @@ import {
 } from '../../core/domain/constants';
 import { t, tf, type TKey } from '../../core/i18n';
 import { effectiveAttributes, effectiveOverall } from '../../core/engine/playerGen';
+import { eligiblePositions } from '../../core/engine/chemistry';
 import { formOf, formStage, loadForm } from '../../core/services/form';
 import { useGameStore } from '../../state/gameStore';
 import { GKButton, Card, SectionTitle } from '../../ui/components';
@@ -100,6 +101,21 @@ export function PlayerDetailScreen({ route, navigation }: RootScreenProps<'Playe
           </Text>
           <Text style={styles.heroOverall}>{overall}</Text>
         </View>
+
+        <SectionTitle>{t('pdPositions')}</SectionTitle>
+        <Card>
+          <Text style={styles.posLine}>
+            {t('pdMainPos')}: <Text style={styles.posValue}>{POSITION_LABEL[player.pool.position]}</Text>
+          </Text>
+          <Text style={styles.posLine}>
+            {t('pdSecPos')}: <Text style={styles.posValue}>
+              {(() => {
+                const sec = eligiblePositions(player.pool).filter((p) => p !== player.pool.position);
+                return sec.length ? sec.map((p) => POSITION_LABEL[p]).join(', ') : t('pdNoSecPos');
+              })()}
+            </Text>
+          </Text>
+        </Card>
 
         <SectionTitle>{t('pdAttributes')}</SectionTitle>
         <Card>
@@ -228,6 +244,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: spacing.sm,
+  },
+  posLine: {
+    fontSize: font.body,
+    color: colors.inkSoft,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  posValue: {
+    color: colors.ink,
+    fontWeight: '800',
   },
   attrLabel: {
     width: 100,

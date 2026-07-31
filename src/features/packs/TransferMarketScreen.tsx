@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     gap: spacing.sm,
   },
-  title: { flex: 1, fontSize: font.title, fontWeight: '900', color: colors.pitchDark },
+  title: { flex: 1, fontSize: font.h1, fontWeight: '900', color: colors.pitchDark },
   subtitle: { color: colors.inkSoft, marginTop: 2, marginBottom: spacing.md },
   timerCard: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',

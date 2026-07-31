@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { FORMATIONS, POSITION_SHORT } from '../core/domain/constants';
 import type { FormationId, OwnedPlayer, Position } from '../core/domain/types';
 import { t } from '../core/i18n';
@@ -36,8 +36,9 @@ const COORDS: Record<FormationId, Array<[number, number]>> = {
   ],
 };
 
+// „Gut" ist Blau statt Grün, weil Grün auf dem grünen Feld untergeht (V7.7).
 const CHEM_COLOR: Record<ChemState, string> = {
-  green: '#2E7D32',
+  green: '#1E88E5',
   yellow: '#E8B923',
   red: '#C62828',
 };
@@ -66,6 +67,8 @@ interface Props {
   onPlayerPress: (playerId: number) => void;
   /** Tap auf den Tausch-Button (bzw. leeren Slot) → Picker für diesen Slot */
   onSwapPress: (slot: number) => void;
+  /** Zwei Slots tauschen (Drag&Drop: Spieler lang drücken und ziehen), V7.7 */
+  onSwapSlots?: (a: number, b: number) => void;
   /** Captain bekommt das goldene C-Badge (V2) */
   captainId?: number | null;
   /** Gesperrte Spieler (rote Karte) bekommen das Rote-Karte-Badge */
@@ -83,10 +86,51 @@ const CHIP_W = 72;
 const CHIP_H = 64;
 
 export function FormationPitch({
-  formation, lineup, onPlayerPress, onSwapPress, captainId, suspendedIds, fitHeight,
+  formation, lineup, onPlayerPress, onSwapPress, onSwapSlots, captainId, suspendedIds, fitHeight,
 }: Props) {
   const [size, setSize] = React.useState({ w: 0, h: 0 });
   const layout = formationLayout(formation);
+
+  // Drag & Drop (V7.7): einen Spieler lang drücken und ziehen → auf den
+  // nächstgelegenen Slot fallen lassen = Positionen tauschen.
+  const [drag, setDrag] = React.useState<{ slot: number; dx: number; dy: number } | null>(null);
+  const armedRef = React.useRef<number | null>(null);
+  const sizeRef = React.useRef(size); sizeRef.current = size;
+  const layoutRef = React.useRef(layout); layoutRef.current = layout;
+  const onSwapRef = React.useRef(onSwapSlots); onSwapRef.current = onSwapSlots;
+  const respondersRef = React.useRef<Record<number, ReturnType<typeof PanResponder.create>>>({});
+
+  const getResponder = (slot: number) => {
+    if (!respondersRef.current[slot]) {
+      respondersRef.current[slot] = PanResponder.create({
+        onStartShouldSetPanResponder: () => false,
+        onMoveShouldSetPanResponder: (_e, g) =>
+          armedRef.current === slot && (Math.abs(g.dx) > 4 || Math.abs(g.dy) > 4),
+        onPanResponderMove: (_e, g) => setDrag({ slot, dx: g.dx, dy: g.dy }),
+        onPanResponderRelease: (_e, g) => {
+          const s = sizeRef.current;
+          const from = layoutRef.current.find((x) => x.slot === slot);
+          if (from && s.w > 0) {
+            const cx = (from.xPct / 100) * s.w + g.dx;
+            const cy = (from.yPct / 100) * s.h + g.dy;
+            let best = -1;
+            let bestD = Infinity;
+            layoutRef.current.forEach(({ slot: sl, xPct, yPct }) => {
+              const ddx = (xPct / 100) * s.w - cx;
+              const ddy = (yPct / 100) * s.h - cy;
+              const d = ddx * ddx + ddy * ddy;
+              if (d < bestD) { bestD = d; best = sl; }
+            });
+            if (best >= 0 && best !== slot) onSwapRef.current?.(slot, best);
+          }
+          armedRef.current = null;
+          setDrag(null);
+        },
+        onPanResponderTerminate: () => { armedRef.current = null; setDrag(null); },
+      });
+    }
+    return respondersRef.current[slot];
+  };
 
   return (
     <View
@@ -102,11 +146,22 @@ export function FormationPitch({
           const left = (xPct / 100) * size.w - CHIP_W / 2;
           const top = (yPct / 100) * size.h - CHIP_H / 2;
           const chem: ChemState | null = player ? slotChemState(position, player.pool) : null;
+          const dragging = drag?.slot === slot;
+          const dragStyle = dragging
+            ? { transform: [{ translateX: drag!.dx }, { translateY: drag!.dy }], zIndex: 20, elevation: 20 }
+            : null;
+          const panHandlers = player && onSwapSlots ? getResponder(slot).panHandlers : {};
           return (
-            <View key={slot} style={[styles.chip, { left, top }]}>
+            <View key={slot} style={[styles.chip, { left, top }, dragStyle]} {...panHandlers}>
               {player ? (
                 <>
-                  <Pressable onPress={() => onPlayerPress(player.id)} style={styles.avatarWrap}>
+                  <Pressable
+                    onPress={() => onPlayerPress(player.id)}
+                    onLongPress={() => { if (onSwapSlots) armedRef.current = slot; }}
+                    onPressOut={() => { armedRef.current = null; }}
+                    delayLongPress={250}
+                    style={styles.avatarWrap}
+                  >
                     {chem && (
                       <View style={[styles.chemRing, { borderColor: CHEM_COLOR[chem] }]} />
                     )}

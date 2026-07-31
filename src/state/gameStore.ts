@@ -12,7 +12,7 @@ import {
   rollAttributes, rollAttributesExact, type NewPoolPlayer,
 } from '../core/engine/playerGen';
 import { GOLD_PLAYERS, LEGENDARY_PLAYERS, STAR_OVERALL, STAR_POSITIONS, STARTER_WINGERS } from '../core/engine/names';
-import { eligiblePositions } from '../core/engine/chemistry';
+import { slotChemState } from '../core/engine/chemistry';
 import { drawPackContent, packTypeFromSource, rollPackBonus, rollTokens } from '../core/engine/packGen';
 import { generateMarket, marketDeals, marketSeed } from '../core/engine/transferMarket';
 import * as metaRepo from '../core/db/repositories/metaRepo';
@@ -262,34 +262,36 @@ function buildAutoLineup(
   excludeIds?: Set<number>,
 ): Array<number | null> {
   const slots = FORMATIONS[formation];
-  const used = new Set<number>();
-  // Gesperrte Spieler (rote Karte) werden nie automatisch aufgestellt (V7)
+  // Gesperrte/verletzte Spieler werden nie automatisch aufgestellt (V7)
   const pool = excludeIds && excludeIds.size > 0
     ? players.filter((p) => !excludeIds.has(p.id))
     : players;
-  const byOverall = [...pool].sort(
-    (a, b) => effectiveOverall(b.pool, b.level) - effectiveOverall(a.pool, a.level),
-  );
+  // V7.7: mehr auf STÄRKE achten. Bewerte jedes (Spieler, Slot)-Paar mit
+  // Overall × Positions-Faktor (Rot −20 %, Grün/Gelb voll) plus kleiner
+  // Grün-Bonus als Gleichstand-Brecher, dann gierig die besten Paare zuweisen.
+  // So kommen die stärksten Spieler aufs Feld, ihre Position wird dabei so gut
+  // wie möglich getroffen (nicht die maximale Chemie um jeden Preis).
+  const pairs: Array<{ id: number; slot: number; value: number }> = [];
+  pool.forEach((p) => {
+    const ov = effectiveOverall(p.pool, p.level);
+    slots.forEach((pos, slot) => {
+      const state = slotChemState(pos, p.pool);
+      const factor = state === 'red' ? 0.8 : 1;
+      const bonus = state === 'green' ? 0.5 : 0;
+      pairs.push({ id: p.id, slot, value: ov * factor + bonus });
+    });
+  });
+  pairs.sort((a, b) => b.value - a.value);
   const result: Array<number | null> = new Array(11).fill(null);
-  // Erst „grüne" Spieler auf ihre (Haupt- oder Neben-)Position (Chemie), V7.6 …
-  slots.forEach((pos, slot) => {
-    const candidate = byOverall.find(
-      (p) => !used.has(p.id) && eligiblePositions(p.pool).includes(pos),
-    );
-    if (candidate) {
-      result[slot] = candidate.id;
-      used.add(candidate.id);
-    }
-  });
-  // … dann Lücken mit den besten Restspielern füllen
-  slots.forEach((_pos, slot) => {
-    if (result[slot] !== null) return;
-    const candidate = byOverall.find((p) => !used.has(p.id));
-    if (candidate) {
-      result[slot] = candidate.id;
-      used.add(candidate.id);
-    }
-  });
+  const usedPlayers = new Set<number>();
+  const usedSlots = new Set<number>();
+  for (const pr of pairs) {
+    if (usedSlots.size >= 11) break;
+    if (usedPlayers.has(pr.id) || usedSlots.has(pr.slot)) continue;
+    result[pr.slot] = pr.id;
+    usedPlayers.add(pr.id);
+    usedSlots.add(pr.slot);
+  }
   return result;
 }
 
@@ -621,6 +623,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (levelPoints < cost) return 'points';
     await playerRepo.setPlayerLevel(owned.id, owned.level + 1);
     await get().addLevelPoints(-cost);
+    await addPassPoints(10); // Saisonpass: Spieler-Upgrade (V7.7)
     set({ players: await playerRepo.getOwnedPlayers() });
     return 'ok';
   },

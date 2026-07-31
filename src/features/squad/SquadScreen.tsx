@@ -31,7 +31,7 @@ import type { TabScreenProps } from '../../navigation/types';
 export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
   const {
     club, players, lineup, captainPlayerId, levelPoints,
-    setFormation, setLineupSlot, autoLineup, lineupPlayers, setCaptain,
+    setFormation, setLineupSlot, autoLineup, lineupPlayers, setCaptain, restoreLineup,
   } = useGameStore();
   const leagueSeason = useLeagueStore((s) => s.season);
   const leagueRound = useLeagueStore((s) => s.round);
@@ -142,6 +142,11 @@ export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
             lineup={lineupList}
             onPlayerPress={(playerId) => navigation.navigate('PlayerDetail', { playerId })}
             onSwapPress={(slot) => setPickSlot(slot)}
+            onSwapSlots={async (a, b) => {
+              const next = [...lineup];
+              [next[a], next[b]] = [next[b], next[a]];
+              await restoreLineup(next);
+            }}
             captainId={captainPlayerId}
             suspendedIds={suspendedIds}
           />
@@ -273,22 +278,25 @@ const styles = StyleSheet.create({
   strengthBadge: {
     backgroundColor: colors.pitch,
     borderRadius: radius.round,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: 10,
     paddingVertical: 6,
+    justifyContent: 'center',
   },
   strengthText: {
     color: '#fff',
-    fontWeight: '900',
+    fontWeight: '800',
+    fontSize: font.small,
   },
   chemBadge: {
-    backgroundColor: '#2E7D32',
+    backgroundColor: '#1E88E5',
     borderRadius: radius.round,
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: 10,
     paddingVertical: 6,
+    justifyContent: 'center',
   },
   chemText: {
     color: '#fff',
-    fontWeight: '900',
+    fontWeight: '800',
     fontSize: font.small,
   },
   formationRow: {

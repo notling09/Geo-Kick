@@ -412,6 +412,10 @@ const en = {
 
   // Spieler-Detail
   pdLevel: 'Level {n}',
+  pdPositions: 'Positions',
+  pdMainPos: 'Main position',
+  pdSecPos: 'Secondary',
+  pdNoSecPos: 'none',
   pdAttributes: 'Attributes',
   pdForm: 'Form',
   pdFormHint: 'Form rises with goals, assists and wins, and drops after losses or on the bench. It affects team strength by up to 4%.',
@@ -1193,6 +1197,10 @@ const de: typeof en = {
   sqInXI: 'in der Elf',
 
   pdLevel: 'Level {n}',
+  pdPositions: 'Positionen',
+  pdMainPos: 'Hauptposition',
+  pdSecPos: 'Nebenposition',
+  pdNoSecPos: 'keine',
   pdAttributes: 'Attribute',
   pdForm: 'Form',
   pdFormHint: 'Die Form steigt mit Toren, Vorlagen und Siegen und fällt nach Niederlagen oder auf der Bank. Sie beeinflusst die Teamstärke um bis zu 4 %.',
@@ -1965,6 +1973,10 @@ const pt: typeof en = {
   sqInXI: 'no time',
 
   pdLevel: 'Nível {n}',
+  pdPositions: 'Posições',
+  pdMainPos: 'Posição principal',
+  pdSecPos: 'Secundária',
+  pdNoSecPos: 'nenhuma',
   pdAttributes: 'Atributos',
   pdForm: 'Forma',
   pdFormHint: 'A forma sobe com gols, assistências e vitórias, e cai após derrotas ou no banco. Afeta a força do time em até 4%.',

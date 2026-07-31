@@ -138,7 +138,7 @@ export type PassReward =
 
 /** Belohnung für ein Level (wöchentlich zufällig für 5/10/15, fix bei 20). */
 export function rewardForLevel(level: number, wid = weekId()): PassReward | null {
-  if (level <= 1) return null;
+  if (level <= 0) return null;
   if (level === 20) return { kind: 'pack', pack: 'ultimate', count: 1 };
   const rng = mulberry32(Math.imul(wid * 100 + level + 7, 40503) >>> 0);
   if (level === 5 || level === 10 || level === 15) {
@@ -171,8 +171,9 @@ export interface PassSnapshot {
   daysLeft: number;
 }
 
+/** Level aus Punkten (V7.7: Start bei Level 0, 100 Punkte = 1 Level). */
 export function levelForPoints(points: number): number {
-  return Math.min(PASS_MAX_LEVEL, Math.floor(points / POINTS_PER_LEVEL) + 1);
+  return Math.min(PASS_MAX_LEVEL, Math.floor(points / POINTS_PER_LEVEL));
 }
 
 export async function passSnapshot(): Promise<PassSnapshot> {
@@ -196,11 +197,11 @@ export async function passSnapshot(): Promise<PassSnapshot> {
   try { claimed = JSON.parse((await metaRepo.getMeta('passClaimed')) || '[]'); } catch { claimed = []; }
   const wid = weekId();
   const rewards: PassRewardView[] = [];
-  for (let l = 2; l <= PASS_MAX_LEVEL; l++) {
+  for (let l = 1; l <= PASS_MAX_LEVEL; l++) {
     rewards.push({ level: l, reward: rewardForLevel(l, wid), reached: level >= l, claimed: claimed.includes(l) });
   }
   return {
-    level, points, pointsInLevel: Math.min(points - (level - 1) * POINTS_PER_LEVEL, POINTS_PER_LEVEL),
+    level, points, pointsInLevel: Math.min(points - level * POINTS_PER_LEVEL, POINTS_PER_LEVEL),
     missions, rewards, daysLeft: daysUntilReset(day),
   };
 }
