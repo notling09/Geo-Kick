@@ -47,7 +47,8 @@ export function PlayerAvatar({ player, size = 48 }: Props) {
     SKIN_TONES[hash(player.id, 1) % SKIN_TONES.length];
   const hairColor = HAIR_COLORS[hash(player.id, 2) % HAIR_COLORS.length];
   const hairStyle = hash(player.id, 3) % 4;
-  const kit = POSITION_KIT[player.position];
+  // Die ???-Karte hat keine feste Position -> neutrales Grau statt Positionsfarbe.
+  const kit = player.rarity === 'geheim' ? '#8A8F97' : POSITION_KIT[player.position];
   const ring = RARITY_COLOR[player.rarity];
   const legendary = player.rarity === 'legendaer';
 

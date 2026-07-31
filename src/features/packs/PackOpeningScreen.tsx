@@ -5,10 +5,10 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  POSITION_LABEL, POSITION_SHORT, RARITY_COLOR, RARITY_LABEL, SELL_VALUE,
+  POSITION_LABEL, RARITY_COLOR, RARITY_LABEL, SELL_VALUE,
 } from '../../core/domain/constants';
 import { t, tf } from '../../core/i18n';
-import type { Position, PoolPlayer } from '../../core/domain/types';
+import type { PoolPlayer } from '../../core/domain/types';
 import { packTypeFromSource } from '../../core/engine/packGen';
 import { effectiveOverall, overallOf } from '../../core/engine/playerGen';
 import { playSound } from '../../core/services/sound';
@@ -45,8 +45,6 @@ const REVEAL_MS: Record<string, number> = {
   geheim: 2600,
 };
 
-const POSITIONS: Position[] = ['TW', 'CB', 'FB', 'MF', 'FL', 'ST'];
-
 export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOpening'>) {
   const { packId, egg: eggMode, eggIndex } = route.params;
   const {
@@ -66,7 +64,6 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
   const [busy, setBusy] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [mysteryName, setMysteryName] = useState('');
-  const [mysteryPos, setMysteryPos] = useState<Position>('ST');
 
   // Animationswerte
   const packScale = useRef(new Animated.Value(1)).current;
@@ -296,7 +293,7 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
     if (busy || !mysteryName.trim()) return;
     setBusy(true);
     try {
-      const created = await claimMysteryPlayer(mysteryName, mysteryPos);
+      const created = await claimMysteryPlayer(mysteryName);
       if (!created) return;
       patchCurrent({ pool: created, outcome: 'added', note: t('poJoined') });
       showCard();
@@ -392,19 +389,7 @@ export function PackOpeningScreen({ navigation, route }: RootScreenProps<'PackOp
                 maxLength={24}
                 autoFocus
               />
-              <View style={styles.posRow}>
-                {POSITIONS.map((pos) => (
-                  <Pressable
-                    key={pos}
-                    style={[styles.posBtn, mysteryPos === pos && styles.posBtnActive]}
-                    onPress={() => setMysteryPos(pos)}
-                  >
-                    <Text style={[styles.posBtnText, mysteryPos === pos && styles.posBtnTextActive]}>
-                      {POSITION_SHORT[pos]}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
+              <Text style={styles.mysteryHint}>{t('poMysteryAllPos')}</Text>
               <GKButton
                 title={t('poCreatePlayer')}
                 disabled={!mysteryName.trim() || busy}
@@ -756,29 +741,12 @@ const styles = StyleSheet.create({
     fontSize: font.body,
     fontWeight: '700',
   },
-  posRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
+  mysteryHint: {
+    color: '#B9F6CA',
+    fontSize: font.small,
+    fontWeight: '700',
+    textAlign: 'center',
     marginVertical: spacing.md,
-    justifyContent: 'center',
-  },
-  posBtn: {
-    borderWidth: 2,
-    borderColor: '#444',
-    borderRadius: radius.sm,
-    paddingVertical: 8,
-    paddingHorizontal: spacing.md,
-  },
-  posBtnActive: {
-    borderColor: colors.accent,
-    backgroundColor: 'rgba(255,143,0,0.18)',
-  },
-  posBtnText: {
-    color: '#aaa',
-    fontWeight: '800',
-  },
-  posBtnTextActive: {
-    color: colors.accent,
   },
   modalBackdrop: {
     flex: 1,

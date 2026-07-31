@@ -12,7 +12,7 @@ import {
   rollAttributes, rollAttributesExact, type NewPoolPlayer,
 } from '../core/engine/playerGen';
 import { GOLD_PLAYERS, LEGENDARY_PLAYERS, STAR_OVERALL, STAR_POSITIONS, STARTER_WINGERS } from '../core/engine/names';
-import { slotChemState } from '../core/engine/chemistry';
+import { eligiblePositions, slotChemState } from '../core/engine/chemistry';
 import { drawPackContent, packTypeFromSource, rollPackBonus, rollTokens } from '../core/engine/packGen';
 import { generateMarket, marketDeals, marketSeed } from '../core/engine/transferMarket';
 import * as metaRepo from '../core/db/repositories/metaRepo';
@@ -73,7 +73,7 @@ interface GameState {
   setCaptain: (playerId: number) => Promise<void>;
   /** Captain automatisch neu setzen, wenn er nicht mehr in der Startelf ist (V7.4). */
   reassignCaptain: () => Promise<void>;
-  claimMysteryPlayer: (name: string, position: Position) => Promise<PoolPlayer | null>;
+  claimMysteryPlayer: (name: string) => Promise<PoolPlayer | null>;
   /** Einzelnen gezogenen Spieler aufnehmen (Ei-Ausbrüten, V4) */
   receivePlayer: (poolPlayer: PoolPlayer) => Promise<PackEntry>;
   lineupPlayers: () => Array<OwnedPlayer | null>;
@@ -296,6 +296,30 @@ function buildAutoLineup(
 }
 
 /**
+ * „Sanftes" Umsortieren beim Formationswechsel (V7.7): die GLEICHE Elf wird nur
+ * positionsgerecht auf die neuen Slots verteilt (passende Position zuerst, dann
+ * Lücken). Kein Stärke-Optimieren – das macht nur der Beste-Elf-Button.
+ */
+function remapLineup(currentXI: OwnedPlayer[], formation: FormationId): Array<number | null> {
+  const slots = FORMATIONS[formation];
+  const by = [...currentXI].sort(
+    (a, b) => effectiveOverall(b.pool, b.level) - effectiveOverall(a.pool, a.level),
+  );
+  const used = new Set<number>();
+  const result: Array<number | null> = new Array(11).fill(null);
+  slots.forEach((pos, slot) => {
+    const c = by.find((p) => !used.has(p.id) && eligiblePositions(p.pool).includes(pos));
+    if (c) { result[slot] = c.id; used.add(c.id); }
+  });
+  slots.forEach((_pos, slot) => {
+    if (result[slot] !== null) return;
+    const c = by.find((p) => !used.has(p.id));
+    if (c) { result[slot] = c.id; used.add(c.id); }
+  });
+  return result;
+}
+
+/**
  * Captain sicherstellen (V7.4): Ist der aktuelle Captain nicht (mehr) in der
  * Startelf – z. B. nach einer roten Karte herausgenommen oder ausgewechselt –,
  * wird der Spieler mit dem HÖCHSTEN Overall aus der Elf automatisch Captain.
@@ -457,7 +481,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     const currentXI = lineup
       .map((id) => players.find((p) => p.id === id))
       .filter((p): p is OwnedPlayer => p !== undefined);
-    const remapped = buildAutoLineup(currentXI, formation);
+    const remapped = remapLineup(currentXI, formation);
     await playerRepo.replaceLineup(remapped.map((id, slot) => [slot, id]));
     set((s) => ({ club: s.club ? { ...s.club, formation } : s.club, lineup: remapped }));
   },
@@ -469,12 +493,14 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   setLineupSlot: async (slot, playerId) => {
     const lineup = [...get().lineup];
-    // Spieler darf nur einmal aufgestellt sein: alten Slot freiräumen
+    // Stand der Spieler schon im Feld → echter TAUSCH (V7.7-Fix): der bisherige
+    // Spieler auf `slot` wandert auf dessen alten Platz, statt zu verschwinden.
     if (playerId !== null) {
       const existing = lineup.indexOf(playerId);
       if (existing >= 0 && existing !== slot) {
-        lineup[existing] = null;
-        await playerRepo.setLineupSlot(existing, null);
+        const displaced = lineup[slot];
+        lineup[existing] = displaced;
+        await playerRepo.setLineupSlot(existing, displaced);
       }
     }
     lineup[slot] = playerId;
@@ -582,11 +608,13 @@ export const useGameStore = create<GameState>((set, get) => ({
    * Wunschname und -position. Kommt IMMER in den Klub – auch über das
    * Kader-Limit hinaus, damit die einmalige Karte nie verloren geht.
    */
-  claimMysteryPlayer: async (name, position) => {
+  claimMysteryPlayer: async (name) => {
     const trimmed = name.trim();
     if (!trimmed) return null;
+    // Die ???-Karte hat keine feste Position (sie spielt überall) – intern
+    // speichern wir nur einen Platzhalter, die Chemie überschreibt ihn (V7.7).
     const poolId = await playerRepo.insertPoolPlayerReturningId(
-      createMysteryPoolPlayer(trimmed, position),
+      createMysteryPoolPlayer(trimmed, 'MF'),
     );
     await playerRepo.addOwnedPlayer(poolId);
     await metaRepo.setMeta('mysteryClaimed', '1');

@@ -31,8 +31,15 @@ const ADJACENT: Record<Position, Position[]> = {
   ST: ['FL'],
 };
 
+/** Die sechs Hauptpositionen – die ???-Karte spielt auf allen (V7.7). */
+const ALL_POSITIONS: Position[] = ['TW', 'CB', 'FB', 'MF', 'FL', 'ST'];
+
 /** Alle Positionen, auf denen ein Spieler volle Chemie bekommt (Haupt + Neben). */
-export function eligiblePositions(player: Pick<PoolPlayer, 'name' | 'position'>): Position[] {
+export function eligiblePositions(
+  player: Pick<PoolPlayer, 'name' | 'position'> & { rarity?: PoolPlayer['rarity'] },
+): Position[] {
+  // Die ???-Karte hat keine feste Position – sie ist überall „grün".
+  if (player.rarity === 'geheim') return ALL_POSITIONS;
   return STAR_POSITIONS[player.name] ?? [player.position];
 }
 

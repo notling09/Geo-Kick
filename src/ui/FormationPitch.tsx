@@ -36,11 +36,18 @@ const COORDS: Record<FormationId, Array<[number, number]>> = {
   ],
 };
 
-// „Gut" ist Blau statt Grün, weil Grün auf dem grünen Feld untergeht (V7.7).
+// „Gut" ist ein sehr helles Grün – hebt sich klar vom dunkleren Spielfeld ab
+// und bleibt positiv/„grün" (V7.7).
 const CHEM_COLOR: Record<ChemState, string> = {
-  green: '#1E88E5',
+  green: '#B9F6CA',
   yellow: '#E8B923',
   red: '#C62828',
+};
+/** Textfarbe auf dem Positions-Tag: dunkel auf hellem Grün/Gelb, weiß auf Rot. */
+const CHEM_TAG_TEXT: Record<ChemState, string> = {
+  green: '#12301A',
+  yellow: '#3A2A00',
+  red: '#ffffff',
 };
 
 export interface SlotLayout {
@@ -178,7 +185,7 @@ export function FormationPitch({
                     )}
                     {suspendedIds?.has(player.id) && <View style={styles.suspendedBadge} />}
                     <View style={[styles.posTag, { backgroundColor: chem ? CHEM_COLOR[chem] : colors.inkSoft }]}>
-                      <Text style={styles.posTagText}>{POSITION_SHORT[position]}</Text>
+                      <Text style={[styles.posTagText, chem && { color: CHEM_TAG_TEXT[chem] }]}>{POSITION_SHORT[position]}</Text>
                     </View>
                     <Pressable
                       onPress={() => onSwapPress(slot)}

@@ -104,17 +104,25 @@ export function PlayerDetailScreen({ route, navigation }: RootScreenProps<'Playe
 
         <SectionTitle>{t('pdPositions')}</SectionTitle>
         <Card>
-          <Text style={styles.posLine}>
-            {t('pdMainPos')}: <Text style={styles.posValue}>{POSITION_LABEL[player.pool.position]}</Text>
-          </Text>
-          <Text style={styles.posLine}>
-            {t('pdSecPos')}: <Text style={styles.posValue}>
-              {(() => {
-                const sec = eligiblePositions(player.pool).filter((p) => p !== player.pool.position);
-                return sec.length ? sec.map((p) => POSITION_LABEL[p]).join(', ') : t('pdNoSecPos');
-              })()}
+          {player.pool.rarity === 'geheim' ? (
+            <Text style={styles.posLine}>
+              {t('pdMainPos')}: <Text style={styles.posValue}>{t('pdAllPos')}</Text>
             </Text>
-          </Text>
+          ) : (
+            <>
+              <Text style={styles.posLine}>
+                {t('pdMainPos')}: <Text style={styles.posValue}>{POSITION_LABEL[player.pool.position]}</Text>
+              </Text>
+              <Text style={styles.posLine}>
+                {t('pdSecPos')}: <Text style={styles.posValue}>
+                  {(() => {
+                    const sec = eligiblePositions(player.pool).filter((p) => p !== player.pool.position);
+                    return sec.length ? sec.map((p) => POSITION_LABEL[p]).join(', ') : t('pdNoSecPos');
+                  })()}
+                </Text>
+              </Text>
+            </>
+          )}
         </Card>
 
         <SectionTitle>{t('pdAttributes')}</SectionTitle>
