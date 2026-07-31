@@ -42,6 +42,26 @@ let penaltyFn: ((scored: boolean) => Promise<void>) | null = null;
 let restoreLineupFn: (() => Promise<void>) | null = null;
 let restoreTacticFn: (() => Promise<void>) | null = null;
 
+/**
+ * Verletzungs-Verschärfung (V7.5): Spieler, die sich in der 1. Halbzeit
+ * verletzt haben und trotz Rückfrage NICHT ausgewechselt wurden. Ihre
+ * Verletzung dauert am Ende 1–3 Spiele länger (processMatchInjuries wertet das
+ * aus und leert die Liste). Nur im Speicher, pro Spiel.
+ */
+let aggravatedInjuries: string[] = [];
+
+/** Namen der nicht-ausgewechselten Verletzten für dieses Spiel merken. */
+export function markAggravatedInjuries(names: string[]): void {
+  aggravatedInjuries = [...new Set([...aggravatedInjuries, ...names])];
+}
+
+/** Verschärfte Verletzungen abholen UND zurücksetzen (nach dem Spiel). */
+export function takeAggravatedInjuries(): string[] {
+  const list = aggravatedInjuries;
+  aggravatedInjuries = [];
+  return list;
+}
+
 /** Neutraler Standard, auf den die Taktik nach jedem Spiel zurückfällt (V7.4). */
 const DEFAULT_TACTIC: Tactic = 'ausgewogen';
 
@@ -76,6 +96,7 @@ export function registerPauseHandlers(handlers: {
 export async function abandonLiveMatch(): Promise<void> {
   halftimeFn = null;
   penaltyFn = null;
+  aggravatedInjuries = [];
   const restore = restoreLineupFn;
   restoreLineupFn = null;
   const restoreTactic = restoreTacticFn;
@@ -88,6 +109,7 @@ export async function abandonLiveMatch(): Promise<void> {
 export async function runUserMatch(hooks: UserMatchHooks): Promise<void> {
   halftimeFn = null;
   penaltyFn = null;
+  aggravatedInjuries = [];
   // Aufstellung sichern (V5-Fix): Halbzeit-Wechsel gelten nur für DIESES
   // Spiel – nach dem Abpfiff (oder Abbruch) kommt die Elf von vorher zurück
   const lineupSnapshot = [...useGameStore.getState().lineup];

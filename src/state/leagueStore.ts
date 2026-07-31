@@ -12,7 +12,7 @@ import { clubList, createSeason, loadLeagueData, seasonFinished } from '../core/
 import { addDouble, addLeagueTitle, addRunnerUp } from '../core/services/trophies';
 import { averageForm, formFactor, loadForm, updateFormAfterMatch } from '../core/services/form';
 import { useGameStore } from './gameStore';
-import { runUserMatch, type MatchPause } from './matchFlow';
+import { runUserMatch, takeAggravatedInjuries, type MatchPause } from './matchFlow';
 import { pick } from '../core/engine/random';
 
 /**
@@ -371,10 +371,14 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
     const ticked = get()
       .injuries.map((i) => ({ ...i, matchesLeft: i.matchesLeft - 1 }))
       .filter((i) => i.matchesLeft > 0);
+    // V7.5: Spieler, die trotz Verletzung in der 1. Halbzeit NICHT ausgewechselt
+    // wurden, fehlen 1–3 Spiele LÄNGER.
+    const aggravated = takeAggravatedInjuries();
     const added: Injury[] = [];
     newly.forEach((n) => {
       if (!ticked.some((i) => i.playerId === n.playerId) && !added.some((i) => i.playerId === n.playerId)) {
-        added.push({ playerId: n.playerId, playerName: n.playerName, matchesLeft: n.matches });
+        const extra = aggravated.includes(n.playerName) ? 1 + Math.floor(Math.random() * 3) : 0;
+        added.push({ playerId: n.playerId, playerName: n.playerName, matchesLeft: n.matches + extra });
       }
     });
     const next = [...ticked, ...added];

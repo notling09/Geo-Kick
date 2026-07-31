@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { POSITION_SHORT, TACTIC_LABEL } from '../../core/domain/constants';
 import type { MatchEvent, Tactic } from '../../core/domain/types';
@@ -11,7 +11,9 @@ import { useClStore } from '../../state/clStore';
 import { useGameStore } from '../../state/gameStore';
 import { useLeagueStore } from '../../state/leagueStore';
 import { useOnlineStore } from '../../state/onlineStore';
-import { abandonLiveMatch, resolveLivePenalty, resumeSecondHalf } from '../../state/matchFlow';
+import {
+  abandonLiveMatch, markAggravatedInjuries, resolveLivePenalty, resumeSecondHalf,
+} from '../../state/matchFlow';
 import { GKButton, Card } from '../../ui/components';
 import { Crest } from '../../ui/Crest';
 import { FormationPitch } from '../../ui/FormationPitch';
@@ -265,17 +267,56 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
     return colors.inkSoft;
   };
 
-  /** Halbzeit beenden: 2. Hälfte mit gewählter Taktik + aktueller Elf. */
-  const onResume = async () => {
+  // In der 1. Halbzeit verletzte eigene Spieler, die noch in der Elf stehen
+  // (V7.5). Werden sie nicht ausgewechselt und man macht trotzdem weiter,
+  // dauert die Verletzung 1–3 Spiele länger.
+  const injuredStillInLineup = (): string[] => {
+    const injuredNames = new Set(
+      events
+        .filter((e) => e.type === 'verletzung' && e.team === userSide && e.player)
+        .map((e) => e.player as string),
+    );
+    if (injuredNames.size === 0) return [];
+    return game
+      .lineupPlayers()
+      .filter((p): p is NonNullable<typeof p> => p !== null && injuredNames.has(p.pool.name))
+      .map((p) => p.pool.name);
+  };
+
+  const doResume = async (aggravate: string[]) => {
     if (resuming) return;
     setResuming(true);
     try {
       setSubsOpen(false);
+      if (aggravate.length > 0) markAggravatedInjuries(aggravate);
       await resumeSecondHalf(halftimeTactic);
       skippedRef.current = false;
     } finally {
       setResuming(false);
     }
+  };
+
+  /** Halbzeit beenden: 2. Hälfte mit gewählter Taktik + aktueller Elf. */
+  const onResume = async () => {
+    if (resuming) return;
+    // Nur bei Wettbewerbsspielen zählen Verletzungen dauerhaft (Liga/Turnier).
+    const stillInjured = (isLeagueMatch || isClMatch) ? injuredStillInLineup() : [];
+    if (stillInjured.length > 0) {
+      Alert.alert(
+        t('injHalftimeTitle'),
+        tf('injHalftimeBody', { names: [...new Set(stillInjured)].join(', ') }),
+        [
+          { text: t('injHalftimeSub'), style: 'cancel' },
+          {
+            text: t('injHalftimeGoOn'),
+            style: 'destructive',
+            onPress: () => { void doResume([...new Set(stillInjured)]); },
+          },
+        ],
+      );
+      return;
+    }
+    await doResume([]);
   };
 
   const onSkip = () => {
