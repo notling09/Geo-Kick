@@ -126,8 +126,6 @@ export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
               </Text>
             </Pressable>
           ))}
-          <View style={{ flex: 1 }} />
-          <GKButton title={t('sqBestXI')} variant="ghost" style={styles.autoBtn} onPress={() => autoLineup(suspendedIds)} />
         </View>
 
         <View>
@@ -142,6 +140,10 @@ export function SquadScreen({ navigation }: TabScreenProps<'Squad'>) {
           {/* Captain wechseln (V2): Button oben links über dem Feld */}
           <Pressable style={styles.captainBtn} onPress={() => setPickingCaptain(true)}>
             <Text style={styles.captainBtnText}>C</Text>
+          </Pressable>
+          {/* Beste Elf (V7.5): Button oben rechts über dem Feld, gegenüber vom Captain */}
+          <Pressable style={styles.bestXiBtn} onPress={() => autoLineup(suspendedIds)}>
+            <Text style={styles.bestXiText}>{t('sqBestXI')}</Text>
           </Pressable>
         </View>
         {(() => {
@@ -310,6 +312,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 3,
+  },
+  bestXiBtn: {
+    position: 'absolute',
+    top: spacing.sm,
+    right: spacing.sm,
+    backgroundColor: colors.pitch,
+    borderRadius: radius.round,
+    borderWidth: 2,
+    borderColor: '#fff',
+    paddingHorizontal: spacing.sm,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 3,
+  },
+  bestXiText: {
+    fontWeight: '900',
+    fontSize: font.small,
+    color: '#fff',
   },
   captainBtnText: {
     fontWeight: '900',

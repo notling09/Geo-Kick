@@ -374,9 +374,10 @@ export const FORMATIONS: Record<FormationId, Position[]> = {
   '4-4-2': ['TW', 'ABW', 'ABW', 'ABW', 'ABW', 'MF', 'MF', 'MF', 'MF', 'ST', 'ST'],
   '4-3-3': ['TW', 'ABW', 'ABW', 'ABW', 'ABW', 'MF', 'MF', 'MF', 'ST', 'ST', 'ST'],
   '4-2-4': ['TW', 'ABW', 'ABW', 'ABW', 'ABW', 'MF', 'MF', 'ST', 'ST', 'ST', 'ST'],
+  '3-4-3': ['TW', 'ABW', 'ABW', 'ABW', 'MF', 'MF', 'MF', 'MF', 'ST', 'ST', 'ST'],
 };
 
-export const FORMATION_IDS: FormationId[] = ['4-4-2', '4-3-3', '4-2-4'];
+export const FORMATION_IDS: FormationId[] = ['4-4-2', '4-3-3', '4-2-4', '3-4-3'];
 
 export const TACTIC_LABEL: Record<Tactic, string> = lazyLabels<Tactic>({
   offensiv: 'tacticOffensiv',

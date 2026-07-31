@@ -1,6 +1,28 @@
 import { BALANCING, PACK_TYPES, type EggType, type PackType } from '../domain/constants';
-import type { PoolPlayer, Rarity } from '../domain/types';
+import type { PoolPlayer, Position, Rarity } from '../domain/types';
 import { pick, pickWeighted } from './random';
+
+/**
+ * Positions-Ausgleich beim Ziehen (V7.5): Ohne Gewichtung würde man mehr
+ * Angreifer/Mittelfeldspieler ziehen, weil der Star-Pool (Gold/Legendär) att-
+ * lastig ist. Darum wird pro Zug ZUERST eine Position gewürfelt (Feldspieler
+ * gleich gewichtet, Torhüter bewusst seltener – „Torwart ist normal"), dann
+ * ein Spieler dieser Position. So bekommt man über die Zeit eine ausgewogene
+ * Elf statt lauter Stürmer.
+ */
+const DRAW_POSITION_WEIGHTS: Array<{ value: Position; weight: number }> = [
+  { value: 'ST', weight: 1 },
+  { value: 'MF', weight: 1 },
+  { value: 'ABW', weight: 1 },
+  { value: 'TW', weight: 0.5 },
+];
+
+function pickBalanced(list: PoolPlayer[], fallback: PoolPlayer[]): PoolPlayer {
+  const source = list.length > 0 ? list : fallback;
+  const position = pickWeighted(DRAW_POSITION_WEIGHTS);
+  const byPos = source.filter((p) => p.position === position);
+  return pick(byPos.length > 0 ? byPos : source);
+}
 
 /**
  * Pack-Ziehung (Kapitel 3.2 / 8.1): pro Spieler im Pack wird zuerst die
@@ -53,7 +75,7 @@ export function drawPackContent(
       rarity = pickWeighted(normalOdds);
     }
     const candidates = byRarity.get(rarity) ?? drawable;
-    players.push(pick(candidates));
+    players.push(pickBalanced(candidates, drawable));
   }
   return { players, mystery };
 }
@@ -88,7 +110,7 @@ export function drawEggPlayer(pool: PoolPlayer[], eggType: EggType): PoolPlayer 
     eggType.odds.map((o) => ({ value: o.rarity, weight: o.weight })),
   );
   const candidates = drawable.filter((p) => p.rarity === rarity);
-  return pick(candidates.length > 0 ? candidates : drawable);
+  return pickBalanced(candidates, drawable);
 }
 
 /** Pack-Typ aus dem gespeicherten source-Feld ableiten. */
