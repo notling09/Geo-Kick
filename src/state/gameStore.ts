@@ -177,13 +177,13 @@ const OLD_OVERALL_RANGE: Record<Rarity, [number, number]> = {
 };
 
 /**
- * V7.4-Migration: Gold-Stars auf ihr festes, realitätsnahes Rating bringen
- * (STAR_OVERALL). Früher bekam jeder Gold-Spieler einen Zufallswert 75–85,
- * unabhängig von seiner echten Qualität. Läuft einmalig (Meta-Flag). Level-ups
- * bleiben erhalten, da nur das Basis-Rating (Attribute) neu gesetzt wird.
+ * V7.5-Migration: alle Stars (Gold UND Legendary) auf ihr festes, realitäts-
+ * nahes Rating bringen (STAR_OVERALL). Läuft einmal (eigener Meta-Flag, damit
+ * es auch bei Nutzern greift, die die V7.4-Ratings schon hatten). Nur das
+ * Basis-Rating (Attribute) wird neu gesetzt – Level-ups bleiben erhalten.
  */
-async function migrateCuratedRatingsV74(): Promise<void> {
-  if ((await metaRepo.getMeta('curatedRatingsV74')) === '1') return;
+async function migrateCuratedRatingsV75(): Promise<void> {
+  if ((await metaRepo.getMeta('curatedRatingsV75')) === '1') return;
   const pool = await playerRepo.getPool();
   for (const p of pool) {
     const target = STAR_OVERALL[p.name];
@@ -191,7 +191,7 @@ async function migrateCuratedRatingsV74(): Promise<void> {
     if (overallOf(p, p.position) === target) continue;
     await playerRepo.updatePoolAttributes(p.id, rollAttributes(p.position, target));
   }
-  await metaRepo.setMeta('curatedRatingsV74', '1');
+  await metaRepo.setMeta('curatedRatingsV75', '1');
 }
 
 async function migrateRatingsV3(): Promise<void> {
@@ -295,7 +295,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       await metaRepo.setMeta('poolSeeded', '1');
       // Frisch geseedet = bereits auf den V3-Spannen und mit festen Star-Ratings
       await metaRepo.setMeta('ratingsV3', '1');
-      await metaRepo.setMeta('curatedRatingsV74', '1');
+      await metaRepo.setMeta('curatedRatingsV75', '1');
     } else {
       // Bestehende Installationen: Starter-Namen an die aktuelle Liste angleichen
       await playerRepo.syncStarterNames(STARTER_WINGERS.map((s) => s.name));
@@ -309,8 +309,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       await topUpPool();
       // V3: neue Rating-Spannen auf den Bestand anwenden
       await migrateRatingsV3();
-      // V7.4: Gold-Stars auf ihr festes, realitätsnahes Rating bringen
-      await migrateCuratedRatingsV74();
+      // V7.5: alle Stars (Gold + Legendary) auf ihr festes Rating bringen
+      await migrateCuratedRatingsV75();
     }
     // Sound-Stummschaltung aus dem Spielstand übernehmen (V7.4)
     setSoundMuted((await metaRepo.getMeta('soundMuted')) === '1');

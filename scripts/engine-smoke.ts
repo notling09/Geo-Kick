@@ -27,10 +27,10 @@ check('3 starter choices', pool.filter(p => p.isStarterChoice).length === 3);
 const attrsInRange = pool.every(p => [p.tempo, p.technik, p.abschluss, p.verteidigung, p.kondition].every(v => v >= 1 && v <= 99));
 check('attributes 1..99', attrsInRange);
 const legendaries = pool.filter(p => p.rarity === 'legendaer' && !p.isStarterChoice);
-// V3-Spannen: Legendär 86-90 (Roll-Toleranz ±1)
-check('legendary overall 85..91', legendaries.every(p => {
+// V7.5-Spannen: Legendär feste Ratings 86-93 (Roll-Toleranz ±1)
+check('legendary overall 85..94', legendaries.every(p => {
   const o = overallOf(p, p.position);
-  return o >= 85 && o <= 91;
+  return o >= 85 && o <= 94;
 }));
 // V3: Starter haben exakt 80 Overall
 check('starters exactly 80', pool.filter(p => p.isStarterChoice).every(p => overallOf(p, p.position) === 80));
@@ -52,10 +52,10 @@ const posCount = (rarity: string) => {
   const c = posCount(rarity);
   check(`${rarity}: alle Positionen vertreten`, c.TW > 0 && c.ABW > 0 && c.MF > 0 && c.ST > 0, JSON.stringify(c));
 });
-check('gold pool >= 80', pool.filter(p => p.rarity === 'gold' && !p.isStarterChoice).length >= 80);
-check('legendary pool >= 40', legendaries.length >= 40);
-check('bronze pool = 176', pool.filter(p => p.rarity === 'bronze').length === 176);
-check('silver pool = 128', pool.filter(p => p.rarity === 'silber').length === 128);
+check('gold pool = 125', pool.filter(p => p.rarity === 'gold' && !p.isStarterChoice).length === 125);
+check('legendary pool = 75', legendaries.length === 75);
+check('bronze pool = 276', pool.filter(p => p.rarity === 'bronze').length === 276);
+check('silver pool = 200', pool.filter(p => p.rarity === 'silber').length === 200);
 
 const fillers = generateFillerSquad();
 check('fillers = 15', fillers.length === 15, String(fillers.length));

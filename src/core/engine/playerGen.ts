@@ -11,10 +11,15 @@ import { pick, randInt, shuffle } from './random';
  * (Duplikate → Training, Kapitel 3.3).
  */
 
-/** Zielgrößen des Pools (V7.2: nochmals verdoppelt, mehr Sammel-Vielfalt). */
+/**
+ * Zielgrößen des Pools. V7.5: Gold 125 / Legendär 75 (aus den kuratierten
+ * Listen). Bronze/Silber proportional aufgestockt, damit die Sammlung trotz
+ * der größeren Star-Pools ausgewogen bleibt (die Zieh-Chancen pro Stufe sind
+ * ohnehin über die Pack-Quoten festgelegt, nicht über die Pool-Größe).
+ */
 export const POOL_SIZE: Record<Rarity, number> = {
-  bronze: 176,
-  silber: 128,
+  bronze: 276,
+  silber: 200,
   gold: GOLD_PLAYERS.length,
   legendaer: LEGENDARY_PLAYERS.length,
   // Die ???-Identität entsteht erst beim einmaligen Zug (Nutzer benennt sie)

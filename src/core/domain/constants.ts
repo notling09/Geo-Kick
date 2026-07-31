@@ -306,7 +306,7 @@ export const RARITY_OVERALL_RANGE: Record<Rarity, [number, number]> = {
   bronze: [35, 59],
   silber: [60, 74],
   gold: [75, 85],
-  legendaer: [86, 90],
+  legendaer: [86, 93],
   geheim: [99, 99],
 };
 
