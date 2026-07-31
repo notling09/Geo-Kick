@@ -255,7 +255,63 @@ function lineupArray(map: Map<number, number>): Array<number | null> {
   return Array.from({ length: 11 }, (_, slot) => map.get(slot) ?? null);
 }
 
-/** Beste verfügbare Spieler automatisch auf die Formations-Slots verteilen. */
+/**
+ * Optimale Zuordnung (Ungarische Methode / Kuhn-Munkres, O(n³)) auf einer
+ * quadratischen Kostenmatrix. Liefert je Zeile die zugeordnete Spalte mit
+ * minimalen Gesamtkosten. Klassische e-maxx-Implementierung (1-indiziert).
+ */
+function hungarianAssign(cost: number[][]): number[] {
+  const n = cost.length;
+  const INF = Infinity;
+  const u = new Array(n + 1).fill(0);
+  const v = new Array(n + 1).fill(0);
+  const p = new Array(n + 1).fill(0); // p[j] = der Spalte j zugeordnete Zeile
+  const way = new Array(n + 1).fill(0);
+  for (let i = 1; i <= n; i++) {
+    p[0] = i;
+    let j0 = 0;
+    const minv = new Array(n + 1).fill(INF);
+    const used = new Array(n + 1).fill(false);
+    do {
+      used[j0] = true;
+      const i0 = p[j0];
+      let delta = INF;
+      let j1 = 0;
+      for (let j = 1; j <= n; j++) {
+        if (!used[j]) {
+          const cur = cost[i0 - 1][j - 1] - u[i0] - v[j];
+          if (cur < minv[j]) { minv[j] = cur; way[j] = j0; }
+          if (minv[j] < delta) { delta = minv[j]; j1 = j; }
+        }
+      }
+      for (let j = 0; j <= n; j++) {
+        if (used[j]) { u[p[j]] += delta; v[j] -= delta; }
+        else { minv[j] -= delta; }
+      }
+      j0 = j1;
+    } while (p[j0] !== 0);
+    do {
+      const j1 = way[j0];
+      p[j0] = p[j1];
+      j0 = j1;
+    } while (j0 !== 0);
+  }
+  const rowToCol = new Array(n).fill(-1);
+  for (let j = 1; j <= n; j++) {
+    if (p[j] !== 0) rowToCol[p[j] - 1] = j - 1;
+  }
+  return rowToCol;
+}
+
+/**
+ * Beste verfügbare Elf automatisch auf die Formations-Slots verteilen (V7.8).
+ * Bewertet jedes (Slot, Spieler)-Paar mit Overall × Positions-Faktor (Rot −20 %,
+ * Grün/Gelb voll) plus kleinem Grün-Bonus für Feldspieler und findet dann die
+ * OPTIMALE Zuordnung (nicht mehr gierig). Dadurch werden Ausweich-Fehler
+ * vermieden: ein 99er-Feldspieler (z. B. die ???-Karte, die überall grün ist)
+ * landet nicht mehr im Tor, wenn er im Feld mehr Gesamtstärke bringt – die
+ * ungarische Methode berücksichtigt die Opportunitätskosten aller Slots.
+ */
 function buildAutoLineup(
   players: OwnedPlayer[],
   formation: FormationId,
@@ -266,31 +322,36 @@ function buildAutoLineup(
   const pool = excludeIds && excludeIds.size > 0
     ? players.filter((p) => !excludeIds.has(p.id))
     : players;
-  // V7.7: mehr auf STÄRKE achten. Bewerte jedes (Spieler, Slot)-Paar mit
-  // Overall × Positions-Faktor (Rot −20 %, Grün/Gelb voll) plus kleiner
-  // Grün-Bonus als Gleichstand-Brecher, dann gierig die besten Paare zuweisen.
-  // So kommen die stärksten Spieler aufs Feld, ihre Position wird dabei so gut
-  // wie möglich getroffen (nicht die maximale Chemie um jeden Preis).
-  const pairs: Array<{ id: number; slot: number; value: number }> = [];
-  pool.forEach((p) => {
-    const ov = effectiveOverall(p.pool, p.level);
-    slots.forEach((pos, slot) => {
-      const state = slotChemState(pos, p.pool);
-      const factor = state === 'red' ? 0.8 : 1;
-      const bonus = state === 'green' ? 0.5 : 0;
-      pairs.push({ id: p.id, slot, value: ov * factor + bonus });
-    });
-  });
-  pairs.sort((a, b) => b.value - a.value);
   const result: Array<number | null> = new Array(11).fill(null);
-  const usedPlayers = new Set<number>();
-  const usedSlots = new Set<number>();
-  for (const pr of pairs) {
-    if (usedSlots.size >= 11) break;
-    if (usedPlayers.has(pr.id) || usedSlots.has(pr.slot)) continue;
-    result[pr.slot] = pr.id;
-    usedPlayers.add(pr.id);
-    usedSlots.add(pr.slot);
+  const m = pool.length;
+  if (m === 0) return result;
+
+  const value = (slot: number, p: OwnedPlayer): number => {
+    const ov = effectiveOverall(p.pool, p.level);
+    const state = slotChemState(slots[slot], p.pool);
+    const factor = state === 'red' ? 0.8 : 1;
+    // Grün-Bonus nur für Feldspieler (der Torwart-Slot zählt nicht zur Chemie).
+    const bonus = state === 'green' && slots[slot] !== 'TW' ? 0.5 : 0;
+    return ov * factor + bonus;
+  };
+
+  // Quadratische Kostenmatrix: 11 echte Slots + Dummy-Slots (Wert 0) gegen alle
+  // Spieler + Dummy-Spieler. Kosten = BIG − Wert (Minimierung = Maximierung).
+  const k = Math.max(11, m);
+  const BIG = 1_000_000;
+  const cost: number[][] = [];
+  for (let i = 0; i < k; i++) {
+    const row = new Array<number>(k);
+    for (let j = 0; j < k; j++) {
+      const val = i < 11 && j < m ? value(i, pool[j]) : 0;
+      row[j] = BIG - val;
+    }
+    cost.push(row);
+  }
+  const rowToCol = hungarianAssign(cost);
+  for (let slot = 0; slot < 11; slot++) {
+    const j = rowToCol[slot];
+    if (j >= 0 && j < m) result[slot] = pool[j].id;
   }
   return result;
 }
