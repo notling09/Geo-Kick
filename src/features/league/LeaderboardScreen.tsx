@@ -61,20 +61,27 @@ export function LeaderboardScreen({ navigation }: RootScreenProps<'Leaderboard'>
     if (cloudStatus !== 'online') return;
     setFailed(false);
     setEntries(null);
+    // Nur ein echter Fehler BEIM LADEN der Liste zeigt „Erneut versuchen".
     try {
       // Mehr als die Top 10 laden, damit auch ein Platz dahinter bestimmbar ist
       const rows = await fetchLeaderboard(squadOverall, RANK_SCAN_LIMIT);
       setEntries(rows);
+    } catch {
+      setEntries([]);
+      setFailed(true);
+      return;
+    }
+    // Eigene ID separat holen – schlägt der Session-Aufruf fehl (z. B. Token-
+    // Refresh nach einem Supabase-Restore), darf das die geladene Liste NICHT
+    // verwerfen; dann wird der eigene Platz halt nicht hervorgehoben (V7.9.1).
+    try {
       const supabase = getSupabase();
       if (supabase) {
         const { data } = await supabase.auth.getSession();
         setMyId(data.session?.user.id ?? null);
       }
     } catch {
-      // Nie ewig laden: bei jedem Fehler den Spinner beenden und einen
-      // Wiederholen-Button zeigen (V7.9).
-      setEntries([]);
-      setFailed(true);
+      /* eigener Platz bleibt unmarkiert – kein Grund, die Liste zu verwerfen */
     }
   }, [cloudStatus]);
 
