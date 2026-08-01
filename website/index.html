@@ -21,6 +21,7 @@
     --gold-2: #f6d25b;
     --on-gold: #23180a;
     --maxw: 900px;
+    --head: 60px;
     --foot: 116px;
     --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
   }
@@ -52,7 +53,7 @@
 
   /* ---------- full-page pitch background ---------- */
   .field {
-    position: absolute; inset: 0 0 var(--foot) 0; z-index: 0; overflow: hidden; pointer-events: none;
+    position: absolute; inset: var(--head) 0 var(--foot) 0; z-index: 0; overflow: hidden; pointer-events: none;
     background: linear-gradient(180deg, var(--field-a), var(--field-b));
   }
   .field .bound { position: absolute; top: 20px; bottom: 20px; left: 4%; right: 4%; border: 2px solid var(--line); border-radius: 3px; }
@@ -89,8 +90,9 @@
 
   /* ---------- hero ---------- */
   .hero { padding: clamp(44px, 9vw, 84px) 0 clamp(36px, 6vw, 60px); text-align: center; }
-  .logo-plate { background: #ffffff; border-radius: 20px; padding: 22px 26px; max-width: 520px; margin: 0 auto; box-shadow: 0 20px 46px -18px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 0, 0, 0.06); }
-  .logo-plate img { display: block; width: 100%; height: auto; }
+  .logo { position: relative; max-width: 500px; margin: 0 auto; padding: 10px 6px; }
+  .logo::before { content: ""; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 90%; height: 120%; border-radius: 50%; background: radial-gradient(50% 55% at 50% 50%, rgba(0, 0, 0, 0.42), transparent 70%); filter: blur(18px); z-index: 0; pointer-events: none; }
+  .logo img { position: relative; z-index: 1; display: block; width: 100%; height: auto; filter: drop-shadow(0 0 1.5px rgba(255, 255, 255, 0.55)) drop-shadow(0 5px 16px rgba(0, 0, 0, 0.45)); }
   .tagline { font-size: clamp(1.4rem, 5vw, 2rem); font-weight: 800; margin-top: 26px; }
   .lead { color: var(--muted); font-size: 1.05rem; max-width: 42ch; margin: 12px auto 0; }
 
@@ -166,7 +168,7 @@
   <a id="top"></a>
   <section class="hero">
     <div class="wrap">
-      <div class="logo-plate">
+      <div class="logo">
         <img src="logo-wordmark.png" alt="Geo-Kick" />
       </div>
       <h1 class="tagline">A football game you play in real life.</h1>
