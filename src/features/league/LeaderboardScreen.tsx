@@ -35,6 +35,7 @@ const TOP_COUNT = 10;
 export function LeaderboardScreen({ navigation }: RootScreenProps<'Leaderboard'>) {
   const cloudStatus = useCloudStore((s) => s.status);
   const [entries, setEntries] = useState<LeaderboardEntry[] | null>(null);
+  const [failed, setFailed] = useState(false);
   const [myId, setMyId] = useState<string | null>(null);
   const friends = useFriendsStore((s) => s.friends);
   const outgoing = useFriendsStore((s) => s.outgoing);
@@ -58,12 +59,22 @@ export function LeaderboardScreen({ navigation }: RootScreenProps<'Leaderboard'>
 
   const load = useCallback(async () => {
     if (cloudStatus !== 'online') return;
-    // Mehr als die Top 10 laden, damit auch ein Platz dahinter bestimmbar ist
-    setEntries(await fetchLeaderboard(squadOverall, RANK_SCAN_LIMIT));
-    const supabase = getSupabase();
-    if (supabase) {
-      const { data } = await supabase.auth.getSession();
-      setMyId(data.session?.user.id ?? null);
+    setFailed(false);
+    setEntries(null);
+    try {
+      // Mehr als die Top 10 laden, damit auch ein Platz dahinter bestimmbar ist
+      const rows = await fetchLeaderboard(squadOverall, RANK_SCAN_LIMIT);
+      setEntries(rows);
+      const supabase = getSupabase();
+      if (supabase) {
+        const { data } = await supabase.auth.getSession();
+        setMyId(data.session?.user.id ?? null);
+      }
+    } catch {
+      // Nie ewig laden: bei jedem Fehler den Spinner beenden und einen
+      // Wiederholen-Button zeigen (V7.9).
+      setEntries([]);
+      setFailed(true);
     }
   }, [cloudStatus]);
 
@@ -90,7 +101,15 @@ export function LeaderboardScreen({ navigation }: RootScreenProps<'Leaderboard'>
           <ActivityIndicator color={colors.pitch} style={{ marginTop: spacing.xl }} />
         ) : entries.length === 0 ? (
           <Card>
-            <Text style={styles.info}>{t('lbEmpty')}</Text>
+            <Text style={styles.info}>{failed ? t('lbLoadFailed') : t('lbEmpty')}</Text>
+            {failed && (
+              <GKButton
+                title={t('lbRetry')}
+                variant="secondary"
+                style={{ marginTop: spacing.sm }}
+                onPress={() => void load()}
+              />
+            )}
           </Card>
         ) : (
           (() => {

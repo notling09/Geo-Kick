@@ -215,6 +215,34 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
     }
   }, [isOnlineMatch, onlinePhase, navigation]);
 
+  // Rote Karte (V7.9): ein eigener Spieler, der in der 1. Halbzeit vom Platz
+  // gestellt wurde, wird zur Halbzeit AUS DER ELF genommen (leerer Slot). Man
+  // spielt in Unterzahl weiter und darf den Platz nicht nachbesetzen – der
+  // Wechsel-Block unten verhindert das Auffüllen.
+  const redRemovedRef = useRef(false);
+  useEffect(() => {
+    if (!played) return;
+    const atHt = played.pause?.type === 'halftime' && minute >= 45;
+    if (!atHt || redRemovedRef.current) return;
+    redRemovedRef.current = true;
+    const side: 'home' | 'away' = played.userIsHome ? 'home' : 'away';
+    const names = new Set(
+      (played.match.events ?? [])
+        .filter((e) => e.type === 'rot' && e.team === side && e.player)
+        .map((e) => e.player as string),
+    );
+    if (names.size === 0) return;
+    void (async () => {
+      const g = useGameStore.getState();
+      for (let slot = 0; slot < g.lineup.length; slot++) {
+        const id = g.lineup[slot];
+        if (id === null) continue;
+        const p = g.players.find((pp) => pp.id === id);
+        if (p && names.has(p.pool.name)) await g.setLineupSlot(slot, null);
+      }
+    })();
+  }, [played, minute]);
+
   if (!played) {
     return (
       <SafeAreaView style={styles.safe}>
@@ -338,8 +366,29 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
     isLeagueMatch || isClMatch ? [...leagueState.suspendedForNextMatch()] : [],
   );
 
+  // Rote Karten des eigenen Teams in DIESEM Spiel (V7.9): der Platzverweis gilt
+  // sofort – der Spieler darf nicht mehr aufs Feld, und die frei gewordene
+  // Position darf nicht nachbesetzt werden (Unterzahl).
+  const ownRedNames = new Set(
+    events.filter((e) => e.type === 'rot' && e.team === userSide && e.player).map((e) => e.player as string),
+  );
+  const sentOffIds = new Set(
+    game.players.filter((p) => ownRedNames.has(p.pool.name)).map((p) => p.id),
+  );
+  const maxFieldPlayers = 11 - ownRedNames.size;
+  const filledSlots = lineupIds.filter((id) => id !== null).length;
+
+  /** Blockt das Auffüllen eines leeren Slots, wenn man in Unterzahl ist. */
+  const blockedManDown = (targetSlot: number): boolean => {
+    if (lineupIds[targetSlot] !== null) return false; // Slot besetzt -> normaler Tausch
+    if (filledSlots < maxFieldPlayers) return false; // noch Platz (z. B. Verletzung)
+    Alert.alert(t('mlManDownTitle'), t('mlManDownBody'));
+    return true;
+  };
+
   const onSlotTap = async (slot: number) => {
     if (selection?.type === 'bench') {
+      if (blockedManDown(slot)) { setSelection(null); return; }
       await game.setLineupSlot(slot, selection.id);
       setSelection(null);
       return;
@@ -364,6 +413,7 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
 
   const onBenchTap = async (benchId: number) => {
     if (selection?.type === 'slot') {
+      if (blockedManDown(selection.slot)) { setSelection(null); return; }
       await game.setLineupSlot(selection.slot, benchId);
       setSelection(null);
       return;
@@ -595,7 +645,8 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
           <Text style={styles.subsSection}>{t('subsBench')}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.benchRow}>
             {bench.map((player) => {
-              const suspended = suspendedIds.has(player.id);
+              const sentOff = sentOffIds.has(player.id);
+              const suspended = suspendedIds.has(player.id) || sentOff;
               const selected = selection?.type === 'bench' && selection.id === player.id;
               return (
                 <Pressable
@@ -608,7 +659,9 @@ export function MatchLiveScreen({ navigation }: RootScreenProps<'MatchLive'>) {
                     {player.pool.name.split(' ').slice(-1)[0]}
                   </Text>
                   <Text style={styles.benchMeta}>
-                    {suspended
+                    {sentOff
+                      ? t('subsSentOff')
+                      : suspended
                       ? t('subsSuspended')
                       : `${POSITION_SHORT[player.pool.position]} · ${effectiveOverall(player.pool, player.level)}`}
                   </Text>

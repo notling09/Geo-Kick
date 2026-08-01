@@ -97,12 +97,18 @@ export async function fetchLeaderboard(
 ): Promise<LeaderboardEntry[]> {
   const supabase = getSupabase();
   if (!supabase) return [];
-  const { data, error } = await supabase
+  const query = supabase
     .from('clubs')
     .select('id, club_name, crest, division, strength, squad')
     .gt('strength', 0)
     .order('strength', { ascending: false })
     .limit(limit);
+  // Timeout: hängt die Verbindung (z. B. pausiertes Supabase-Projekt), darf die
+  // Bestenliste NICHT ewig laden – nach 8 s brechen wir sauber ab (V7.9).
+  const timeout = new Promise<{ data: null; error: { message: string } }>((resolve) =>
+    setTimeout(() => resolve({ data: null, error: { message: 'timeout' } }), 8000),
+  );
+  const { data, error } = await Promise.race([query, timeout]);
   if (error || !data) return [];
   return data.map((c) => {
     const squad = (c.squad ?? []) as CloudSquadPlayer[];
