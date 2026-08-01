@@ -1,0 +1,32 @@
+name: Supabase keep-alive
+
+# Haelt das Gratis-Supabase-Projekt wach: Gratis-Projekte pausieren nach 7 Tagen
+# ohne Aktivitaet. Diese Action macht Mo + Do je eine kleine DB-Abfrage (max. ~4
+# Tage Abstand, also klar unter der 7-Tage-Grenze). Der anon-Key ist bewusst
+# oeffentlich (steht auch in src/core/config/backend.ts) – die Sicherheit kommt
+# aus den Row-Level-Security-Regeln.
+
+on:
+  schedule:
+    - cron: '0 6 * * 1,4'   # Montag & Donnerstag, 06:00 UTC
+  workflow_dispatch: {}       # erlaubt manuelles Ausloesen im Actions-Tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: 'https://wkcyqtzhvkxqfyudkmmn.supabase.co'
+      SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndrY3lxdHpodmt4cWZ5dWRrbW1uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxNzk5MTksImV4cCI6MjA5ODc1NTkxOX0.P_b1sHiTqoIGCu_4kpEzdH_31hv6ruYqTDkrrljiuz8'
+    steps:
+      - name: Ping Supabase REST
+        run: |
+          code=$(curl -sS -o /dev/null -w "%{http_code}" \
+            "$SUPABASE_URL/rest/v1/clubs?select=id&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY")
+          echo "Supabase responded with HTTP $code"
+          # 200 = ok. 4xx/5xx nicht als Fehler werten – Hauptsache, die Anfrage
+          # kam an und zaehlt als Aktivitaet.
+          if [ "$code" = "000" ]; then
+            echo "No response (network error)"; exit 1
+          fi
