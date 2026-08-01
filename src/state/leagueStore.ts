@@ -438,7 +438,7 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
       prize = firstPrize;
       await g2.addCoins(prize);
       await addLeagueTitle(club.division);
-      await addPassPoints(150); // Saisonpass: Meister geworden (V7.7)
+      await addPassPoints(100); // Saisonpass: Meister geworden (V7.9)
       set({
         pendingCelebration: {
           clubName: club.name,
@@ -883,7 +883,7 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
 
       // Saisonpass (V7.7): passive Punkte + Missionsfortschritt aus dem Ligaspiel
       const passWon = userGoals > oppGoals;
-      if (passWon) { await addPassPoints(isRival ? 40 : 20); await reportMissionEvent('win'); }
+      if (passWon) { await addPassPoints(isRival ? 30 : 15); await reportMissionEvent('win'); }
       if (passWon && isRival) await reportMissionEvent('rivalWin');
       if (userGoals > 0) await reportMissionEvent('goal', userGoals);
       if (passWon && oppGoals === 0) await reportMissionEvent('cleanSheet');
@@ -895,9 +895,9 @@ export const useLeagueStore = create<LeagueStateStore>((set, get) => ({
         const ca = userMatch.events.filter(
           (e) => e.type === 'tor' && e.team === userSide && e.assist === passCap.pool.name,
         ).length;
-        if (cg > 0) { await addPassPoints(cg * 10); await reportMissionEvent('captainGoal', cg); }
+        if (cg > 0) { await addPassPoints(cg * 5); await reportMissionEvent('captainGoal', cg); }
         if (ca > 0) await addPassPoints(ca * 5);
-        if (result.motm && result.motm.name === passCap.pool.name) await addPassPoints(20);
+        if (result.motm && result.motm.name === passCap.pool.name) await addPassPoints(10);
       }
       if (teamChemistry(g2.lineupPlayers(), club.formation).greenOutfield >= 10) {
         await reportMissionEvent('chemFull');

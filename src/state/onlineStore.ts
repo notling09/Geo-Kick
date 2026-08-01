@@ -327,7 +327,7 @@ export const useOnlineStore = create<OnlineState>((set, get) => {
       if (opp) void updateRecord(myGoals > oppGoals ? 'w' : 'l', opp.userId);
       // Saisonpass (V7.7): Online-Freundschaftsspiel gewonnen
       if (myGoals > oppGoals) {
-        void addPassPoints(15);
+        void addPassPoints(10);
         void reportMissionEvent('onlineWin');
       }
       set({ phase: 'done' });

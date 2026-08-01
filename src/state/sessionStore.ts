@@ -378,7 +378,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     await game.addCoins(totalCoins);
     if (reward.pack) await game.grantPack('session');
     // Saisonpass (V7.7): Check-in abgeschlossen (Gold-Platz = doppelte Punkte)
-    await addPassPoints(doubled ? 40 : 20);
+    await addPassPoints(doubled ? 20 : 10);
     await reportMissionEvent('checkin');
 
     // V4: Heimplatz neu bestimmen und ggf. ein neues Ei vergeben (max. 3)

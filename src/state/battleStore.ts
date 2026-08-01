@@ -299,7 +299,7 @@ export const useBattleStore = create<BattleState>((set, get) => ({
         }
         // Saisonpass (V7.7): Pitch-Sieg (Boss zählt mehr) + Missionen
         if (won) {
-          await addPassPoints(isBoss ? 40 : 20);
+          await addPassPoints(isBoss ? 30 : 15);
           await reportMissionEvent('pitchWin');
           if (isBoss) await reportMissionEvent('boss');
         }

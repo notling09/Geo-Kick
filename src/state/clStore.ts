@@ -242,7 +242,7 @@ export const useClStore = create<ClStore>((set, get) => ({
 
           // Saisonpass (V7.7): Turnierspiel zählt auch für Punkte + Missionen
           if (won) {
-            await addPassPoints(20);
+            await addPassPoints(15);
             await reportMissionEvent('win');
             await reportMissionEvent('clWin');
           }
@@ -258,9 +258,9 @@ export const useClStore = create<ClStore>((set, get) => ({
               const ca = result.events.filter(
                 (e) => e.type === 'tor' && e.team === side && e.assist === captain.pool.name,
               ).length;
-              if (cg > 0) { await addPassPoints(cg * 10); await reportMissionEvent('captainGoal', cg); }
+              if (cg > 0) { await addPassPoints(cg * 5); await reportMissionEvent('captainGoal', cg); }
               if (ca > 0) await addPassPoints(ca * 5);
-              if (result.motm && result.motm.name === captain.pool.name) await addPassPoints(20);
+              if (result.motm && result.motm.name === captain.pool.name) await addPassPoints(10);
             }
           }
 
@@ -313,7 +313,7 @@ export const useClStore = create<ClStore>((set, get) => ({
           const kind = isCup ? 'cup' : 'cl';
           if (state.champion === USER_CLUB_ID) {
             await addTournamentPlace(kind, 1);
-            await addPassPoints(150); // Saisonpass: Turnier gewonnen (V7.7)
+            await addPassPoints(100); // Saisonpass: Turnier gewonnen (V7.9)
             useLeagueStore.setState({
               pendingCelebration: {
                 clubName: club.name,

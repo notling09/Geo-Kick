@@ -21,7 +21,7 @@ import * as packRepo from '../core/db/repositories/packRepo';
 import { createSeason } from '../core/services/seasonService';
 import { markSeen, migrateDexGoldNamesV74 } from '../core/services/dex';
 import { setSoundMuted } from '../core/services/sound';
-import { addPassPoints, reportMissionEvent } from '../core/services/pass';
+import { reportMissionEvent } from '../core/services/pass';
 
 /**
  * Globaler Spielzustand (Kader, Coins, Klub) – Zustand-Store über der
@@ -652,8 +652,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     // Transfermarkt-Token aus dem Pack (V7.7): 0–3, je nach Pack-Typ
     const tokens = rollTokens(packType);
     if (tokens > 0) await get().addMarketTokens(tokens);
-    // Saisonpass (V7.7): Pack geöffnet
-    await addPassPoints(10);
+    // Saisonpass: Pack öffnen zählt nur noch für die Tages-Mission (V7.9)
     await reportMissionEvent('openPack');
     // Sammelalbum: alle gezogenen Spieler als „besessen" merken (V7.2)
     await markSeen(entries.map((e) => e.pool.name));
@@ -712,7 +711,6 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (levelPoints < cost) return 'points';
     await playerRepo.setPlayerLevel(owned.id, owned.level + 1);
     await get().addLevelPoints(-cost);
-    await addPassPoints(10); // Saisonpass: Spieler-Upgrade (V7.7)
     set({ players: await playerRepo.getOwnedPlayers() });
     return 'ok';
   },
@@ -845,8 +843,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     await get().addCoins(-price);
     await playerRepo.addOwnedPlayer(poolPlayer.id);
     await markSeen([poolPlayer.name]);
-    // Saisonpass (V7.7): Marktspieler gekauft
-    await addPassPoints(15);
+    // Saisonpass: Marktkauf zählt nur noch für die Tages-Mission (V7.9)
     await reportMissionEvent('marketBuy');
     const bought = [...marketBought, index];
     const today = marketSeed();
