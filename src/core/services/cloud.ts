@@ -110,25 +110,36 @@ export async function fetchLeaderboard(
   );
   const { data, error } = await Promise.race([query, timeout]);
   if (error || !data) return [];
-  return data.map((c) => {
-    const squad = (c.squad ?? []) as CloudSquadPlayer[];
-    let bestPlayer: string | null = null;
-    let bestOverall = 0;
-    for (const p of squad) {
-      const ovr = overall(p);
-      if (ovr > bestOverall) {
-        bestOverall = ovr;
-        bestPlayer = p.name;
+  // Defensiv (V7.9.1): ein einziger fehlerhafter Klub-Datensatz (z. B. ein alt
+  // synchronisierter Kader) darf NICHT die ganze Bestenliste zum Absturz
+  // bringen. Jeder Klub wird einzeln abgesichert; kippt einer, wird er
+  // uebersprungen statt alles zu verwerfen.
+  const out: LeaderboardEntry[] = [];
+  for (const c of data) {
+    try {
+      const squad = Array.isArray(c.squad) ? (c.squad as CloudSquadPlayer[]) : [];
+      let bestPlayer: string | null = null;
+      let bestOverall = 0;
+      for (const p of squad) {
+        let ovr = 0;
+        try { ovr = overall(p); } catch { ovr = 0; }
+        if (ovr > bestOverall) {
+          bestOverall = ovr;
+          bestPlayer = p.name;
+        }
       }
+      out.push({
+        id: c.id as string,
+        clubName: c.club_name as string,
+        crest: c.crest as string,
+        division: c.division as number,
+        strength: c.strength as number,
+        bestPlayer,
+        bestOverall,
+      });
+    } catch {
+      /* fehlerhaften Klub-Datensatz ueberspringen */
     }
-    return {
-      id: c.id as string,
-      clubName: c.club_name as string,
-      crest: c.crest as string,
-      division: c.division as number,
-      strength: c.strength as number,
-      bestPlayer,
-      bestOverall,
-    };
-  });
+  }
+  return out;
 }

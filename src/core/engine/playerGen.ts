@@ -95,13 +95,16 @@ function clamp(v: number, min: number, max: number): number {
 }
 
 export function overallOf(attrs: Attributes, position: Position): number {
-  const w = POSITION_WEIGHTS[position];
+  // Fallback fuer unbekannte/alte Positionen (z. B. 'ABW' aus Cloud-Klubs, die
+  // vor der Positions-Migration synchronisiert wurden) -> Mittelfeld-Profil,
+  // statt an POSITION_WEIGHTS[undefined] abzustuerzen (V7.9.1).
+  const w = POSITION_WEIGHTS[position] ?? POSITION_WEIGHTS.MF;
   return Math.round(
-    attrs.tempo * w.tempo +
-      attrs.technik * w.technik +
-      attrs.abschluss * w.abschluss +
-      attrs.verteidigung * w.verteidigung +
-      attrs.kondition * w.kondition,
+    (attrs?.tempo ?? 0) * w.tempo +
+      (attrs?.technik ?? 0) * w.technik +
+      (attrs?.abschluss ?? 0) * w.abschluss +
+      (attrs?.verteidigung ?? 0) * w.verteidigung +
+      (attrs?.kondition ?? 0) * w.kondition,
   );
 }
 
